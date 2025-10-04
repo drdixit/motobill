@@ -178,6 +178,13 @@ Before writing any database code, use these commands to understand the schema:
 - `read_query` - Execute a SELECT query on the SQLite database
 - `write_query` - Execute an INSERT, UPDATE, or DELETE query on the SQLite database
 
+### Soft Delete Policy
+**CRITICAL:**We never delete records physically from the database. Always use soft delete pattern.
+All tables must include:
+```
+is_deleted INTEGER NOT NULL DEFAULT 0  -- 0: active, 1: deleted
+```
+
 ### SQL Query Patterns
 
 ```dart
@@ -196,8 +203,20 @@ await _db.rawUpdate(
   [name, id],
 );
 
-// DELETE
+// ❌ NEVER do this - Physical delete
 await _db.rawDelete('DELETE FROM users WHERE id = ?', [id]);
+
+// ✅ Always do this - Soft delete
+await _db.rawUpdate(
+  'UPDATE users SET is_deleted = 1 WHERE id = ?',
+  [id],
+);
+
+// Restore a soft-deleted record
+await _db.rawUpdate(
+  'UPDATE users SET is_deleted = 0 WHERE id = ?',
+  [id],
+);
 
 // JOIN
 final result = await _db.rawQuery(
