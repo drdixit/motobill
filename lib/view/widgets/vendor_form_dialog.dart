@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
-import '../../../model/customer.dart';
+import '../../../model/vendor.dart';
 
-class CustomerFormDialog extends StatefulWidget {
-  final Customer? customer; // Null for create, non-null for edit
-  final Function(Customer) onSave;
+class VendorFormDialog extends StatefulWidget {
+  final Vendor? vendor; // Null for create, non-null for edit
+  final Function(Vendor) onSave;
 
-  const CustomerFormDialog({super.key, this.customer, required this.onSave});
+  const VendorFormDialog({super.key, this.vendor, required this.onSave});
 
   @override
-  State<CustomerFormDialog> createState() => _CustomerFormDialogState();
+  State<VendorFormDialog> createState() => _VendorFormDialogState();
 }
 
-class _CustomerFormDialogState extends State<CustomerFormDialog> {
+class _VendorFormDialogState extends State<VendorFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _legalNameController;
@@ -30,33 +30,27 @@ class _CustomerFormDialogState extends State<CustomerFormDialog> {
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.customer?.name ?? '');
+    _nameController = TextEditingController(text: widget.vendor?.name ?? '');
     _legalNameController = TextEditingController(
-      text: widget.customer?.legalName ?? '',
+      text: widget.vendor?.legalName ?? '',
     );
-    _phoneController = TextEditingController(
-      text: widget.customer?.phone ?? '',
-    );
-    _emailController = TextEditingController(
-      text: widget.customer?.email ?? '',
-    );
+    _phoneController = TextEditingController(text: widget.vendor?.phone ?? '');
+    _emailController = TextEditingController(text: widget.vendor?.email ?? '');
     _gstNumberController = TextEditingController(
-      text: widget.customer?.gstNumber ?? '',
+      text: widget.vendor?.gstNumber ?? '',
     );
     _addressLine1Controller = TextEditingController(
-      text: widget.customer?.addressLine1 ?? '',
+      text: widget.vendor?.addressLine1 ?? '',
     );
     _addressLine2Controller = TextEditingController(
-      text: widget.customer?.addressLine2 ?? '',
+      text: widget.vendor?.addressLine2 ?? '',
     );
-    _cityController = TextEditingController(text: widget.customer?.city ?? '');
-    _stateController = TextEditingController(
-      text: widget.customer?.state ?? '',
-    );
+    _cityController = TextEditingController(text: widget.vendor?.city ?? '');
+    _stateController = TextEditingController(text: widget.vendor?.state ?? '');
     _pincodeController = TextEditingController(
-      text: widget.customer?.pincode ?? '',
+      text: widget.vendor?.pincode ?? '',
     );
-    _isEnabled = widget.customer?.isEnabled ?? true;
+    _isEnabled = widget.vendor?.isEnabled ?? true;
   }
 
   @override
@@ -76,8 +70,8 @@ class _CustomerFormDialogState extends State<CustomerFormDialog> {
 
   void _handleSave() {
     if (_formKey.currentState!.validate()) {
-      final customer = Customer(
-        id: widget.customer?.id,
+      final vendor = Vendor(
+        id: widget.vendor?.id,
         name: _nameController.text.trim(),
         legalName: _legalNameController.text.trim().isEmpty
             ? null
@@ -108,7 +102,7 @@ class _CustomerFormDialogState extends State<CustomerFormDialog> {
             : _pincodeController.text.trim(),
         isEnabled: _isEnabled,
       );
-      widget.onSave(customer);
+      widget.onSave(vendor);
     }
   }
 
@@ -131,7 +125,7 @@ class _CustomerFormDialogState extends State<CustomerFormDialog> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  widget.customer == null ? 'New Customer' : 'Edit Customer',
+                  widget.vendor == null ? 'New Vendor' : 'Edit Vendor',
                   style: TextStyle(
                     fontSize: AppSizes.fontXXL,
                     fontWeight: FontWeight.w600,

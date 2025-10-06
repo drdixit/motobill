@@ -119,9 +119,10 @@ class CustomersScreen extends ConsumerWidget {
     List<Customer> customers,
   ) {
     return ListView.separated(
-      padding: const EdgeInsets.all(AppSizes.paddingM),
+      padding: const EdgeInsets.all(AppSizes.paddingL),
       itemCount: customers.length,
-      separatorBuilder: (context, index) => const Divider(height: 1),
+      separatorBuilder: (context, index) =>
+          const SizedBox(height: AppSizes.paddingM),
       itemBuilder: (context, index) {
         final customer = customers[index];
         return _buildCustomerItem(context, ref, customer);
@@ -135,15 +136,11 @@ class CustomersScreen extends ConsumerWidget {
     Customer customer,
   ) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSizes.paddingM,
-        vertical: AppSizes.paddingM,
-      ),
+      padding: const EdgeInsets.all(AppSizes.paddingM),
       decoration: BoxDecoration(
-        color: customer.isEnabled
-            ? AppColors.background
-            : AppColors.backgroundSecondary,
-        borderRadius: BorderRadius.circular(AppSizes.radiusS),
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(AppSizes.radiusM),
+        border: Border.all(color: AppColors.divider),
       ),
       child: Row(
         children: [
@@ -152,55 +149,50 @@ class CustomersScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // First line: Name (legal_name)
+                // First line: Name and Legal Name
                 Text(
-                  customer.legalName ?? customer.name,
+                  customer.legalName != null &&
+                          customer.legalName != customer.name
+                      ? '${customer.name} (${customer.legalName})'
+                      : customer.legalName ?? customer.name,
                   style: TextStyle(
                     fontSize: AppSizes.fontL,
                     fontWeight: FontWeight.w600,
-                    color: customer.isEnabled
-                        ? AppColors.textPrimary
-                        : AppColors.textSecondary,
+                    color: AppColors.textPrimary,
                     fontFamily: 'Roboto',
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: AppSizes.paddingXS),
                 // Second line: GST number and mobile
                 Row(
                   children: [
                     if (customer.gstNumber != null) ...[
-                      Icon(
-                        Icons.business,
-                        size: 14,
-                        color: AppColors.textSecondary,
-                      ),
-                      const SizedBox(width: 4),
                       Text(
-                        customer.gstNumber!,
+                        'GST: ${customer.gstNumber}',
                         style: TextStyle(
-                          fontSize: AppSizes.fontS,
+                          fontSize: AppSizes.fontM,
                           color: AppColors.textSecondary,
                           fontFamily: 'Roboto',
                         ),
                       ),
-                      const SizedBox(width: AppSizes.paddingM),
+                      if (customer.phone != null) ...[
+                        const SizedBox(width: AppSizes.paddingM),
+                        Text(
+                          '•',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(width: AppSizes.paddingM),
+                      ],
                     ],
-                    if (customer.phone != null) ...[
-                      Icon(
-                        Icons.phone,
-                        size: 14,
-                        color: AppColors.textSecondary,
-                      ),
-                      const SizedBox(width: 4),
+                    if (customer.phone != null)
                       Text(
                         customer.phone!,
                         style: TextStyle(
-                          fontSize: AppSizes.fontS,
+                          fontSize: AppSizes.fontM,
                           color: AppColors.textSecondary,
                           fontFamily: 'Roboto',
                         ),
                       ),
-                    ],
                   ],
                 ),
               ],
@@ -221,7 +213,7 @@ class CustomersScreen extends ConsumerWidget {
               IconButton(
                 icon: Icon(
                   customer.isEnabled ? Icons.toggle_on : Icons.toggle_off,
-                  size: 28,
+                  size: 36,
                 ),
                 color: customer.isEnabled
                     ? AppColors.success
