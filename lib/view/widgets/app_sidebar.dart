@@ -27,7 +27,7 @@ class AppSidebar extends StatelessWidget {
       child: Column(
         children: [
           _buildHeader(),
-          Divider(color: AppColors.divider, height: 1),
+          Divider(color: AppColors.sidebarBorder, height: 1),
           Expanded(
             child: ListView(
               padding: EdgeInsets.zero,
@@ -39,6 +39,11 @@ class AppSidebar extends StatelessWidget {
                 ),
                 _buildMenuItem(
                   index: 1,
+                  icon: Icons.receipt_long,
+                  title: 'Transactions',
+                ),
+                _buildMenuItem(
+                  index: 2,
                   icon: Icons.settings,
                   title: 'Masters',
                 ),
@@ -55,7 +60,9 @@ class AppSidebar extends StatelessWidget {
       height: AppSizes.appBarHeight,
       padding: const EdgeInsets.symmetric(horizontal: AppSizes.paddingM),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.divider, width: 1)),
+        border: Border(
+          bottom: BorderSide(color: AppColors.sidebarBorder, width: 0.5),
+        ),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -65,7 +72,8 @@ class AppSidebar extends StatelessWidget {
             style: TextStyle(
               color: AppColors.sidebarText,
               fontSize: AppSizes.fontXL,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'Roboto',
             ),
           ),
           IconButton(
@@ -100,7 +108,7 @@ class AppSidebar extends StatelessWidget {
                 : AppColors.transparent,
             border: Border(
               left: BorderSide(
-                color: isSelected ? AppColors.black : AppColors.transparent,
+                color: isSelected ? AppColors.primary : AppColors.transparent,
                 width: 3,
               ),
             ),
@@ -109,20 +117,17 @@ class AppSidebar extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                color: isSelected
-                    ? AppColors.sidebarTextSelected
-                    : AppColors.sidebarText,
+                color: isSelected ? AppColors.primary : AppColors.sidebarText,
                 size: AppSizes.iconM,
               ),
               const SizedBox(width: AppSizes.paddingM),
               Text(
                 title,
                 style: TextStyle(
-                  color: isSelected
-                      ? AppColors.sidebarTextSelected
-                      : AppColors.sidebarText,
+                  color: isSelected ? AppColors.primary : AppColors.sidebarText,
                   fontSize: AppSizes.fontL,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  fontFamily: 'Roboto',
                 ),
               ),
             ],

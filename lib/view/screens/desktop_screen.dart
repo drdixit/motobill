@@ -23,8 +23,9 @@ class DesktopScreen extends StatelessWidget {
               'Desktop Screen',
               style: TextStyle(
                 fontSize: AppSizes.fontXXL,
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w600,
                 color: AppColors.textPrimary,
+                fontFamily: 'Roboto',
               ),
             ),
             const SizedBox(height: AppSizes.paddingM),
@@ -33,6 +34,7 @@ class DesktopScreen extends StatelessWidget {
               style: TextStyle(
                 fontSize: AppSizes.fontL,
                 color: AppColors.textSecondary,
+                fontFamily: 'Roboto',
               ),
             ),
           ],
