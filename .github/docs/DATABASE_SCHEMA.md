@@ -1009,7 +1009,7 @@ Line items for bills/invoices
 | uqc_code | TEXT | | | UQC code (snapshot) |
 | cost_price | REAL | NOT NULL | | Cost price per unit |
 | selling_price | REAL | NOT NULL | | Selling price per unit |
-| quantity | REAL | NOT NULL | | Quantity sold |
+| quantity | INTEGER | NOT NULL | | Quantity sold |
 | subtotal | REAL | NOT NULL | | Line item subtotal (selling_price × quantity) |
 | cgst_rate | REAL | NOT NULL | 0 | Central GST rate (%) |
 | sgst_rate | REAL | NOT NULL | 0 | State GST rate (%) |
@@ -1219,7 +1219,7 @@ Line items for purchase orders
 | hsn_code | TEXT | | | HSN code (snapshot) |
 | uqc_code | TEXT | | | UQC code (snapshot) |
 | cost_price | REAL | NOT NULL | | Cost price per unit |
-| quantity | REAL | NOT NULL | | Quantity purchased |
+| quantity | INTEGER | NOT NULL | | Quantity purchased |
 | subtotal | REAL | NOT NULL | | Line item subtotal (cost_price × quantity) |
 | cgst_rate | REAL | NOT NULL | 0 | Central GST rate (%) |
 | sgst_rate | REAL | NOT NULL | 0 | State GST rate (%) |
@@ -1386,8 +1386,8 @@ Tracks inventory batches from purchases for FIFO (First In First Out) stock mana
 | product_id | INTEGER | NOT NULL, FOREIGN KEY | | References products(id) |
 | purchase_item_id | INTEGER | NOT NULL, FOREIGN KEY | | References purchase_items(id) - source of this batch |
 | batch_number | TEXT | NOT NULL, UNIQUE | | Unique batch identifier (e.g., BATCH-EOF-001) |
-| quantity_received | REAL | NOT NULL | | Total quantity received in this batch |
-| quantity_remaining | REAL | NOT NULL | | Remaining quantity available for sale |
+| quantity_received | INTEGER | NOT NULL | | Total quantity received in this batch |
+| quantity_remaining | INTEGER | NOT NULL | | Remaining quantity available for sale |
 | cost_price | REAL | NOT NULL | | Cost price per unit for this batch |
 | is_deleted | INTEGER | NOT NULL | 0 | 0 = active, 1 = soft deleted |
 | created_at | TEXT | NOT NULL | datetime('now') | Timestamp when batch was created (ISO 8601 format) |
@@ -1533,7 +1533,7 @@ Records which batches were used for each sale (bill item) to track COGS and inve
 | id | INTEGER | PRIMARY KEY AUTOINCREMENT | | Auto-incrementing ID |
 | bill_item_id | INTEGER | NOT NULL, FOREIGN KEY | | References bill_items(id) |
 | stock_batch_id | INTEGER | NOT NULL, FOREIGN KEY | | References stock_batches(id) |
-| quantity_used | REAL | NOT NULL | | Quantity used from this batch for the sale |
+| quantity_used | INTEGER | NOT NULL | | Quantity used from this batch for the sale |
 | cost_price | REAL | NOT NULL | | Cost price per unit at the time of sale |
 | created_at | TEXT | NOT NULL | datetime('now') | Timestamp when usage was recorded (ISO 8601 format) |
 
@@ -1791,7 +1791,7 @@ Line items for credit notes with full GST breakdown (snapshot of returned items)
 | hsn_code | TEXT | | | HSN/SAC code (snapshot) |
 | uqc_code | TEXT | | | Unit of measurement code (snapshot) |
 | selling_price | REAL | NOT NULL | | Price per unit |
-| quantity | REAL | NOT NULL | | Quantity returned |
+| quantity | INTEGER | NOT NULL | | Quantity returned |
 | subtotal | REAL | NOT NULL | | quantity × selling_price |
 | cgst_rate | REAL | NOT NULL | 0 | CGST rate percentage |
 | sgst_rate | REAL | NOT NULL | 0 | SGST rate percentage |
@@ -1904,7 +1904,7 @@ Tracks which stock batches received returned inventory from credit notes.
 | id | INTEGER | PRIMARY KEY AUTOINCREMENT | | Auto-incrementing ID |
 | credit_note_item_id | INTEGER | NOT NULL, FOREIGN KEY | | References credit_note_items(id) |
 | stock_batch_id | INTEGER | NOT NULL, FOREIGN KEY | | References stock_batches(id) - batch receiving return |
-| quantity_returned | REAL | NOT NULL | | Quantity returned to this batch |
+| quantity_returned | INTEGER | NOT NULL | | Quantity returned to this batch |
 | cost_price | REAL | NOT NULL | | Original cost price of the returned items |
 | created_at | TEXT | NOT NULL | datetime('now') | Timestamp when return was recorded (ISO 8601 format) |
 
@@ -2104,7 +2104,7 @@ Line items for debit notes with full GST breakdown (snapshot of returned items).
 | hsn_code | TEXT | | | HSN/SAC code (snapshot) |
 | uqc_code | TEXT | | | Unit of measurement code (snapshot) |
 | cost_price | REAL | NOT NULL | | Cost price per unit |
-| quantity | REAL | NOT NULL | | Quantity returned to vendor |
+| quantity | INTEGER | NOT NULL | | Quantity returned to vendor |
 | subtotal | REAL | NOT NULL | | quantity × cost_price |
 | cgst_rate | REAL | NOT NULL | 0 | CGST rate percentage |
 | sgst_rate | REAL | NOT NULL | 0 | SGST rate percentage |
@@ -2234,7 +2234,7 @@ Tracks which stock batches had inventory removed due to returns to vendors.
 | id | INTEGER | PRIMARY KEY AUTOINCREMENT | | Auto-incrementing ID |
 | debit_note_item_id | INTEGER | NOT NULL, FOREIGN KEY | | References debit_note_items(id) |
 | stock_batch_id | INTEGER | NOT NULL, FOREIGN KEY | | References stock_batches(id) - batch losing inventory |
-| quantity_returned | REAL | NOT NULL | | Quantity returned to vendor from this batch |
+| quantity_returned | INTEGER | NOT NULL | | Quantity returned to vendor from this batch |
 | cost_price | REAL | NOT NULL | | Original cost price of the returned items |
 | created_at | TEXT | NOT NULL | datetime('now') | Timestamp when return was recorded (ISO 8601 format) |
 
