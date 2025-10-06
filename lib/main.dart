@@ -5,6 +5,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'core/constants/app_colors.dart';
 import 'view/widgets/app_sidebar.dart';
 import 'view/screens/desktop_screen.dart';
+import 'view/screens/transactions_screen.dart';
 import 'view/screens/masters_screen.dart';
 
 void main() {
@@ -32,10 +33,11 @@ class MyApp extends StatelessWidget {
         ),
         scaffoldBackgroundColor: AppColors.background,
         appBarTheme: AppBarTheme(
-          backgroundColor: AppColors.surface,
+          backgroundColor: AppColors.appBarBackground,
           foregroundColor: AppColors.textPrimary,
           elevation: 0,
         ),
+        fontFamily: 'Roboto',
         useMaterial3: true,
       ),
       home: const HomeScreen(),
@@ -72,6 +74,8 @@ class _HomeScreenState extends State<HomeScreen> {
       case 0:
         return const DesktopScreen();
       case 1:
+        return const TransactionsScreen();
+      case 2:
         return const MastersScreen();
       default:
         return const DesktopScreen();
@@ -119,7 +123,9 @@ class _HomeScreenState extends State<HomeScreen> {
       height: 56,
       decoration: BoxDecoration(
         color: AppColors.appBarBackground,
-        border: Border(bottom: BorderSide(color: AppColors.border, width: 1)),
+        border: Border(
+          bottom: BorderSide(color: AppColors.appBarBorder, width: 0.5),
+        ),
       ),
       child: Row(
         children: [
@@ -132,7 +138,8 @@ class _HomeScreenState extends State<HomeScreen> {
             style: TextStyle(
               color: AppColors.appBarText,
               fontSize: 20,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'Roboto',
             ),
           ),
         ],

@@ -1,42 +1,33 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
-import 'masters/customers_screen.dart';
-import 'masters/vendors_screen.dart';
-import 'masters/main_categories_screen.dart';
-import 'masters/sub_categories_screen.dart';
-import 'masters/products_screen.dart';
-import 'masters/vehicles_screen.dart';
-import 'masters/manufacturers_screen.dart';
+import 'transactions/sales_screen.dart';
+import 'transactions/sales_returns_screen.dart';
+import 'transactions/purchase_screen.dart';
+import 'transactions/purchase_returns_screen.dart';
 
-class MastersScreen extends StatefulWidget {
-  const MastersScreen({super.key});
+class TransactionsScreen extends StatefulWidget {
+  const TransactionsScreen({super.key});
 
   @override
-  State<MastersScreen> createState() => _MastersScreenState();
+  State<TransactionsScreen> createState() => _TransactionsScreenState();
 }
 
-class _MastersScreenState extends State<MastersScreen>
+class _TransactionsScreenState extends State<TransactionsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   final List<String> _tabs = [
-    'Customers',
-    'Vendors',
-    'Main Categories',
-    'Sub Categories',
-    'Products',
-    'Vehicles',
-    'Manufacturers',
+    'Sales',
+    'Sales Returns (Credit Notes)',
+    'Purchase',
+    'Purchase Return (Debit Notes)',
   ];
 
   final List<Widget> _tabScreens = [
-    const CustomersScreen(),
-    const VendorsScreen(),
-    const MainCategoriesScreen(),
-    const SubCategoriesScreen(),
-    const ProductsScreen(),
-    const VehiclesScreen(),
-    const ManufacturersScreen(),
+    const SalesScreen(),
+    const SalesReturnsScreen(),
+    const PurchaseScreen(),
+    const PurchaseReturnsScreen(),
   ];
 
   @override
