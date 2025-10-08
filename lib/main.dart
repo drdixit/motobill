@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'core/constants/app_colors.dart';
 import 'view/widgets/app_sidebar.dart';
-import 'view/screens/desktop_screen.dart';
+import 'view/screens/dashboard_screen.dart';
 import 'view/screens/transactions_screen.dart';
 import 'view/screens/masters_screen.dart';
 
@@ -72,13 +72,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _getSelectedScreen() {
     switch (_selectedIndex) {
       case 0:
-        return const DesktopScreen();
+        return const DashboardScreen();
       case 1:
         return const TransactionsScreen();
       case 2:
         return const MastersScreen();
       default:
-        return const DesktopScreen();
+        return const DashboardScreen();
     }
   }
 
