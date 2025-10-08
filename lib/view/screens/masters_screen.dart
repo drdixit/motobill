@@ -5,6 +5,7 @@ import 'masters/vendors_screen.dart';
 import 'masters/main_categories_screen.dart';
 import 'masters/sub_categories_screen.dart';
 import 'masters/products_screen.dart';
+import 'masters/hsn_codes_screen.dart';
 import 'masters/vehicles_screen.dart';
 import 'masters/manufacturers_screen.dart';
 
@@ -25,6 +26,7 @@ class _MastersScreenState extends State<MastersScreen>
     'Main Categories',
     'Sub Categories',
     'Products',
+    'HSN Codes',
     'Vehicles',
     'Manufacturers',
   ];
@@ -35,6 +37,7 @@ class _MastersScreenState extends State<MastersScreen>
     const MainCategoriesScreen(),
     const SubCategoriesScreen(),
     const ProductsScreen(),
+    const HsnCodesScreen(),
     const VehiclesScreen(),
     const ManufacturersScreen(),
   ];
