@@ -104,7 +104,7 @@ class GstRatesScreen extends ConsumerWidget {
     final hsnDescription = gstRateData['hsn_description'] as String?;
 
     return Container(
-      padding: const EdgeInsets.all(AppSizes.paddingM),
+      padding: const EdgeInsets.all(AppSizes.paddingS),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(AppSizes.radiusM),
@@ -112,68 +112,66 @@ class GstRatesScreen extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          // Icon
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: AppColors.success.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(AppSizes.radiusS),
-            ),
-            child: Icon(Icons.receipt_long, size: 32, color: AppColors.success),
-          ),
-          const SizedBox(width: AppSizes.paddingM),
           // GST Rate info
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // HSN Code line
-                Text(
-                  hsnCode ?? 'N/A',
-                  style: TextStyle(
-                    fontSize: AppSizes.fontL,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                    fontFamily: 'Roboto',
-                  ),
-                ),
-                const SizedBox(height: AppSizes.paddingXS),
-                // Description
-                if (hsnDescription != null)
-                  Text(
-                    hsnDescription,
-                    style: TextStyle(
-                      fontSize: AppSizes.fontM,
-                      color: AppColors.textSecondary,
-                      fontFamily: 'Roboto',
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  // HSN Code - Fixed width
+                  SizedBox(
+                    width: 100,
+                    child: Text(
+                      hsnCode ?? 'N/A',
+                      style: TextStyle(
+                        fontSize: AppSizes.fontL,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                        fontFamily: 'Roboto',
+                      ),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                const SizedBox(height: AppSizes.paddingXS),
-                // GST rates
-                Wrap(
-                  spacing: AppSizes.paddingM,
-                  children: [
-                    _buildRateChip('CGST', gstRate.cgst),
-                    _buildRateChip('SGST', gstRate.sgst),
-                    _buildRateChip('IGST', gstRate.igst),
-                    if (gstRate.utgst > 0)
-                      _buildRateChip('UTGST', gstRate.utgst),
-                  ],
-                ),
-                const SizedBox(height: AppSizes.paddingXS),
-                // Effective dates
-                Text(
-                  'Effective: ${_formatDate(gstRate.effectiveFrom)}${gstRate.effectiveTo != null ? ' to ${_formatDate(gstRate.effectiveTo!)}' : ' onwards'}',
-                  style: TextStyle(
-                    fontSize: AppSizes.fontS,
-                    color: AppColors.textSecondary,
-                    fontFamily: 'Roboto',
+                  const SizedBox(width: AppSizes.paddingS),
+                  // CGST
+                  _buildRateChip('CGST', gstRate.cgst),
+                  const SizedBox(width: AppSizes.paddingS),
+                  // SGST
+                  _buildRateChip('SGST', gstRate.sgst),
+                  const SizedBox(width: AppSizes.paddingS),
+                  // IGST
+                  _buildRateChip('IGST', gstRate.igst),
+                  const SizedBox(width: AppSizes.paddingS),
+                  // UTGST
+                  _buildRateChip('UTGST', gstRate.utgst),
+                  const SizedBox(width: AppSizes.paddingL),
+                  // Description - Flexible
+                  Expanded(
+                    child: Text(
+                      hsnDescription ?? '',
+                      style: TextStyle(
+                        fontSize: AppSizes.fontM,
+                        color: AppColors.textSecondary,
+                        fontFamily: 'Roboto',
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: AppSizes.paddingM),
+                  // Effective date - Fixed width
+                  SizedBox(
+                    width: 200,
+                    child: Text(
+                      'Effective ${_formatDate(gstRate.effectiveFrom)} onwards',
+                      style: TextStyle(
+                        fontSize: AppSizes.fontS,
+                        color: AppColors.textSecondary,
+                        fontFamily: 'Roboto',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           // Action buttons
