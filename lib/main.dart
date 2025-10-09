@@ -7,6 +7,7 @@ import 'view/widgets/app_sidebar.dart';
 import 'view/screens/dashboard_screen.dart';
 import 'view/screens/transactions_screen.dart';
 import 'view/screens/masters_screen.dart';
+import 'view/screens/settings_screen.dart';
 
 void main() {
   // Initialize sqflite for desktop platforms
@@ -77,6 +78,8 @@ class _HomeScreenState extends State<HomeScreen> {
         return const TransactionsScreen();
       case 2:
         return const MastersScreen();
+      case 3:
+        return const SettingsScreen();
       default:
         return const DashboardScreen();
     }
