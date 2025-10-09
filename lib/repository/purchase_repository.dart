@@ -6,20 +6,44 @@ class PurchaseRepository {
 
   PurchaseRepository(this._db);
 
-  // Generate next purchase number
+  // Generate next purchase number in format: DDMMYYSSSSSS
+  // Example: 20122500001 for 20 Dec 2025, first purchase
+  // Maximum 99999 purchases per day (00001 to 99999)
   Future<String> generatePurchaseNumber() async {
+    final now = DateTime.now();
+    final day = now.day.toString().padLeft(2, '0');
+    final month = now.month.toString().padLeft(2, '0');
+    final year = now.year.toString().substring(2); // Last 2 digits of year
+    final datePrefix = '$day$month$year'; // DDMMYY
+
+    // Get the last purchase number for today
     final result = await _db.rawQuery(
-      'SELECT purchase_number FROM purchases WHERE is_deleted = 0 ORDER BY id DESC LIMIT 1',
+      '''SELECT purchase_number FROM purchases
+         WHERE purchase_number LIKE ?
+         AND is_deleted = 0
+         ORDER BY purchase_number DESC LIMIT 1''',
+      ['$datePrefix%'],
     );
 
-    if (result.isEmpty) {
-      return 'PUR-0001';
+    int sequenceNumber = 1;
+
+    if (result.isNotEmpty) {
+      final lastNumber = result.first['purchase_number'] as String;
+      // Extract the last 5 digits (sequence number)
+      final lastSequence = int.parse(lastNumber.substring(6));
+
+      // Check if we've reached the daily limit
+      if (lastSequence >= 99999) {
+        throw Exception(
+          'Daily purchase limit reached (99,999). Please come back tomorrow to create more purchases.',
+        );
+      }
+
+      sequenceNumber = lastSequence + 1;
     }
 
-    final lastNumber = result.first['purchase_number'] as String;
-    final numPart = int.parse(lastNumber.split('-').last);
-    final newNum = numPart + 1;
-    return 'PUR-${newNum.toString().padLeft(4, '0')}';
+    // Format: DDMMYYSSSSSS (6 digits date + 5 digits sequence)
+    return '$datePrefix${sequenceNumber.toString().padLeft(5, '0')}';
   }
 
   // Create purchase with items (transaction)

@@ -114,64 +114,61 @@ class GstRatesScreen extends ConsumerWidget {
         children: [
           // GST Rate info
           Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  // HSN Code - Fixed width
-                  SizedBox(
-                    width: 100,
-                    child: Text(
-                      hsnCode ?? 'N/A',
-                      style: TextStyle(
-                        fontSize: AppSizes.fontL,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                        fontFamily: 'Roboto',
-                      ),
+            child: Row(
+              children: [
+                // HSN Code - Fixed width
+                SizedBox(
+                  width: 100,
+                  child: Text(
+                    hsnCode ?? 'N/A',
+                    style: TextStyle(
+                      fontSize: AppSizes.fontL,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                      fontFamily: 'Roboto',
                     ),
                   ),
-                  const SizedBox(width: AppSizes.paddingS),
-                  // CGST
-                  _buildRateChip('CGST', gstRate.cgst),
-                  const SizedBox(width: AppSizes.paddingS),
-                  // SGST
-                  _buildRateChip('SGST', gstRate.sgst),
-                  const SizedBox(width: AppSizes.paddingS),
-                  // IGST
-                  _buildRateChip('IGST', gstRate.igst),
-                  const SizedBox(width: AppSizes.paddingS),
-                  // UTGST
-                  _buildRateChip('UTGST', gstRate.utgst),
-                  const SizedBox(width: AppSizes.paddingL),
-                  // Description - Flexible
-                  Expanded(
-                    child: Text(
-                      hsnDescription ?? '',
-                      style: TextStyle(
-                        fontSize: AppSizes.fontM,
-                        color: AppColors.textSecondary,
-                        fontFamily: 'Roboto',
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(width: AppSizes.paddingS),
+                // CGST
+                _buildRateChip('CGST', gstRate.cgst),
+                const SizedBox(width: AppSizes.paddingS),
+                // SGST
+                _buildRateChip('SGST', gstRate.sgst),
+                const SizedBox(width: AppSizes.paddingS),
+                // IGST
+                _buildRateChip('IGST', gstRate.igst),
+                const SizedBox(width: AppSizes.paddingS),
+                // UTGST
+                _buildRateChip('UTGST', gstRate.utgst),
+                const SizedBox(width: AppSizes.paddingL),
+                // Description - Flexible
+                Expanded(
+                  child: Text(
+                    hsnDescription ?? '',
+                    style: TextStyle(
+                      fontSize: AppSizes.fontM,
+                      color: AppColors.textSecondary,
+                      fontFamily: 'Roboto',
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: AppSizes.paddingM),
+                // Effective date - Fixed width
+                SizedBox(
+                  width: 200,
+                  child: Text(
+                    'Effective ${_formatDate(gstRate.effectiveFrom)} onwards',
+                    style: TextStyle(
+                      fontSize: AppSizes.fontS,
+                      color: AppColors.textSecondary,
+                      fontFamily: 'Roboto',
                     ),
                   ),
-                  const SizedBox(width: AppSizes.paddingM),
-                  // Effective date - Fixed width
-                  SizedBox(
-                    width: 200,
-                    child: Text(
-                      'Effective ${_formatDate(gstRate.effectiveFrom)} onwards',
-                      style: TextStyle(
-                        fontSize: AppSizes.fontS,
-                        color: AppColors.textSecondary,
-                        fontFamily: 'Roboto',
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
           // Action buttons

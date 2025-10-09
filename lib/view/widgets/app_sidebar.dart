@@ -35,7 +35,7 @@ class AppSidebar extends StatelessWidget {
                 _buildMenuItem(
                   index: 0,
                   icon: Icons.dashboard,
-                  title: 'Desktop',
+                  title: 'Dashboard',
                 ),
                 _buildMenuItem(
                   index: 1,
@@ -44,8 +44,13 @@ class AppSidebar extends StatelessWidget {
                 ),
                 _buildMenuItem(
                   index: 2,
-                  icon: Icons.settings,
+                  icon: Icons.category,
                   title: 'Masters',
+                ),
+                _buildMenuItem(
+                  index: 3,
+                  icon: Icons.settings,
+                  title: 'Settings',
                 ),
               ],
             ),

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_sizes.dart';
+import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_sizes.dart';
 
-class DesktopScreen extends StatelessWidget {
-  const DesktopScreen({super.key});
+class WhatsappSettingsScreen extends StatelessWidget {
+  const WhatsappSettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -13,14 +13,10 @@ class DesktopScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.dashboard,
-              size: AppSizes.iconXL * 2,
-              color: AppColors.primary,
-            ),
+            Icon(Icons.chat, size: AppSizes.iconXL * 2, color: Colors.green),
             const SizedBox(height: AppSizes.paddingL),
             Text(
-              'Desktop Screen',
+              'WhatsApp Settings',
               style: TextStyle(
                 fontSize: AppSizes.fontXXL,
                 fontWeight: FontWeight.w600,
@@ -30,12 +26,13 @@ class DesktopScreen extends StatelessWidget {
             ),
             const SizedBox(height: AppSizes.paddingM),
             Text(
-              'This is the Desktop screen - coming soon',
+              'Configure WhatsApp integration for sending invoices and notifications',
               style: TextStyle(
                 fontSize: AppSizes.fontL,
                 color: AppColors.textSecondary,
                 fontFamily: 'Roboto',
               ),
+              textAlign: TextAlign.center,
             ),
           ],
         ),

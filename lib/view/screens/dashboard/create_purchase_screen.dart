@@ -46,6 +46,16 @@ final gstRatesForPurchaseProvider = FutureProvider<List<Map<String, dynamic>>>((
   return repository.getAllGstRates();
 });
 
+final companyInfoProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
+  final db = await ref.watch(databaseProvider);
+  final result = await db.rawQuery('''
+    SELECT gst_number FROM company_info
+    WHERE is_primary = 1 AND is_deleted = 0 AND is_enabled = 1
+    LIMIT 1
+  ''');
+  return result.isNotEmpty ? result.first : null;
+});
+
 class CreatePurchaseScreen extends ConsumerStatefulWidget {
   const CreatePurchaseScreen({super.key});
 
@@ -71,6 +81,9 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
 
   List<Map<String, dynamic>> _products = [];
   List<Map<String, dynamic>> _gstRates = [];
+  List<Map<String, dynamic>> _vendors = [];
+  String? _companyGstNumber;
+  bool _isInterState = false;
   bool _dataInitialized = false;
 
   @override
@@ -92,8 +105,10 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
         PurchaseRow(
           products: _products,
           gstRates: _gstRates,
+          isInterState: _isInterState,
           onChanged: _calculateTotals,
           onDelete: _deleteRow,
+          onProductSelected: _checkAndMergeDuplicateProduct,
         ),
       );
     });
@@ -107,6 +122,134 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
         _calculateTotals();
       });
     }
+  }
+
+  void _checkAndMergeDuplicateProduct(PurchaseRow currentRow) {
+    // Defer the check to the next frame to avoid conflicts with autocomplete lifecycle
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      // Only check if current row still exists and has a product selected
+      if (!_rows.contains(currentRow) || currentRow.selectedProduct == null) {
+        return;
+      }
+
+      // Don't merge if current row is not fully valid
+      if (!currentRow.isValid()) {
+        return;
+      }
+
+      final currentProductId = currentRow.selectedProduct!['id'] as int;
+      final currentRate =
+          double.tryParse(currentRow.rateController.text) ?? 0.0;
+
+      // Extra safety check - rate must be positive
+      if (currentRate <= 0) return;
+
+      // Find other rows with same product (must exist BEFORE current row was selected)
+      PurchaseRow? rowToMergeWith;
+
+      for (int i = 0; i < _rows.length; i++) {
+        final row = _rows[i];
+
+        // Skip the current row itself
+        if (row == currentRow) continue;
+
+        // Skip if this row doesn't have a valid product selected
+        if (row.selectedProduct == null) continue;
+
+        // Check if row has same product ID
+        if (row.selectedProduct!['id'] == currentProductId) {
+          final existingRate = double.tryParse(row.rateController.text) ?? 0.0;
+
+          // Only merge if the existing row is also valid
+          if (!row.isValid()) continue;
+
+          // Check if rates and GST values are the same (merge only if identical)
+          if (existingRate == currentRate &&
+              row.cgstController.text == currentRow.cgstController.text &&
+              row.sgstController.text == currentRow.sgstController.text &&
+              row.igstController.text == currentRow.igstController.text &&
+              row.utgstController.text == currentRow.utgstController.text) {
+            rowToMergeWith = row;
+            break; // Found a match, stop searching
+          }
+        }
+      }
+
+      // If we found a row to merge with, do the merge
+      if (rowToMergeWith != null) {
+        final existingQty =
+            int.tryParse(rowToMergeWith.quantityController.text) ?? 0;
+        final currentQty =
+            int.tryParse(currentRow.quantityController.text) ?? 0;
+        final mergedQty = existingQty + currentQty;
+        final productName = currentRow.selectedProduct!['name'] as String;
+
+        // Update existing row with merged quantity
+        rowToMergeWith.quantityController.text = mergedQty.toString();
+
+        // Remove current row (the one that was just changed to duplicate)
+        setState(() {
+          _rows.remove(currentRow);
+          currentRow.dispose();
+          _calculateTotals();
+        });
+
+        // Show feedback to user
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Product "$productName" merged with existing entry. Quantity updated to $mergedQty.',
+              ),
+              backgroundColor: Colors.blue,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    });
+  }
+
+  void _checkInterStateAndUpdateRows(int? vendorId) {
+    if (vendorId == null ||
+        _companyGstNumber == null ||
+        _companyGstNumber!.length < 2) {
+      _isInterState = false;
+      return;
+    }
+
+    final vendor = _vendors.firstWhere(
+      (v) => v['id'] == vendorId,
+      orElse: () => <String, dynamic>{},
+    );
+
+    if (vendor.isEmpty) {
+      _isInterState = false;
+      return;
+    }
+
+    final vendorGstNumber = vendor['gst_number'] as String?;
+
+    // Edge cases: vendor has no GST number, assume inter-state for safety
+    if (vendorGstNumber == null ||
+        vendorGstNumber.isEmpty ||
+        vendorGstNumber.length < 2) {
+      _isInterState = true;
+    } else {
+      // Compare first 2 digits of GST numbers
+      final companyStateCode = _companyGstNumber!.substring(0, 2);
+      final vendorStateCode = vendorGstNumber.substring(0, 2);
+      _isInterState = companyStateCode != vendorStateCode;
+    }
+
+    // Update all existing rows with new inter-state status
+    for (var row in _rows) {
+      row.updateInterState(_isInterState);
+    }
+
+    _calculateTotals();
   }
 
   void _calculateTotals() {
@@ -196,6 +339,7 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
     final vendorsAsync = ref.watch(vendorListForPurchaseProvider);
     final productsAsync = ref.watch(productListForPurchaseProvider);
     final gstRatesAsync = ref.watch(gstRatesForPurchaseProvider);
+    final companyAsync = ref.watch(companyInfoProvider);
 
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
@@ -242,25 +386,33 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
           data: (products) => gstRatesAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (error, _) => Center(child: Text('Error: $error')),
-            data: (gstRates) {
-              if (!_dataInitialized) {
-                _products = products;
-                _gstRates = gstRates;
-                _dataInitialized = true;
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (_rows.isEmpty) {
-                    _addNewRow();
+            data: (gstRates) => companyAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, _) => Center(child: Text('Error: $error')),
+              data: (company) {
+                if (!_dataInitialized) {
+                  _products = products;
+                  _gstRates = gstRates;
+                  _vendors = vendors;
+                  _companyGstNumber = company?['gst_number'] as String?;
+                  _dataInitialized = true;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (_rows.isEmpty) {
+                      _addNewRow();
+                    }
+                  });
+                } else {
+                  _products = products;
+                  _gstRates = gstRates;
+                  _vendors = vendors;
+                  _companyGstNumber = company?['gst_number'] as String?;
+                  for (var row in _rows) {
+                    row.updateData(_products, _gstRates);
                   }
-                });
-              } else {
-                _products = products;
-                _gstRates = gstRates;
-                for (var row in _rows) {
-                  row.updateData(_products, _gstRates);
                 }
-              }
-              return _buildForm(vendors);
-            },
+                return _buildForm(vendors);
+              },
+            ),
           ),
         ),
       ),
@@ -279,8 +431,10 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
               color: Colors.white,
               child: ListView.builder(
                 itemCount: _rows.length,
-                itemBuilder: (context, index) =>
-                    _rows[index].buildRow(index + 1),
+                itemBuilder: (context, index) => KeyedSubtree(
+                  key: _rows[index].key,
+                  child: _rows[index].buildRow(index + 1),
+                ),
               ),
             ),
           ),
@@ -325,6 +479,7 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
               onChanged: (value) {
                 setState(() {
                   _selectedVendorId = value;
+                  _checkInterStateAndUpdateRows(value);
                 });
               },
               validator: (value) =>
@@ -358,7 +513,7 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
                   context: context,
                   initialDate: _purchaseReferenceDate ?? DateTime.now(),
                   firstDate: DateTime(2000),
-                  lastDate: DateTime(2100),
+                  lastDate: DateTime.now(),
                 );
                 if (date != null) {
                   setState(() {
@@ -403,19 +558,20 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
-          _buildHeaderCell('#', width: 40),
+          _buildHeaderCell('No', width: 40),
           _buildHeaderCell('Product Name', flex: 3),
+          _buildHeaderCell('P/N', flex: 1),
           _buildHeaderCell('HSN', flex: 1),
           _buildHeaderCell('UQC', flex: 1),
           _buildHeaderCell('Qty', flex: 1),
-          _buildHeaderCell('Rate', flex: 1),
+          _buildHeaderCell('Rate Per Unit', flex: 1),
           _buildHeaderCell('Amount', flex: 1),
-          _buildHeaderCell('CGST%', flex: 1),
-          _buildHeaderCell('SGST%', flex: 1),
-          _buildHeaderCell('IGST%', flex: 1),
-          _buildHeaderCell('UTGST%', flex: 1),
+          _buildHeaderCell('CGST%', width: 60),
+          _buildHeaderCell('SGST%', width: 60),
+          _buildHeaderCell('IGST%', width: 60),
+          _buildHeaderCell('UTGST%', width: 60),
           _buildHeaderCell('Tax Amt', flex: 1),
-          _buildHeaderCell('Total', flex: 1),
+          _buildHeaderCell('Total Amount', flex: 1),
           const SizedBox(width: 40),
         ],
       ),
@@ -464,7 +620,7 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
           const SizedBox(width: 40),
           _buildTotalRow('Tax:', _totalTax),
           const SizedBox(width: 40),
-          _buildTotalRow('Grand Total:', _grandTotal, isGrand: true),
+          _buildTotalRow('Total:', _grandTotal, isGrand: true),
         ],
       ),
     );
@@ -497,11 +653,15 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
 
 // Excel-like Purchase Row
 class PurchaseRow {
+  final UniqueKey key = UniqueKey();
   List<Map<String, dynamic>> products;
   List<Map<String, dynamic>> gstRates;
+  bool isInterState;
   final VoidCallback onChanged;
   final Function(PurchaseRow) onDelete;
+  final Function(PurchaseRow)? onProductSelected;
 
+  final TextEditingController productNameController = TextEditingController();
   final TextEditingController quantityController = TextEditingController(
     text: '1',
   );
@@ -520,8 +680,10 @@ class PurchaseRow {
   PurchaseRow({
     required this.products,
     required this.gstRates,
+    required this.isInterState,
     required this.onChanged,
     required this.onDelete,
+    this.onProductSelected,
   }) {
     quantityController.addListener(onChanged);
     rateController.addListener(onChanged);
@@ -539,7 +701,21 @@ class PurchaseRow {
     gstRates = newGstRates;
   }
 
+  void updateInterState(bool newInterState) {
+    if (isInterState != newInterState) {
+      isInterState = newInterState;
+      // Re-apply GST rates if product is selected
+      if (selectedProduct != null && hsnCode != null) {
+        final isTaxable = (selectedProduct!['is_taxable'] as int?) == 1;
+        if (isTaxable) {
+          _autoFillGstRates(hsnCode!);
+        }
+      }
+    }
+  }
+
   void dispose() {
+    productNameController.dispose();
     quantityController.dispose();
     rateController.dispose();
     cgstController.dispose();
@@ -614,10 +790,21 @@ class PurchaseRow {
     );
 
     if (matchingRate.isNotEmpty) {
-      cgstController.text = (matchingRate['cgst'] as num).toStringAsFixed(2);
-      sgstController.text = (matchingRate['sgst'] as num).toStringAsFixed(2);
-      igstController.text = (matchingRate['igst'] as num).toStringAsFixed(2);
-      utgstController.text = (matchingRate['utgst'] as num).toStringAsFixed(2);
+      if (isInterState) {
+        // Inter-state: Apply IGST only, others are 0
+        cgstController.text = '0.00';
+        sgstController.text = '0.00';
+        igstController.text = (matchingRate['igst'] as num).toStringAsFixed(2);
+        utgstController.text = '0.00';
+      } else {
+        // Intra-state: Apply CGST, SGST, UTGST, IGST is 0
+        cgstController.text = (matchingRate['cgst'] as num).toStringAsFixed(2);
+        sgstController.text = (matchingRate['sgst'] as num).toStringAsFixed(2);
+        igstController.text = '0.00';
+        utgstController.text = (matchingRate['utgst'] as num).toStringAsFixed(
+          2,
+        );
+      }
     }
   }
 
@@ -648,6 +835,12 @@ class PurchaseRow {
           ),
           // Product Name (Autocomplete)
           Expanded(flex: 3, child: _buildProductAutocomplete()),
+          // Part Number (Auto-filled, Read-only)
+          Expanded(
+            child: _buildDisplayText(
+              selectedProduct?['part_number'] as String? ?? '-',
+            ),
+          ),
           // HSN (Auto-filled)
           Expanded(child: _buildDisplayText(hsnCode ?? '-')),
           // UQC (Auto-filled)
@@ -676,36 +869,36 @@ class PurchaseRow {
               align: TextAlign.right,
             ),
           ),
-          // CGST% (Auto-filled, Editable)
-          Expanded(
-            child: _buildEditableCell(
-              controller: cgstController,
-              isNumber: true,
-              textAlign: TextAlign.center,
+          // CGST (Auto-filled, Read-only)
+          SizedBox(
+            width: 60,
+            child: _buildDisplayText(
+              cgstController.text,
+              align: TextAlign.center,
             ),
           ),
-          // SGST% (Auto-filled, Editable)
-          Expanded(
-            child: _buildEditableCell(
-              controller: sgstController,
-              isNumber: true,
-              textAlign: TextAlign.center,
+          // SGST (Auto-filled, Read-only)
+          SizedBox(
+            width: 60,
+            child: _buildDisplayText(
+              sgstController.text,
+              align: TextAlign.center,
             ),
           ),
-          // IGST% (Auto-filled, Editable)
-          Expanded(
-            child: _buildEditableCell(
-              controller: igstController,
-              isNumber: true,
-              textAlign: TextAlign.center,
+          // IGST (Auto-filled, Read-only)
+          SizedBox(
+            width: 60,
+            child: _buildDisplayText(
+              igstController.text,
+              align: TextAlign.center,
             ),
           ),
-          // UTGST% (Auto-filled, Editable)
-          Expanded(
-            child: _buildEditableCell(
-              controller: utgstController,
-              isNumber: true,
-              textAlign: TextAlign.center,
+          // UTGST (Auto-filled, Read-only)
+          SizedBox(
+            width: 60,
+            child: _buildDisplayText(
+              utgstController.text,
+              align: TextAlign.center,
             ),
           ),
           // Tax Amount (Calculated)
@@ -765,6 +958,9 @@ class PurchaseRow {
         uqcCode = option['uqc_code'] as String?;
         rateController.text = (option['cost_price'] as num).toString();
 
+        // Update the product name controller to show the selected product
+        productNameController.text = option['name'] as String;
+
         final isTaxable = (option['is_taxable'] as int?) == 1;
         if (isTaxable && hsnCode != null) {
           _autoFillGstRates(hsnCode!);
@@ -772,25 +968,45 @@ class PurchaseRow {
           cgstController.text = '0';
           sgstController.text = '0';
           igstController.text = '0';
+          utgstController.text = '0';
         }
         onChanged();
+
+        // Check for duplicates and merge if needed
+        onProductSelected?.call(this);
       },
       fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
-        return TextField(
-          controller: controller,
-          focusNode: focusNode,
-          decoration: InputDecoration(
-            border: InputBorder.none,
-            hintText: 'Search product...',
-            hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 8,
-              vertical: 12,
-            ),
+        // Sync our controller with the autocomplete's controller
+        if (productNameController.text.isNotEmpty && controller.text.isEmpty) {
+          controller.text = productNameController.text;
+        }
+
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300, width: 1),
+            borderRadius: BorderRadius.circular(4),
           ),
-          style: const TextStyle(fontSize: 14, color: Colors.black87),
-          onSubmitted: (_) => onSubmitted(),
+          child: TextField(
+            controller: controller,
+            focusNode: focusNode,
+            onChanged: (value) {
+              // Keep our controller in sync
+              productNameController.text = value;
+            },
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              hintText: 'Search product...',
+              hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 8,
+              ),
+            ),
+            style: const TextStyle(fontSize: 14, color: Colors.black87),
+            onSubmitted: (_) => onSubmitted(),
+          ),
         );
       },
     );
@@ -802,21 +1018,28 @@ class PurchaseRow {
     bool digitsOnly = false,
     TextAlign textAlign = TextAlign.left,
   }) {
-    return TextField(
-      controller: controller,
-      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-      inputFormatters: digitsOnly
-          ? [FilteringTextInputFormatter.digitsOnly]
-          : isNumber
-          ? [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))]
-          : null,
-      textAlign: textAlign,
-      decoration: const InputDecoration(
-        border: InputBorder.none,
-        isDense: true,
-        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300, width: 1),
+        borderRadius: BorderRadius.circular(4),
       ),
-      style: const TextStyle(fontSize: 14, color: Colors.black87),
+      child: TextField(
+        controller: controller,
+        keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+        inputFormatters: digitsOnly
+            ? [FilteringTextInputFormatter.digitsOnly]
+            : isNumber
+            ? [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))]
+            : null,
+        textAlign: textAlign,
+        decoration: const InputDecoration(
+          border: InputBorder.none,
+          isDense: true,
+          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        ),
+        style: const TextStyle(fontSize: 14, color: Colors.black87),
+      ),
     );
   }
 
