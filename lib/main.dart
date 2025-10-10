@@ -5,6 +5,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'core/constants/app_colors.dart';
 import 'view/widgets/app_sidebar.dart';
 import 'view/screens/dashboard_screen.dart';
+import 'view/screens/pos_screen.dart';
 import 'view/screens/transactions_screen.dart';
 import 'view/screens/masters_screen.dart';
 import 'view/screens/settings_screen.dart';
@@ -75,10 +76,12 @@ class _HomeScreenState extends State<HomeScreen> {
       case 0:
         return const DashboardScreen();
       case 1:
-        return const TransactionsScreen();
+        return const PosScreen();
       case 2:
-        return const MastersScreen();
+        return const TransactionsScreen();
       case 3:
+        return const MastersScreen();
+      case 4:
         return const SettingsScreen();
       default:
         return const DashboardScreen();

@@ -1,49 +1,1018 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_sizes.dart';
+import '../../../core/providers/database_provider.dart';
+import '../../../model/bill.dart';
+import '../../../repository/bill_repository.dart';
+import '../../../repository/customer_repository.dart';
+import '../../../repository/gst_rate_repository.dart';
 
-class CreateBillScreen extends StatelessWidget {
+// Providers
+final billRepositoryProvider = FutureProvider<BillRepository>((ref) async {
+  final db = await ref.watch(databaseProvider);
+  return BillRepository(db);
+});
+
+final customerListForBillProvider = FutureProvider<List<Map<String, dynamic>>>((
+  ref,
+) async {
+  final db = await ref.watch(databaseProvider);
+  final repository = CustomerRepository(db);
+  final customers = await repository.getAllCustomers();
+  return customers.map((c) => c.toJson()).toList();
+});
+
+final productListForBillProvider = FutureProvider<List<Map<String, dynamic>>>((
+  ref,
+) async {
+  final db = await ref.watch(databaseProvider);
+  return await db.rawQuery('''
+    SELECT p.id, p.name, p.part_number, p.cost_price, p.selling_price, p.is_taxable,
+           h.code as hsn_code, u.code as uqc_code
+    FROM products p
+    LEFT JOIN hsn_codes h ON p.hsn_code_id = h.id
+    LEFT JOIN uqcs u ON p.uqc_id = u.id
+    WHERE p.is_deleted = 0 AND p.is_enabled = 1
+    ORDER BY p.name
+  ''');
+});
+
+final gstRatesForBillProvider = FutureProvider<List<Map<String, dynamic>>>((
+  ref,
+) async {
+  final db = await ref.watch(databaseProvider);
+  final repository = GstRateRepository(db);
+  return repository.getAllGstRates();
+});
+
+final companyInfoProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
+  final db = await ref.watch(databaseProvider);
+  final result = await db.rawQuery('''
+    SELECT gst_number FROM company_info
+    WHERE is_primary = 1 AND is_deleted = 0 AND is_enabled = 1
+    LIMIT 1
+  ''');
+  return result.isNotEmpty ? result.first : null;
+});
+
+class CreateBillScreen extends ConsumerStatefulWidget {
   const CreateBillScreen({super.key});
 
   @override
+  ConsumerState<CreateBillScreen> createState() => _CreateBillScreenState();
+}
+
+class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
+  final _formKey = GlobalKey<FormState>();
+
+  int? _selectedCustomerId;
+
+  final List<BillRow> _rows = [];
+
+  double _subtotal = 0.0;
+  double _totalTax = 0.0;
+  double _grandTotal = 0.0;
+
+  bool _isSaving = false;
+
+  List<Map<String, dynamic>> _products = [];
+  List<Map<String, dynamic>> _gstRates = [];
+  List<Map<String, dynamic>> _customers = [];
+  String? _companyGstNumber;
+  bool _isInterState = false;
+  bool _dataInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    for (var row in _rows) {
+      row.dispose();
+    }
+    super.dispose();
+  }
+
+  void _addNewRow() {
+    setState(() {
+      _rows.add(
+        BillRow(
+          products: _products,
+          gstRates: _gstRates,
+          isInterState: _isInterState,
+          onChanged: _calculateTotals,
+          onDelete: _deleteRow,
+          onProductSelected: _checkAndMergeDuplicateProduct,
+        ),
+      );
+    });
+  }
+
+  void _deleteRow(BillRow row) {
+    if (_rows.length > 1) {
+      setState(() {
+        _rows.remove(row);
+        row.dispose();
+        _calculateTotals();
+      });
+    }
+  }
+
+  void _checkAndMergeDuplicateProduct(BillRow currentRow) {
+    // Defer the check to the next frame to avoid conflicts with autocomplete lifecycle
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      // Only check if current row still exists and has a product selected
+      if (!_rows.contains(currentRow) || currentRow.selectedProduct == null) {
+        return;
+      }
+
+      // Don't merge if current row is not fully valid
+      if (!currentRow.isValid()) {
+        return;
+      }
+
+      final currentProductId = currentRow.selectedProduct!['id'] as int;
+      final currentRate =
+          double.tryParse(currentRow.rateController.text) ?? 0.0;
+
+      // Extra safety check - rate must be positive
+      if (currentRate <= 0) return;
+
+      // Find other rows with same product (must exist BEFORE current row was selected)
+      BillRow? rowToMergeWith;
+
+      for (int i = 0; i < _rows.length; i++) {
+        final row = _rows[i];
+
+        // Skip the current row itself
+        if (row == currentRow) continue;
+
+        // Skip if this row doesn't have a valid product selected
+        if (row.selectedProduct == null) continue;
+
+        // Check if row has same product ID
+        if (row.selectedProduct!['id'] == currentProductId) {
+          final existingRate = double.tryParse(row.rateController.text) ?? 0.0;
+
+          // Only merge if the existing row is also valid
+          if (!row.isValid()) continue;
+
+          // Check if rates and GST values are the same (merge only if identical)
+          if (existingRate == currentRate &&
+              row.cgstController.text == currentRow.cgstController.text &&
+              row.sgstController.text == currentRow.sgstController.text &&
+              row.igstController.text == currentRow.igstController.text &&
+              row.utgstController.text == currentRow.utgstController.text) {
+            rowToMergeWith = row;
+            break; // Found a match, stop searching
+          }
+        }
+      }
+
+      // If we found a row to merge with, do the merge
+      if (rowToMergeWith != null) {
+        final existingQty =
+            int.tryParse(rowToMergeWith.quantityController.text) ?? 0;
+        final currentQty =
+            int.tryParse(currentRow.quantityController.text) ?? 0;
+        final mergedQty = existingQty + currentQty;
+        final productName = currentRow.selectedProduct!['name'] as String;
+
+        // Update existing row with merged quantity
+        rowToMergeWith.quantityController.text = mergedQty.toString();
+
+        // Remove current row (the one that was just changed to duplicate)
+        setState(() {
+          _rows.remove(currentRow);
+          currentRow.dispose();
+          _calculateTotals();
+        });
+
+        // Show feedback to user
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Product "$productName" merged with existing entry. Quantity updated to $mergedQty.',
+              ),
+              backgroundColor: Colors.blue,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    });
+  }
+
+  void _checkInterStateAndUpdateRows(int? customerId) {
+    if (customerId == null ||
+        _companyGstNumber == null ||
+        _companyGstNumber!.length < 2) {
+      _isInterState = false;
+      return;
+    }
+
+    final customer = _customers.firstWhere(
+      (c) => c['id'] == customerId,
+      orElse: () => <String, dynamic>{},
+    );
+
+    if (customer.isEmpty) {
+      _isInterState = false;
+      return;
+    }
+
+    final customerGstNumber = customer['gst_number'] as String?;
+
+    // Edge cases: customer has no GST number, assume inter-state for safety
+    if (customerGstNumber == null ||
+        customerGstNumber.isEmpty ||
+        customerGstNumber.length < 2) {
+      _isInterState = true;
+    } else {
+      // Compare first 2 digits of GST numbers
+      final companyStateCode = _companyGstNumber!.substring(0, 2);
+      final customerStateCode = customerGstNumber.substring(0, 2);
+      _isInterState = companyStateCode != customerStateCode;
+    }
+
+    // Update all existing rows with new inter-state status
+    for (var row in _rows) {
+      row.updateInterState(_isInterState);
+    }
+
+    _calculateTotals();
+  }
+
+  void _calculateTotals() {
+    double subtotal = 0.0;
+    double totalTax = 0.0;
+
+    for (var row in _rows) {
+      if (row.isValid()) {
+        subtotal += row.getSubtotal();
+        totalTax += row.getTaxAmount();
+      }
+    }
+
+    setState(() {
+      _subtotal = subtotal;
+      _totalTax = totalTax;
+      _grandTotal = subtotal + totalTax;
+    });
+  }
+
+  Future<void> _saveBill() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    final validRows = _rows.where((row) => row.isValid()).toList();
+
+    if (validRows.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please add at least one valid item'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      final repository = await ref.read(billRepositoryProvider.future);
+      final billNumber = await repository.generateBillNumber();
+
+      final bill = Bill(
+        billNumber: billNumber,
+        customerId: _selectedCustomerId!,
+        subtotal: _subtotal,
+        taxAmount: _totalTax,
+        totalAmount: _grandTotal,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final items = validRows.map((row) => row.toBillItem()).toList();
+      await repository.createBill(bill, items);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Bill $billNumber created successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final customersAsync = ref.watch(customerListForBillProvider);
+    final productsAsync = ref.watch(productListForBillProvider);
+    final gstRatesAsync = ref.watch(gstRatesForBillProvider);
+    final companyAsync = ref.watch(companyInfoProvider);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Create Bill'),
         backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.white,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        actions: [
+          if (_isSaving)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                ),
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: ElevatedButton.icon(
+                onPressed: _saveBill,
+                icon: const Icon(Icons.save, size: 18),
+                label: const Text('Save Bill'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: AppColors.primary,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                ),
+              ),
+            ),
+        ],
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.receipt_long,
-              size: AppSizes.iconXL * 2,
-              color: AppColors.primary,
-            ),
-            const SizedBox(height: AppSizes.paddingL),
-            Text(
-              'Create Bill Screen',
-              style: TextStyle(
-                fontSize: AppSizes.fontXXL,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-                fontFamily: 'Roboto',
+      body: customersAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, stack) => Center(child: Text('Error: $err')),
+        data: (customers) {
+          return productsAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (err, stack) => Center(child: Text('Error: $err')),
+            data: (products) {
+              return gstRatesAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (err, stack) => Center(child: Text('Error: $err')),
+                data: (gstRates) {
+                  return companyAsync.when(
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (err, stack) => Center(child: Text('Error: $err')),
+                    data: (company) {
+                      if (!_dataInitialized) {
+                        _products = products;
+                        _gstRates = gstRates;
+                        _customers = customers;
+                        _companyGstNumber = company?['gst_number'] as String?;
+                        _dataInitialized = true;
+                        if (_rows.isEmpty) {
+                          _addNewRow();
+                        }
+                      } else {
+                        _products = products;
+                        _gstRates = gstRates;
+                        _customers = customers;
+                        _companyGstNumber = company?['gst_number'] as String?;
+                        for (var row in _rows) {
+                          row.updateData(_products, _gstRates);
+                        }
+                      }
+                      return _buildForm(customers);
+                    },
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildForm(List<Map<String, dynamic>> customers) {
+    return Form(
+      key: _formKey,
+      child: Column(
+        children: [
+          _buildHeader(customers),
+          _buildTableHeader(),
+          Expanded(
+            child: Container(
+              color: Colors.white,
+              child: ListView.builder(
+                itemCount: _rows.length,
+                itemBuilder: (context, index) => KeyedSubtree(
+                  key: _rows[index].key,
+                  child: _rows[index].buildRow(index + 1),
+                ),
               ),
             ),
-            const SizedBox(height: AppSizes.paddingM),
-            Text(
-              'Coming Soon',
-              style: TextStyle(
-                fontSize: AppSizes.fontL,
-                color: AppColors.textSecondary,
-                fontFamily: 'Roboto',
+          ),
+          _buildFooter(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(List<Map<String, dynamic>> customers) {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: DropdownButtonFormField<int>(
+              value: _selectedCustomerId,
+              decoration: InputDecoration(
+                labelText: 'Customer *',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 16,
+                ),
+                filled: true,
+                fillColor: Colors.grey.shade50,
               ),
+              hint: const Text('Select customer'),
+              items: customers.map((customer) {
+                return DropdownMenuItem<int>(
+                  value: customer['id'] as int,
+                  child: Text(
+                    customer['name'] as String,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                );
+              }).toList(),
+              onChanged: (value) {
+                setState(() {
+                  _selectedCustomerId = value;
+                  _checkInterStateAndUpdateRows(value);
+                });
+              },
+              validator: (value) {
+                if (value == null) {
+                  return 'Please select a customer';
+                }
+                return null;
+              },
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTableHeader() {
+    return Container(
+      color: AppColors.primary,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          _buildHeaderCell('No', width: 40),
+          _buildHeaderCell('Product Name', flex: 3),
+          _buildHeaderCell('P/N', flex: 1),
+          _buildHeaderCell('HSN', flex: 1),
+          _buildHeaderCell('UQC', flex: 1),
+          _buildHeaderCell('Qty', flex: 1),
+          _buildHeaderCell('Rate Per Unit', flex: 1),
+          _buildHeaderCell('Amount', flex: 1),
+          _buildHeaderCell('CGST%', width: 60),
+          _buildHeaderCell('SGST%', width: 60),
+          _buildHeaderCell('IGST%', width: 60),
+          _buildHeaderCell('UTGST%', width: 60),
+          _buildHeaderCell('Tax Amt', flex: 1),
+          _buildHeaderCell('Total Amount', flex: 1),
+          const SizedBox(width: 40),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeaderCell(String title, {int flex = 1, double? width}) {
+    final child = Text(
+      title,
+      style: const TextStyle(
+        fontWeight: FontWeight.w600,
+        fontSize: 13,
+        color: Colors.white,
+      ),
+      textAlign: TextAlign.center,
+    );
+
+    if (width != null) {
+      return SizedBox(width: width, child: child);
+    }
+    return Expanded(flex: flex, child: child);
+  }
+
+  Widget _buildFooter() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Colors.grey.shade300)),
+      ),
+      child: Row(
+        children: [
+          ElevatedButton.icon(
+            onPressed: _addNewRow,
+            icon: const Icon(Icons.add, size: 20),
+            label: const Text('Add Row'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              elevation: 0,
+            ),
+          ),
+          const Spacer(),
+          _buildTotalRow('Subtotal:', _subtotal),
+          const SizedBox(width: 40),
+          _buildTotalRow('Tax:', _totalTax),
+          const SizedBox(width: 40),
+          _buildTotalRow('Total:', _grandTotal, isGrand: true),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTotalRow(String label, double amount, {bool isGrand = false}) {
+    return Row(
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontWeight: isGrand ? FontWeight.w700 : FontWeight.w600,
+            fontSize: isGrand ? 16 : 14,
+            color: Colors.black87,
+          ),
         ),
+        const SizedBox(width: 12),
+        Text(
+          '₹${amount.toStringAsFixed(2)}',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: isGrand ? 18 : 14,
+            color: isGrand ? Colors.green.shade700 : Colors.black87,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// Excel-like Bill Row
+class BillRow {
+  final UniqueKey key = UniqueKey();
+  List<Map<String, dynamic>> products;
+  List<Map<String, dynamic>> gstRates;
+  bool isInterState;
+  final VoidCallback onChanged;
+  final Function(BillRow) onDelete;
+  final Function(BillRow)? onProductSelected;
+
+  final TextEditingController productNameController = TextEditingController();
+  final TextEditingController quantityController = TextEditingController(
+    text: '1',
+  );
+  final TextEditingController rateController = TextEditingController();
+  final TextEditingController cgstController = TextEditingController(text: '0');
+  final TextEditingController sgstController = TextEditingController(text: '0');
+  final TextEditingController igstController = TextEditingController(text: '0');
+  final TextEditingController utgstController = TextEditingController(
+    text: '0',
+  );
+
+  Map<String, dynamic>? selectedProduct;
+  String? hsnCode;
+  String? uqcCode;
+
+  BillRow({
+    required this.products,
+    required this.gstRates,
+    required this.isInterState,
+    required this.onChanged,
+    required this.onDelete,
+    this.onProductSelected,
+  }) {
+    quantityController.addListener(onChanged);
+    rateController.addListener(onChanged);
+    cgstController.addListener(onChanged);
+    sgstController.addListener(onChanged);
+    igstController.addListener(onChanged);
+    utgstController.addListener(onChanged);
+  }
+
+  void updateData(
+    List<Map<String, dynamic>> newProducts,
+    List<Map<String, dynamic>> newGstRates,
+  ) {
+    products = newProducts;
+    gstRates = newGstRates;
+  }
+
+  void updateInterState(bool newInterState) {
+    if (isInterState != newInterState) {
+      isInterState = newInterState;
+      // Re-apply GST rates if product is selected
+      if (selectedProduct != null && hsnCode != null) {
+        final isTaxable = (selectedProduct!['is_taxable'] as int?) == 1;
+        if (isTaxable) {
+          _autoFillGstRates(hsnCode!);
+        }
+      }
+    }
+  }
+
+  void dispose() {
+    productNameController.dispose();
+    quantityController.dispose();
+    rateController.dispose();
+    cgstController.dispose();
+    sgstController.dispose();
+    igstController.dispose();
+    utgstController.dispose();
+  }
+
+  bool isValid() {
+    return selectedProduct != null &&
+        rateController.text.isNotEmpty &&
+        double.tryParse(rateController.text) != null &&
+        double.parse(rateController.text) > 0 &&
+        quantityController.text.isNotEmpty &&
+        int.tryParse(quantityController.text) != null &&
+        int.parse(quantityController.text) > 0;
+  }
+
+  double getSubtotal() {
+    if (!isValid()) return 0.0;
+    final rate = double.parse(rateController.text);
+    final qty = int.parse(quantityController.text);
+    return rate * qty;
+  }
+
+  double getTaxAmount() {
+    final subtotal = getSubtotal();
+    final cgst = double.tryParse(cgstController.text) ?? 0.0;
+    final sgst = double.tryParse(sgstController.text) ?? 0.0;
+    final igst = double.tryParse(igstController.text) ?? 0.0;
+    final utgst = double.tryParse(utgstController.text) ?? 0.0;
+    return (subtotal * (cgst + sgst + igst + utgst)) / 100;
+  }
+
+  double getTotalAmount() {
+    return getSubtotal() + getTaxAmount();
+  }
+
+  BillItem toBillItem() {
+    final subtotal = getSubtotal();
+    final cgst = double.tryParse(cgstController.text) ?? 0.0;
+    final sgst = double.tryParse(sgstController.text) ?? 0.0;
+    final igst = double.tryParse(igstController.text) ?? 0.0;
+    final utgst = double.tryParse(utgstController.text) ?? 0.0;
+    final costPrice = (selectedProduct!['cost_price'] as num).toDouble();
+
+    return BillItem(
+      productId: selectedProduct!['id'] as int,
+      productName: selectedProduct!['name'] as String,
+      partNumber: selectedProduct!['part_number'] as String?,
+      hsnCode: hsnCode,
+      uqcCode: uqcCode,
+      costPrice: costPrice,
+      sellingPrice: double.parse(rateController.text),
+      quantity: int.parse(quantityController.text),
+      subtotal: subtotal,
+      cgstRate: cgst,
+      sgstRate: sgst,
+      igstRate: igst,
+      utgstRate: utgst,
+      cgstAmount: (subtotal * cgst) / 100,
+      sgstAmount: (subtotal * sgst) / 100,
+      igstAmount: (subtotal * igst) / 100,
+      utgstAmount: (subtotal * utgst) / 100,
+      taxAmount: getTaxAmount(),
+      totalAmount: getTotalAmount(),
+    );
+  }
+
+  void _autoFillGstRates(String hsn) {
+    final matchingRate = gstRates.firstWhere(
+      (rate) => rate['hsn_code'] == hsn && rate['is_enabled'] == 1,
+      orElse: () => <String, dynamic>{},
+    );
+
+    if (matchingRate.isNotEmpty) {
+      if (isInterState) {
+        // Inter-state: Apply IGST only, others are 0
+        cgstController.text = '0.00';
+        sgstController.text = '0.00';
+        igstController.text = (matchingRate['igst'] as num).toStringAsFixed(2);
+        utgstController.text = '0.00';
+      } else {
+        // Intra-state: Apply CGST, SGST, UTGST, IGST is 0
+        cgstController.text = (matchingRate['cgst'] as num).toStringAsFixed(2);
+        sgstController.text = (matchingRate['sgst'] as num).toStringAsFixed(2);
+        igstController.text = '0.00';
+        utgstController.text = (matchingRate['utgst'] as num).toStringAsFixed(
+          2,
+        );
+      }
+    }
+  }
+
+  Widget buildRow(int serialNumber) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade200, width: 1),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Serial Number
+          SizedBox(
+            width: 40,
+            child: Text(
+              '$serialNumber',
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+                fontSize: 14,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          // Product Name (Autocomplete)
+          Expanded(flex: 3, child: _buildProductAutocomplete()),
+          // Part Number (Auto-filled, Read-only)
+          Expanded(
+            child: _buildDisplayText(
+              selectedProduct?['part_number'] as String? ?? '-',
+              align: TextAlign.center,
+            ),
+          ),
+          // HSN Code (Auto-filled, Read-only)
+          Expanded(
+            child: _buildDisplayText(hsnCode ?? '-', align: TextAlign.center),
+          ),
+          // UQC (Auto-filled, Read-only)
+          Expanded(
+            child: _buildDisplayText(uqcCode ?? '-', align: TextAlign.center),
+          ),
+          // Quantity (Editable)
+          Expanded(
+            child: _buildEditableCell(
+              controller: quantityController,
+              isNumber: true,
+              digitsOnly: true,
+              textAlign: TextAlign.center,
+            ),
+          ),
+          // Rate (Editable)
+          Expanded(
+            child: _buildEditableCell(
+              controller: rateController,
+              isNumber: true,
+              textAlign: TextAlign.right,
+            ),
+          ),
+          // Amount (Calculated)
+          Expanded(
+            child: _buildDisplayText(
+              '₹${getSubtotal().toStringAsFixed(2)}',
+              align: TextAlign.right,
+              color: Colors.blue.shade700,
+            ),
+          ),
+          // CGST (Auto-filled, Read-only)
+          SizedBox(
+            width: 60,
+            child: _buildDisplayText(
+              cgstController.text,
+              align: TextAlign.center,
+            ),
+          ),
+          // SGST (Auto-filled, Read-only)
+          SizedBox(
+            width: 60,
+            child: _buildDisplayText(
+              sgstController.text,
+              align: TextAlign.center,
+            ),
+          ),
+          // IGST (Auto-filled, Read-only)
+          SizedBox(
+            width: 60,
+            child: _buildDisplayText(
+              igstController.text,
+              align: TextAlign.center,
+            ),
+          ),
+          // UTGST (Auto-filled, Read-only)
+          SizedBox(
+            width: 60,
+            child: _buildDisplayText(
+              utgstController.text,
+              align: TextAlign.center,
+            ),
+          ),
+          // Tax Amount (Calculated)
+          Expanded(
+            child: _buildDisplayText(
+              '₹${getTaxAmount().toStringAsFixed(2)}',
+              align: TextAlign.right,
+              color: Colors.orange.shade700,
+            ),
+          ),
+          // Total (Calculated)
+          Expanded(
+            child: _buildDisplayText(
+              '₹${getTotalAmount().toStringAsFixed(2)}',
+              align: TextAlign.right,
+              color: Colors.green.shade700,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          // Delete Button
+          SizedBox(
+            width: 40,
+            child: IconButton(
+              icon: const Icon(
+                Icons.delete_outline,
+                color: Colors.red,
+                size: 20,
+              ),
+              onPressed: () => onDelete(this),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              tooltip: 'Delete row',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProductAutocomplete() {
+    return Autocomplete<Map<String, dynamic>>(
+      optionsBuilder: (textEditingValue) {
+        if (textEditingValue.text.isEmpty) {
+          return const Iterable<Map<String, dynamic>>.empty();
+        }
+        final text = textEditingValue.text.toLowerCase();
+        return products.where((p) {
+          final name = (p['name'] as String).toLowerCase();
+          final partNo = (p['part_number'] as String?)?.toLowerCase() ?? '';
+          return name.contains(text) || partNo.contains(text);
+        });
+      },
+      displayStringForOption: (option) => option['name'] as String,
+      onSelected: (option) {
+        selectedProduct = option;
+        hsnCode = option['hsn_code'] as String?;
+        uqcCode = option['uqc_code'] as String?;
+        rateController.text = (option['selling_price'] as num).toString();
+
+        // Update the product name controller to show the selected product
+        productNameController.text = option['name'] as String;
+
+        final isTaxable = (option['is_taxable'] as int?) == 1;
+        if (isTaxable && hsnCode != null) {
+          _autoFillGstRates(hsnCode!);
+        } else {
+          cgstController.text = '0';
+          sgstController.text = '0';
+          igstController.text = '0';
+          utgstController.text = '0';
+        }
+        onChanged();
+
+        // Check for duplicates and merge if needed
+        onProductSelected?.call(this);
+      },
+      fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
+        // Sync our controller with the autocomplete's controller
+        if (productNameController.text.isNotEmpty && controller.text.isEmpty) {
+          controller.text = productNameController.text;
+        }
+
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300, width: 1),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: TextField(
+            controller: controller,
+            focusNode: focusNode,
+            onChanged: (value) {
+              // Keep our controller in sync
+              productNameController.text = value;
+            },
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              hintText: 'Search product...',
+              hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 8,
+              ),
+            ),
+            style: const TextStyle(fontSize: 14, color: Colors.black87),
+            onSubmitted: (_) => onSubmitted(),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEditableCell({
+    required TextEditingController controller,
+    bool isNumber = false,
+    bool digitsOnly = false,
+    TextAlign textAlign = TextAlign.left,
+  }) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300, width: 1),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: TextField(
+        controller: controller,
+        keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+        inputFormatters: digitsOnly
+            ? [FilteringTextInputFormatter.digitsOnly]
+            : isNumber
+            ? [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))]
+            : null,
+        textAlign: textAlign,
+        decoration: const InputDecoration(
+          border: InputBorder.none,
+          isDense: true,
+          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        ),
+        style: const TextStyle(fontSize: 14, color: Colors.black87),
+      ),
+    );
+  }
+
+  Widget _buildDisplayText(
+    String text, {
+    TextAlign align = TextAlign.center,
+    Color? color,
+    FontWeight fontWeight = FontWeight.normal,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 14,
+          color: color ?? Colors.black87,
+          fontWeight: fontWeight,
+        ),
+        textAlign: align,
       ),
     );
   }

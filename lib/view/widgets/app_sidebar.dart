@@ -39,16 +39,21 @@ class AppSidebar extends StatelessWidget {
                 ),
                 _buildMenuItem(
                   index: 1,
+                  icon: Icons.point_of_sale,
+                  title: 'POS',
+                ),
+                _buildMenuItem(
+                  index: 2,
                   icon: Icons.receipt_long,
                   title: 'Transactions',
                 ),
                 _buildMenuItem(
-                  index: 2,
+                  index: 3,
                   icon: Icons.category,
                   title: 'Masters',
                 ),
                 _buildMenuItem(
-                  index: 3,
+                  index: 4,
                   icon: Icons.settings,
                   title: 'Settings',
                 ),
