@@ -54,6 +54,16 @@ final creditNotesBillItemsProvider =
       return repo.getBillItems(billId);
     });
 
+// Credit notes for a specific bill
+final creditNotesForBillProvider =
+    FutureProvider.family<List<Map<String, dynamic>>, int>((ref, billId) async {
+      final db = await ref.watch(databaseProvider);
+      return await db.rawQuery(
+        '''SELECT * FROM credit_notes WHERE bill_id = ? AND is_deleted = 0 ORDER BY id DESC''',
+        [billId],
+      );
+    });
+
 // Returned quantities per bill_item_id for a bill
 final returnedQuantitiesProvider = FutureProvider.family<Map<int, int>, int>((
   ref,
@@ -925,30 +935,179 @@ class BillItemsForCreditNote extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final itemsAsync = ref.watch(creditNotesBillItemsProvider(billId));
+    final existingCNAsync = ref.watch(creditNotesForBillProvider(billId));
 
     return Scaffold(
       appBar: AppBar(title: const Text('Bill Items')),
-      body: itemsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) => Center(child: Text('Error: $e')),
-        data: (items) {
-          if (items.isEmpty) return const Center(child: Text('No items'));
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            existingCNAsync.when(
+              loading: () => const SizedBox.shrink(),
+              error: (e, st) => Text('Error loading credit notes: $e'),
+              data: (cns) {
+                if (cns.isEmpty) return const SizedBox.shrink();
+                return Card(
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Existing Credit Notes',
+                          style: TextStyle(
+                            fontSize: AppSizes.fontL,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: AppSizes.paddingS),
+                        ...cns.map((cn) {
+                          final createdAt = cn['created_at'] as String? ?? '';
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(cn['credit_note_number'] ?? '-'),
+                            subtitle: Text(
+                              'Total: ₹${(cn['total_amount'] as num).toStringAsFixed(2)} • ${createdAt.split('T').first}',
+                            ),
+                            trailing: Icon(Icons.arrow_forward_ios, size: 14),
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => CreditNoteDetailsScreen(
+                                  creditNoteId: cn['id'] as int,
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: AppSizes.paddingM),
+            itemsAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, st) => Center(child: Text('Error: $e')),
+              data: (items) {
+                if (items.isEmpty) return const Center(child: Text('No items'));
 
-          return ListView.separated(
-            padding: const EdgeInsets.all(12),
-            itemCount: items.length,
-            itemBuilder: (context, idx) {
-              final it = items[idx];
-              return ListTile(
-                title: Text(it['product_name'] ?? '-'),
-                subtitle: Text(
-                  'Qty: ${it['quantity']}  Rate: ₹${(it['selling_price'] as num).toStringAsFixed(2)}',
-                ),
-              );
-            },
-            separatorBuilder: (_, __) => const Divider(),
-          );
-        },
+                final taxable = items.where((it) {
+                  final totalGst =
+                      (it['cgst_rate'] as num).toDouble() +
+                      (it['sgst_rate'] as num).toDouble() +
+                      (it['igst_rate'] as num).toDouble() +
+                      (it['utgst_rate'] as num).toDouble();
+                  return totalGst > 0;
+                }).toList();
+
+                final nonTaxable = items.where((it) {
+                  final totalGst =
+                      (it['cgst_rate'] as num).toDouble() +
+                      (it['sgst_rate'] as num).toDouble() +
+                      (it['igst_rate'] as num).toDouble() +
+                      (it['utgst_rate'] as num).toDouble();
+                  return totalGst == 0;
+                }).toList();
+
+                Widget buildTable(List<Map<String, dynamic>> list) {
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                      columnSpacing: 12,
+                      columns: const [
+                        DataColumn(label: Text('No')),
+                        DataColumn(label: Text('Product')),
+                        DataColumn(label: Text('P/N')),
+                        DataColumn(label: Text('HSN')),
+                        DataColumn(label: Text('UQC')),
+                        DataColumn(label: Text('Qty'), numeric: true),
+                        DataColumn(label: Text('Rate'), numeric: true),
+                        DataColumn(label: Text('Amount'), numeric: true),
+                        DataColumn(label: Text('Tax Amt'), numeric: true),
+                        DataColumn(label: Text('Total'), numeric: true),
+                      ],
+                      rows: list.asMap().entries.map((entry) {
+                        final idx = entry.key + 1;
+                        final it = entry.value;
+                        final qty = it['quantity'] as int;
+                        final rate = (it['selling_price'] as num).toDouble();
+                        final amount = (it['subtotal'] as num).toDouble();
+                        final taxAmt = (it['tax_amount'] as num).toDouble();
+                        final totalAmt = (it['total_amount'] as num).toDouble();
+
+                        return DataRow(
+                          cells: [
+                            DataCell(Text('$idx')),
+                            DataCell(
+                              SizedBox(
+                                width: 150,
+                                child: Text(it['product_name'] ?? '-'),
+                              ),
+                            ),
+                            DataCell(Text(it['part_number'] ?? '-')),
+                            DataCell(Text(it['hsn_code'] ?? '-')),
+                            DataCell(Text(it['uqc_code'] ?? '-')),
+                            DataCell(Text('$qty')),
+                            DataCell(Text('₹${rate.toStringAsFixed(2)}')),
+                            DataCell(Text('₹${amount.toStringAsFixed(2)}')),
+                            DataCell(Text('₹${taxAmt.toStringAsFixed(2)}')),
+                            DataCell(Text('₹${totalAmt.toStringAsFixed(2)}')),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  );
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (taxable.isNotEmpty) ...[
+                      Text(
+                        'Taxable Items',
+                        style: TextStyle(
+                          fontSize: AppSizes.fontL,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: AppSizes.paddingS),
+                      Card(
+                        elevation: 1,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: buildTable(taxable),
+                        ),
+                      ),
+                      const SizedBox(height: AppSizes.paddingM),
+                    ],
+                    if (nonTaxable.isNotEmpty) ...[
+                      Text(
+                        'Non-taxable Items',
+                        style: TextStyle(
+                          fontSize: AppSizes.fontL,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: AppSizes.paddingS),
+                      Card(
+                        elevation: 1,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: buildTable(nonTaxable),
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
