@@ -23,8 +23,18 @@ final creditNoteItemsProvider =
       creditNoteId,
     ) async {
       final db = await ref.watch(databaseProvider);
+      // Join credit_note_items with credit_notes and customers so the result
+      // contains the credit note metadata (number, customer_name, created_at, reason)
+      // which the details screen expects.
       return await db.rawQuery(
-        '''SELECT * FROM credit_note_items WHERE credit_note_id = ? AND is_deleted = 0 ORDER BY id''',
+        '''
+      SELECT cni.*, cn.credit_note_number, cn.created_at, cn.reason, c.name as customer_name
+      FROM credit_note_items cni
+      LEFT JOIN credit_notes cn ON cni.credit_note_id = cn.id
+      LEFT JOIN customers c ON cn.customer_id = c.id
+      WHERE cni.credit_note_id = ? AND cni.is_deleted = 0
+      ORDER BY cni.id
+      ''',
         [creditNoteId],
       );
     });
@@ -85,13 +95,44 @@ class _CreditNotesScreenState extends ConsumerState<CreditNotesScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Credit Notes'),
-        backgroundColor: AppColors.primary,
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(text: 'Existing'),
-            Tab(text: 'Create'),
-          ],
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.primary,
+        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              border: Border(
+                bottom: BorderSide(color: AppColors.border, width: 1),
+              ),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              indicatorColor: AppColors.primary,
+              indicatorWeight: 3,
+              indicatorSize: TabBarIndicatorSize.tab,
+              labelColor: AppColors.primary,
+              unselectedLabelColor: AppColors.textSecondary,
+              labelPadding: const EdgeInsets.symmetric(horizontal: 32),
+              labelStyle: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                fontFamily: 'Roboto',
+                letterSpacing: 0.3,
+              ),
+              unselectedLabelStyle: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                fontFamily: 'Roboto',
+                letterSpacing: 0.3,
+              ),
+              tabs: const [
+                Tab(text: 'Existing'),
+                Tab(text: 'Create'),
+              ],
+            ),
+          ),
         ),
       ),
       body: TabBarView(
@@ -141,62 +182,62 @@ class _CreditNotesScreenState extends ConsumerState<CreditNotesScreen>
                     ),
                     child: InkWell(
                       onTap: () => _openCreditNoteDetails(context, n['id']),
-                      child: Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'CN: ${n['credit_note_number']}',
+                          // First line: CN number (left) and total (right)
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'CN${n['credit_note_number']}',
                                   style: TextStyle(
                                     fontSize: AppSizes.fontL,
                                     fontWeight: FontWeight.w600,
                                     color: AppColors.textPrimary,
                                   ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                const SizedBox(height: AppSizes.paddingXS),
-                                Text(
+                              ),
+                              const SizedBox(width: AppSizes.paddingS),
+                              Text(
+                                '₹${(n['total_amount'] as num).toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSizes.paddingXS),
+                          // Second line: customer name and optional reason (compact)
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
                                   '${n['customer_name'] ?? '-'}',
                                   style: TextStyle(
                                     fontSize: AppSizes.fontM,
                                     color: AppColors.textSecondary,
                                   ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                if ((n['reason'] as String?)?.isNotEmpty ??
-                                    false) ...[
-                                  const SizedBox(height: AppSizes.paddingXS),
-                                  Text(
+                              ),
+                              if ((n['reason'] as String?)?.isNotEmpty ?? false)
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    left: AppSizes.paddingS,
+                                  ),
+                                  child: Text(
                                     'Reason: ${n['reason']}',
                                     style: TextStyle(
                                       color: AppColors.textSecondary,
                                       fontSize: AppSizes.fontS,
                                     ),
-                                  ),
-                                ],
-                                const SizedBox(height: AppSizes.paddingXS),
-                                Text(
-                                  'Total: ₹${(n['total_amount'] as num).toStringAsFixed(2)}',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textPrimary,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: Icon(
-                                  Icons.visibility,
-                                  color: AppColors.primary,
-                                ),
-                                onPressed: () =>
-                                    _openCreditNoteDetails(context, n['id']),
-                                tooltip: 'View',
-                              ),
                             ],
                           ),
                         ],
@@ -849,7 +890,7 @@ class CreditNoteDetailsScreen extends ConsumerWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text(
-                            'Grand Total',
+                            'Total',
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
