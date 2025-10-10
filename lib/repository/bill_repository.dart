@@ -6,54 +6,70 @@ class BillRepository {
 
   BillRepository(this._db);
 
-  // Generate next bill number in format: DDMMYYSSSSSS
-  // Example: 20122500001 for 20 Dec 2025, first bill
-  // Maximum 99999 bills per day (00001 to 99999)
+  // Generate a new bill number using date prefix (ddmmyy) and a daily sequence
   Future<String> generateBillNumber() async {
     final now = DateTime.now();
     final day = now.day.toString().padLeft(2, '0');
     final month = now.month.toString().padLeft(2, '0');
-    final year = now.year.toString().substring(2); // Last 2 digits of year
-    final datePrefix = '$day$month$year'; // DDMMYY
+    final year = now.year.toString().substring(2);
+    final datePrefix = '$day$month$year';
 
-    // Get the last bill number for today
-    final result = await _db.rawQuery(
+    final last = await _db.rawQuery(
       '''SELECT bill_number FROM bills
-         WHERE bill_number LIKE ?
-         AND is_deleted = 0
+         WHERE bill_number LIKE ? AND is_deleted = 0
          ORDER BY bill_number DESC LIMIT 1''',
       ['$datePrefix%'],
     );
 
     int sequenceNumber = 1;
-
-    if (result.isNotEmpty) {
-      final lastNumber = result.first['bill_number'] as String;
-      // Extract the last 5 digits (sequence number)
-      final lastSequence = int.parse(lastNumber.substring(6));
-
-      // Check if we've reached the daily limit
-      if (lastSequence >= 99999) {
-        throw Exception(
-          'Daily bill limit reached (99,999). Please come back tomorrow to create more bills.',
-        );
+    if (last.isNotEmpty) {
+      try {
+        final lastNumber = last.first['bill_number'] as String;
+        final lastSeq = int.parse(lastNumber.substring(6));
+        sequenceNumber = lastSeq + 1;
+      } catch (_) {
+        sequenceNumber = 1;
       }
-
-      sequenceNumber = lastSequence + 1;
     }
 
-    // Format: DDMMYYSSSSSS (6 digits date + 5 digits sequence)
     return '$datePrefix${sequenceNumber.toString().padLeft(5, '0')}';
   }
 
-  // Create bill with items (transaction)
+  // Generate a new credit note number (same pattern as bills)
+  Future<String> generateCreditNoteNumber() async {
+    final now = DateTime.now();
+    final day = now.day.toString().padLeft(2, '0');
+    final month = now.month.toString().padLeft(2, '0');
+    final year = now.year.toString().substring(2);
+    final datePrefix = '$day$month$year';
+
+    final last = await _db.rawQuery(
+      '''SELECT credit_note_number FROM credit_notes
+         WHERE credit_note_number LIKE ? AND is_deleted = 0
+         ORDER BY credit_note_number DESC LIMIT 1''',
+      ['$datePrefix%'],
+    );
+
+    int sequenceNumber = 1;
+    if (last.isNotEmpty) {
+      try {
+        final lastNumber = last.first['credit_note_number'] as String;
+        final lastSeq = int.parse(lastNumber.substring(6));
+        sequenceNumber = lastSeq + 1;
+      } catch (_) {
+        sequenceNumber = 1;
+      }
+    }
+
+    return '$datePrefix${sequenceNumber.toString().padLeft(5, '0')}';
+  }
+
+  // Create a bill and its items inside a transaction
   Future<int> createBill(Bill bill, List<BillItem> items) async {
     return await _db.transaction((txn) async {
-      // Insert bill
       final billId = await txn.rawInsert(
-        '''INSERT INTO bills
-        (bill_number, customer_id, subtotal, tax_amount, total_amount, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)''',
+        '''INSERT INTO bills (bill_number, customer_id, subtotal, tax_amount, total_amount, created_at, updated_at, is_deleted)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 0)''',
         [
           bill.billNumber,
           bill.customerId,
@@ -65,112 +81,38 @@ class BillRepository {
         ],
       );
 
-      // Insert bill items and update stock
-      for (final item in items) {
-        // Insert bill item
-        final billItemId = await txn.rawInsert(
+      for (final it in items) {
+        await txn.rawInsert(
           '''INSERT INTO bill_items
-          (bill_id, product_id, product_name, part_number, hsn_code, uqc_code,
-          cost_price, selling_price, quantity, subtotal, cgst_rate, sgst_rate, igst_rate, utgst_rate,
-          cgst_amount, sgst_amount, igst_amount, utgst_amount, tax_amount, total_amount,
-          created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))''',
+             (bill_id, product_id, product_name, part_number, hsn_code, uqc_code, cost_price, selling_price, quantity, subtotal, cgst_rate, sgst_rate, igst_rate, utgst_rate, cgst_amount, sgst_amount, igst_amount, utgst_amount, tax_amount, total_amount, created_at, updated_at, is_deleted)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), 0)''',
           [
             billId,
-            item.productId,
-            item.productName,
-            item.partNumber,
-            item.hsnCode,
-            item.uqcCode,
-            item.costPrice,
-            item.sellingPrice,
-            item.quantity,
-            item.subtotal,
-            item.cgstRate,
-            item.sgstRate,
-            item.igstRate,
-            item.utgstRate,
-            item.cgstAmount,
-            item.sgstAmount,
-            item.igstAmount,
-            item.utgstAmount,
-            item.taxAmount,
-            item.totalAmount,
+            it.productId,
+            it.productName,
+            it.partNumber,
+            it.hsnCode,
+            it.uqcCode,
+            it.costPrice,
+            it.sellingPrice,
+            it.quantity,
+            it.subtotal,
+            it.cgstRate,
+            it.sgstRate,
+            it.igstRate,
+            it.utgstRate,
+            it.cgstAmount,
+            it.sgstAmount,
+            it.igstAmount,
+            it.utgstAmount,
+            it.taxAmount,
+            it.totalAmount,
           ],
         );
-
-        // Deduct stock using FIFO (First In, First Out)
-        await _deductStock(txn, item.productId, item.quantity, billItemId);
       }
 
       return billId;
     });
-  }
-
-  // Deduct stock using FIFO method
-  Future<void> _deductStock(
-    Transaction txn,
-    int productId,
-    int quantity,
-    int billItemId,
-  ) async {
-    int remainingQty = quantity;
-
-    // Get available batches ordered by oldest first (FIFO)
-    final batches = await txn.rawQuery(
-      '''SELECT id, quantity_remaining, cost_price
-      FROM stock_batches
-      WHERE product_id = ? AND quantity_remaining > 0 AND is_deleted = 0
-      ORDER BY created_at ASC''',
-      [productId],
-    );
-
-    if (batches.isEmpty) {
-      throw Exception('Insufficient stock for product ID: $productId');
-    }
-
-    int totalAvailable = 0;
-    for (final batch in batches) {
-      totalAvailable += batch['quantity_remaining'] as int;
-    }
-
-    if (totalAvailable < quantity) {
-      throw Exception(
-        'Insufficient stock for product ID: $productId. Required: $quantity, Available: $totalAvailable',
-      );
-    }
-
-    // Deduct from batches using FIFO
-    for (final batch in batches) {
-      if (remainingQty <= 0) break;
-
-      final stockBatchId = batch['id'] as int;
-      final qtyRemaining = batch['quantity_remaining'] as int;
-      final costPrice = (batch['cost_price'] as num).toDouble();
-
-      final qtyToDeduct = remainingQty > qtyRemaining
-          ? qtyRemaining
-          : remainingQty;
-
-      // Update batch quantity
-      await txn.rawUpdate(
-        '''UPDATE stock_batches
-        SET quantity_remaining = quantity_remaining - ?,
-        updated_at = datetime('now')
-        WHERE id = ?''',
-        [qtyToDeduct, stockBatchId],
-      );
-
-      // Record batch usage
-      await txn.rawInsert(
-        '''INSERT INTO stock_batch_usage
-        (bill_item_id, stock_batch_id, quantity_used, cost_price, created_at)
-        VALUES (?, ?, ?, ?, datetime('now'))''',
-        [billItemId, stockBatchId, qtyToDeduct, costPrice],
-      );
-
-      remainingQty -= qtyToDeduct;
-    }
   }
 
   // Get all bills
@@ -204,6 +146,239 @@ class BillRepository {
       ORDER BY id''',
       [billId],
     );
+  }
+
+  // Get already returned quantities for a bill grouped by bill_item_id
+  // Returns a map of bill_item_id -> returnedQuantity
+  Future<Map<int, int>> getReturnedQuantitiesForBill(int billId) async {
+    final rows = await _db.rawQuery(
+      '''SELECT cni.bill_item_id as bill_item_id, SUM(cni.quantity) as returned_qty
+         FROM credit_note_items cni
+         INNER JOIN credit_notes cn ON cni.credit_note_id = cn.id
+         WHERE cn.bill_id = ? AND cni.is_deleted = 0 AND cn.is_deleted = 0
+         GROUP BY cni.bill_item_id''',
+      [billId],
+    );
+
+    final Map<int, int> result = {};
+    for (final r in rows) {
+      final key = r['bill_item_id'] as int;
+      final qty = (r['returned_qty'] as num).toInt();
+      result[key] = qty;
+    }
+    return result;
+  }
+
+  // Create credit note and credit note items transactionally.
+  // creditNoteData: map with keys (bill_id, credit_note_number, customer_id, subtotal, tax_amount, total_amount)
+  // items: list of maps that match credit_note_items columns (bill_item_id, product_id, product_name, part_number, hsn_code, uqc_code, selling_price, quantity, subtotal, cgst_rate, sgst_rate, igst_rate, utgst_rate, cgst_amount, sgst_amount, igst_amount, utgst_amount, tax_amount, total_amount)
+  Future<int> createCreditNote(
+    Map<String, dynamic> creditNoteData,
+    List<Map<String, dynamic>> items,
+  ) async {
+    return await _db.transaction((txn) async {
+      // Generate credit note number inside transaction to avoid race conditions
+      final now = DateTime.now();
+      final day = now.day.toString().padLeft(2, '0');
+      final month = now.month.toString().padLeft(2, '0');
+      final year = now.year.toString().substring(2);
+      final datePrefix = '$day$month$year';
+
+      final last = await txn.rawQuery(
+        '''SELECT credit_note_number FROM credit_notes
+           WHERE credit_note_number LIKE ? AND is_deleted = 0
+           ORDER BY credit_note_number DESC LIMIT 1''',
+        ['$datePrefix%'],
+      );
+
+      int sequenceNumber = 1;
+      if (last.isNotEmpty) {
+        try {
+          final lastNumber = last.first['credit_note_number'] as String;
+          final lastSeq = int.parse(lastNumber.substring(6));
+          if (lastSeq >= 99999)
+            throw Exception('Daily credit note limit reached (99,999).');
+          sequenceNumber = lastSeq + 1;
+        } catch (_) {
+          sequenceNumber = 1;
+        }
+      }
+
+      final creditNoteNumber =
+          '$datePrefix${sequenceNumber.toString().padLeft(5, '0')}';
+
+      final creditNoteId = await txn.rawInsert(
+        '''INSERT INTO credit_notes
+          (bill_id, credit_note_number, customer_id, reason, subtotal, tax_amount, total_amount, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))''',
+        [
+          creditNoteData['bill_id'],
+          creditNoteNumber,
+          creditNoteData['customer_id'],
+          creditNoteData['reason'],
+          creditNoteData['subtotal'],
+          creditNoteData['tax_amount'],
+          creditNoteData['total_amount'],
+        ],
+      );
+
+      // Validate per-item allowed quantities inside transaction
+      for (final it in items) {
+        final billItemId = it['bill_item_id'] as int;
+        // get original bought qty
+        final boughtRows = await txn.rawQuery(
+          'SELECT quantity FROM bill_items WHERE id = ?',
+          [billItemId],
+        );
+        if (boughtRows.isEmpty)
+          throw Exception('Bill item not found: $billItemId');
+        final boughtQty = (boughtRows.first['quantity'] as num).toInt();
+
+        // get already returned for this bill_item inside txn
+        final returnedRows = await txn.rawQuery(
+          '''SELECT COALESCE(SUM(cni.quantity), 0) as returned_sum
+             FROM credit_note_items cni
+             INNER JOIN credit_notes cn ON cni.credit_note_id = cn.id
+             WHERE cni.bill_item_id = ? AND cn.is_deleted = 0 AND cni.is_deleted = 0''',
+          [billItemId],
+        );
+        final alreadyReturned = returnedRows.isNotEmpty
+            ? (returnedRows.first['returned_sum'] as num).toInt()
+            : 0;
+
+        if (alreadyReturned + (it['quantity'] as int) > boughtQty) {
+          throw Exception(
+            'Return quantity exceeds purchased quantity for bill_item_id $billItemId',
+          );
+        }
+      }
+
+      for (final it in items) {
+        // Insert credit_note_item and get its id
+        final creditNoteItemId = await txn.rawInsert(
+          '''INSERT INTO credit_note_items
+            (credit_note_id, bill_item_id, product_id, product_name, part_number, hsn_code, uqc_code, selling_price, quantity, subtotal, cgst_rate, sgst_rate, igst_rate, utgst_rate, cgst_amount, sgst_amount, igst_amount, utgst_amount, tax_amount, total_amount, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))''',
+          [
+            creditNoteId,
+            it['bill_item_id'],
+            it['product_id'],
+            it['product_name'],
+            it['part_number'],
+            it['hsn_code'],
+            it['uqc_code'],
+            it['selling_price'],
+            it['quantity'],
+            it['subtotal'],
+            it['cgst_rate'],
+            it['sgst_rate'],
+            it['igst_rate'],
+            it['utgst_rate'],
+            it['cgst_amount'],
+            it['sgst_amount'],
+            it['igst_amount'],
+            it['utgst_amount'],
+            it['tax_amount'],
+            it['total_amount'],
+          ],
+        );
+
+        // Allocate returned quantity back to stock batches based on original usage
+        int remainingToReturn = it['quantity'] as int;
+        final billItemId = it['bill_item_id'] as int;
+
+        // Get stock_batch_usage records for this bill_item ordered by id DESC (attempt to return to most recent batches first)
+        final usages = await txn.rawQuery(
+          '''SELECT id, stock_batch_id, quantity_used, cost_price
+             FROM stock_batch_usage
+             WHERE bill_item_id = ?
+             ORDER BY id DESC''',
+          [billItemId],
+        );
+
+        for (final usage in usages) {
+          if (remainingToReturn <= 0) break;
+
+          final stockBatchId = usage['stock_batch_id'] as int;
+          final usedQty = usage['quantity_used'] as int;
+          final costPrice = (usage['cost_price'] as num).toDouble();
+
+          // Calculate how many have already been returned for this bill_item -> stock_batch
+          final prevReturns = await txn.rawQuery(
+            '''SELECT COALESCE(SUM(cnbr.quantity_returned), 0) as returned_sum
+               FROM credit_note_batch_returns cnbr
+               INNER JOIN credit_note_items cni ON cnbr.credit_note_item_id = cni.id
+               WHERE cni.bill_item_id = ? AND cnbr.stock_batch_id = ?''',
+            [billItemId, stockBatchId],
+          );
+
+          final prevReturned = prevReturns.isNotEmpty
+              ? (prevReturns.first['returned_sum'] as num).toInt()
+              : 0;
+          final availableFromUsage = usedQty - prevReturned;
+          if (availableFromUsage <= 0) continue;
+
+          final allocate = remainingToReturn > availableFromUsage
+              ? availableFromUsage
+              : remainingToReturn;
+
+          // Update batch quantity
+          await txn.rawUpdate(
+            '''UPDATE stock_batches
+               SET quantity_remaining = quantity_remaining + ?,
+               updated_at = datetime('now')
+               WHERE id = ?''',
+            [allocate, stockBatchId],
+          );
+
+          // Record credit note batch return
+          await txn.rawInsert(
+            '''INSERT INTO credit_note_batch_returns
+               (credit_note_item_id, stock_batch_id, quantity_returned, cost_price, created_at)
+               VALUES (?, ?, ?, ?, datetime('now'))''',
+            [creditNoteItemId, stockBatchId, allocate, costPrice],
+          );
+
+          remainingToReturn -= allocate;
+        }
+
+        // If still remaining, create a new stock batch for returned items
+        if (remainingToReturn > 0) {
+          final timestamp = DateTime.now().millisecondsSinceEpoch;
+          final batchNumber =
+              'RETURN-$creditNoteId-${it['product_id']}-$timestamp';
+          // purchase_item_id defaulted to 0 for returned batch
+          final newBatchId = await txn.rawInsert(
+            '''INSERT INTO stock_batches
+               (product_id, purchase_item_id, batch_number, quantity_received, quantity_remaining, cost_price, created_at, updated_at)
+               VALUES (?, 0, ?, ?, ?, ?, datetime('now'), datetime('now'))''',
+            [
+              it['product_id'],
+              batchNumber,
+              remainingToReturn,
+              remainingToReturn,
+              it['selling_price'],
+            ],
+          );
+
+          await txn.rawInsert(
+            '''INSERT INTO credit_note_batch_returns
+               (credit_note_item_id, stock_batch_id, quantity_returned, cost_price, created_at)
+               VALUES (?, ?, ?, ?, datetime('now'))''',
+            [
+              creditNoteItemId,
+              newBatchId,
+              remainingToReturn,
+              it['selling_price'],
+            ],
+          );
+
+          remainingToReturn = 0;
+        }
+      }
+
+      return creditNoteId;
+    });
   }
 
   // Delete bill (soft delete)
