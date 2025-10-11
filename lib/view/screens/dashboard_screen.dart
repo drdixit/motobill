@@ -4,7 +4,7 @@ import '../../core/constants/app_sizes.dart';
 import 'dashboard/create_bill_screen.dart';
 import 'credit_notes_screen.dart';
 import 'dashboard/create_purchase_screen.dart';
-import 'dashboard/debit_notes_screen.dart';
+import 'debit_notes_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
