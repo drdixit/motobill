@@ -993,286 +993,466 @@ class BillItemsForCreditNote extends ConsumerWidget {
     final existingCNAsync = ref.watch(creditNotesForBillProvider(billId));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Bill Items')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            itemsAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, st) => Center(child: Text('Error: $e')),
-              data: (items) {
-                if (items.isEmpty) return const Center(child: Text('No items'));
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: const Text('Bill Items'),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: itemsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, st) => Center(child: Text('Error: $e')),
+        data: (items) {
+          if (items.isEmpty) return const Center(child: Text('No items'));
 
-                final taxable = items.where((it) {
-                  final totalGst =
-                      (it['cgst_rate'] as num).toDouble() +
-                      (it['sgst_rate'] as num).toDouble() +
-                      (it['igst_rate'] as num).toDouble() +
-                      (it['utgst_rate'] as num).toDouble();
-                  return totalGst > 0;
-                }).toList();
+          final taxable = items.where((it) {
+            final totalGst =
+                (it['cgst_rate'] as num).toDouble() +
+                (it['sgst_rate'] as num).toDouble() +
+                (it['igst_rate'] as num).toDouble() +
+                (it['utgst_rate'] as num).toDouble();
+            return totalGst > 0;
+          }).toList();
 
-                final nonTaxable = items.where((it) {
-                  final totalGst =
-                      (it['cgst_rate'] as num).toDouble() +
-                      (it['sgst_rate'] as num).toDouble() +
-                      (it['igst_rate'] as num).toDouble() +
-                      (it['utgst_rate'] as num).toDouble();
-                  return totalGst == 0;
-                }).toList();
+          final nonTaxable = items.where((it) {
+            final totalGst =
+                (it['cgst_rate'] as num).toDouble() +
+                (it['sgst_rate'] as num).toDouble() +
+                (it['igst_rate'] as num).toDouble() +
+                (it['utgst_rate'] as num).toDouble();
+            return totalGst == 0;
+          }).toList();
 
-                Widget buildTable(
-                  BuildContext ctx,
-                  List<Map<String, dynamic>> list, {
-                  bool includeTaxPercentCols = false,
-                  bool includeTaxAmountCol = true,
-                }) {
-                  return LayoutBuilder(
-                    builder: (ctx2, constraints) {
-                      final width = constraints.maxWidth;
-
-                      return SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(minWidth: width),
-                          child: Container(
-                            width: width,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              border: Border.all(
-                                color: Colors.grey.shade300,
-                                width: 1,
+          Widget buildTable(
+            List<Map<String, dynamic>> list, {
+            required bool showTaxCols,
+          }) {
+            return LayoutBuilder(
+              builder: (ctx2, constraints) {
+                final width = constraints.maxWidth;
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minWidth: width),
+                    child: Container(
+                      width: width,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(
+                          color: Colors.grey.shade300,
+                          width: 1,
+                        ),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      padding: const EdgeInsets.all(8),
+                      child: DataTable(
+                        columnSpacing: 16,
+                        horizontalMargin: 8,
+                        headingRowColor: WidgetStateProperty.all(
+                          Colors.grey.shade100,
+                        ),
+                        headingRowHeight: 48,
+                        dataRowMinHeight: 40,
+                        dataRowMaxHeight: 56,
+                        border: TableBorder.all(
+                          color: Colors.grey.shade300,
+                          width: 1,
+                        ),
+                        columns: [
+                          const DataColumn(
+                            label: Text(
+                              'No',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
                               ),
-                              borderRadius: BorderRadius.circular(6),
                             ),
-                            padding: const EdgeInsets.all(8),
-                            child: DataTable(
-                              columnSpacing: 12,
-                              headingRowColor: WidgetStateProperty.all(
-                                Colors.grey.shade100,
+                          ),
+                          const DataColumn(
+                            label: Text(
+                              'Product Name',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
                               ),
-                              columns: [
-                                const DataColumn(label: Text('No')),
-                                const DataColumn(label: Text('Product')),
-                                const DataColumn(label: Text('P/N')),
-                                const DataColumn(label: Text('HSN')),
-                                const DataColumn(label: Text('UQC')),
-                                const DataColumn(
-                                  label: Text('Qty'),
-                                  numeric: true,
+                            ),
+                          ),
+                          const DataColumn(
+                            label: Text(
+                              'P/N',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          const DataColumn(
+                            label: Text(
+                              'HSN',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          const DataColumn(
+                            label: Text(
+                              'UQC',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          const DataColumn(
+                            label: Text(
+                              'Qty',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                            numeric: true,
+                          ),
+                          const DataColumn(
+                            label: Text(
+                              'Rate Per Unit',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                            numeric: true,
+                          ),
+                          const DataColumn(
+                            label: Text(
+                              'Amount',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                            numeric: true,
+                          ),
+                          if (showTaxCols) ...[
+                            const DataColumn(
+                              label: Text(
+                                'CGST%',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
                                 ),
-                                const DataColumn(
-                                  label: Text('Rate'),
-                                  numeric: true,
+                              ),
+                              numeric: true,
+                            ),
+                            const DataColumn(
+                              label: Text(
+                                'SGST%',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
                                 ),
-                                const DataColumn(
-                                  label: Text('Amount'),
-                                  numeric: true,
+                              ),
+                              numeric: true,
+                            ),
+                            const DataColumn(
+                              label: Text(
+                                'IGST%',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
                                 ),
-                                if (includeTaxPercentCols) ...[
-                                  const DataColumn(
-                                    label: Text('CGST%'),
-                                    numeric: true,
-                                  ),
-                                  const DataColumn(
-                                    label: Text('SGST%'),
-                                    numeric: true,
-                                  ),
-                                  const DataColumn(
-                                    label: Text('IGST%'),
-                                    numeric: true,
-                                  ),
-                                  const DataColumn(
-                                    label: Text('UTGST%'),
-                                    numeric: true,
-                                  ),
-                                ],
-                                if (includeTaxAmountCol)
-                                  const DataColumn(
-                                    label: Text('Tax Amt'),
-                                    numeric: true,
-                                  ),
-                                const DataColumn(
-                                  label: Text('Total'),
-                                  numeric: true,
+                              ),
+                              numeric: true,
+                            ),
+                            const DataColumn(
+                              label: Text(
+                                'UTGST%',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
                                 ),
-                              ],
-                              rows: list.asMap().entries.map((entry) {
-                                final idx = entry.key + 1;
-                                final it = entry.value;
-                                final qty = it['quantity'] as int;
-                                final rate = (it['selling_price'] as num)
-                                    .toDouble();
-                                final amount = (it['subtotal'] as num)
-                                    .toDouble();
-                                final taxAmt =
-                                    (it['tax_amount'] as num?)?.toDouble() ??
-                                    0.0;
-                                final totalAmt =
-                                    (it['total_amount'] as num?)?.toDouble() ??
-                                    0.0;
-                                final cgstR =
-                                    (it['cgst_rate'] as num?)?.toDouble() ??
-                                    0.0;
-                                final sgstR =
-                                    (it['sgst_rate'] as num?)?.toDouble() ??
-                                    0.0;
-                                final igstR =
-                                    (it['igst_rate'] as num?)?.toDouble() ??
-                                    0.0;
-                                final utgstR =
-                                    (it['utgst_rate'] as num?)?.toDouble() ??
-                                    0.0;
+                              ),
+                              numeric: true,
+                            ),
+                            const DataColumn(
+                              label: Text(
+                                'Tax Amt',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              numeric: true,
+                            ),
+                          ],
+                          const DataColumn(
+                            label: Text(
+                              'Total Amount',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                            numeric: true,
+                          ),
+                        ],
+                        rows: list.asMap().entries.map((entry) {
+                          final idx = entry.key + 1;
+                          final it = entry.value;
+                          final productName =
+                              it['product_name'] as String? ?? '-';
+                          final partNumber =
+                              it['part_number'] as String? ?? '-';
+                          final hsn = it['hsn_code'] as String? ?? '-';
+                          final uqc = it['uqc_code'] as String? ?? '-';
+                          final qty = it['quantity'] as int;
+                          final rate = (it['selling_price'] as num).toDouble();
+                          final amount = (it['subtotal'] as num).toDouble();
+                          final cgstR = (it['cgst_rate'] as num).toDouble();
+                          final sgstR = (it['sgst_rate'] as num).toDouble();
+                          final igstR = (it['igst_rate'] as num).toDouble();
+                          final utgstR = (it['utgst_rate'] as num).toDouble();
+                          final taxAmt = (it['tax_amount'] as num).toDouble();
+                          final totalAmt = (it['total_amount'] as num)
+                              .toDouble();
 
-                                final cells = <DataCell>[
-                                  DataCell(Text('$idx')),
-                                  DataCell(
-                                    SizedBox(
-                                      width: 150,
-                                      child: Text(it['product_name'] ?? '-'),
-                                    ),
+                          final cells = <DataCell>[
+                            DataCell(
+                              Text(
+                                '$idx',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                            DataCell(
+                              SizedBox(
+                                width: 150,
+                                child: Text(
+                                  productName,
+                                  style: const TextStyle(fontSize: 12),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                            DataCell(
+                              Text(
+                                partNumber,
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                            DataCell(
+                              Text(hsn, style: const TextStyle(fontSize: 12)),
+                            ),
+                            DataCell(
+                              Text(uqc, style: const TextStyle(fontSize: 12)),
+                            ),
+                            DataCell(
+                              Text(
+                                '$qty',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                            DataCell(
+                              Text(
+                                '₹${rate.toStringAsFixed(2)}',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                            DataCell(
+                              Text(
+                                '₹${amount.toStringAsFixed(2)}',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                          ];
+
+                          if (showTaxCols) {
+                            cells.addAll([
+                              DataCell(
+                                Text(
+                                  '${cgstR.toStringAsFixed(2)}%',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ),
+                              DataCell(
+                                Text(
+                                  '${sgstR.toStringAsFixed(2)}%',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ),
+                              DataCell(
+                                Text(
+                                  '${igstR.toStringAsFixed(2)}%',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ),
+                              DataCell(
+                                Text(
+                                  '${utgstR.toStringAsFixed(2)}%',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ),
+                              DataCell(
+                                Text(
+                                  '₹${taxAmt.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.orange.shade700,
                                   ),
-                                  DataCell(Text(it['part_number'] ?? '-')),
-                                  DataCell(Text(it['hsn_code'] ?? '-')),
-                                  DataCell(Text(it['uqc_code'] ?? '-')),
-                                  DataCell(Text('$qty')),
-                                  DataCell(Text('₹${rate.toStringAsFixed(2)}')),
-                                  DataCell(
-                                    Text('₹${amount.toStringAsFixed(2)}'),
-                                  ),
-                                ];
+                                ),
+                              ),
+                            ]);
+                          }
 
-                                if (includeTaxPercentCols) {
-                                  cells.addAll([
-                                    DataCell(
-                                      Text('${cgstR.toStringAsFixed(2)}%'),
-                                    ),
-                                    DataCell(
-                                      Text('${sgstR.toStringAsFixed(2)}%'),
-                                    ),
-                                    DataCell(
-                                      Text('${igstR.toStringAsFixed(2)}%'),
-                                    ),
-                                    DataCell(
-                                      Text('${utgstR.toStringAsFixed(2)}%'),
-                                    ),
-                                  ]);
-                                }
+                          cells.add(
+                            DataCell(
+                              Text(
+                                '₹${totalAmt.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          );
+                          return DataRow(cells: cells);
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            );
+          }
 
-                                if (includeTaxAmountCol) {
-                                  cells.add(
-                                    DataCell(
-                                      Text('₹${taxAmt.toStringAsFixed(2)}'),
-                                    ),
-                                  );
-                                }
-
-                                cells.add(
-                                  DataCell(
-                                    Text('₹${totalAmt.toStringAsFixed(2)}'),
-                                  ),
-                                );
-
-                                return DataRow(cells: cells);
-                              }).toList(),
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Card(
+              color: AppColors.white,
+              elevation: 3,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.purple.shade100,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            'Bill Items',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.purple.shade700,
                             ),
                           ),
                         ),
-                      );
-                    },
-                  );
-                }
+                        const Spacer(),
+                        // You can add a bill number or other info here if available
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    const Divider(),
+                    const SizedBox(height: 16),
 
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
                     if (taxable.isNotEmpty) ...[
                       Text(
                         'Taxable Items',
                         style: TextStyle(
-                          fontSize: AppSizes.fontL,
+                          fontSize: 16,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const SizedBox(height: AppSizes.paddingS),
-                      buildTable(
-                        context,
-                        taxable,
-                        includeTaxPercentCols: true,
-                        includeTaxAmountCol: true,
-                      ),
-                      const SizedBox(height: AppSizes.paddingM),
+                      const SizedBox(height: 8),
+                      buildTable(taxable, showTaxCols: true),
+                      const SizedBox(height: 16),
                     ],
                     if (nonTaxable.isNotEmpty) ...[
                       Text(
                         'Non-taxable Items',
                         style: TextStyle(
-                          fontSize: AppSizes.fontL,
+                          fontSize: 16,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const SizedBox(height: AppSizes.paddingS),
-                      buildTable(
-                        context,
-                        nonTaxable,
-                        includeTaxPercentCols: false,
-                        includeTaxAmountCol: false,
-                      ),
+                      const SizedBox(height: 8),
+                      buildTable(nonTaxable, showTaxCols: false),
+                      const SizedBox(height: 16),
                     ],
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: AppSizes.paddingM),
-            existingCNAsync.when(
-              loading: () => const SizedBox.shrink(),
-              error: (e, st) => Text('Error loading credit notes: $e'),
-              data: (cns) {
-                if (cns.isEmpty) return const SizedBox.shrink();
-                return Card(
-                  elevation: 2,
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Existing Credit Notes',
-                          style: TextStyle(
-                            fontSize: AppSizes.fontL,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: AppSizes.paddingS),
-                        ...cns.map((cn) {
-                          final createdAt = cn['created_at'] as String? ?? '';
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(cn['credit_note_number'] ?? '-'),
-                            subtitle: Text(
-                              'Total: ₹${(cn['total_amount'] as num).toStringAsFixed(2)} • ${createdAt.split('T').first}',
-                            ),
-                            trailing: Icon(Icons.arrow_forward_ios, size: 14),
-                            onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => CreditNoteDetailsScreen(
-                                  creditNoteId: cn['id'] as int,
+
+                    const Divider(),
+                    const SizedBox(height: 16),
+
+                    // Existing Credit Notes
+                    existingCNAsync.when(
+                      loading: () => const SizedBox.shrink(),
+                      error: (e, st) => Text('Error loading credit notes: $e'),
+                      data: (cns) {
+                        if (cns.isEmpty) return const SizedBox.shrink();
+                        return Card(
+                          elevation: 2,
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Existing Credit Notes',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                  ),
                                 ),
-                              ),
+                                const SizedBox(height: 8),
+                                ...cns.map((cn) {
+                                  final createdAt =
+                                      cn['created_at'] as String? ?? '';
+                                  return ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    title: Text(
+                                      cn['credit_note_number'] ?? '-',
+                                    ),
+                                    subtitle: Text(
+                                      'Total: ₹${(cn['total_amount'] as num).toStringAsFixed(2)} • ${createdAt.split('T').first}',
+                                    ),
+                                    trailing: Icon(
+                                      Icons.arrow_forward_ios,
+                                      size: 14,
+                                    ),
+                                    onTap: () => Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => CreditNoteDetailsScreen(
+                                          creditNoteId: cn['id'] as int,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ],
                             ),
-                          );
-                        }).toList(),
-                      ],
+                          ),
+                        );
+                      },
                     ),
-                  ),
-                );
-              },
+                  ],
+                ),
+              ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
