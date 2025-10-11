@@ -11,8 +11,9 @@ class DebitNotesScreen extends StatelessWidget {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Debit Notes'),
-        backgroundColor: AppColors.success,
-        foregroundColor: AppColors.white,
+        backgroundColor: AppColors.white,
+        foregroundColor: AppColors.textPrimary,
+        elevation: 1,
       ),
       body: Center(
         child: Column(
