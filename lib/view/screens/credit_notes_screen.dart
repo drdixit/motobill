@@ -391,7 +391,7 @@ class CreditNoteDetailsScreen extends ConsumerWidget {
     final itemsAsync = ref.watch(creditNoteItemsProvider(creditNoteId));
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('Credit Note Details'),
         backgroundColor: AppColors.primary,
@@ -551,286 +551,319 @@ class CreditNoteDetailsScreen extends ConsumerWidget {
                     ],
                     const SizedBox(height: 20),
 
-                    // Items Table
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: DataTable(
-                        columnSpacing: 16,
-                        horizontalMargin: 8,
-                        headingRowColor: WidgetStateProperty.all(
-                          Colors.grey.shade100,
-                        ),
-                        headingRowHeight: 48,
-                        dataRowMinHeight: 40,
-                        dataRowMaxHeight: 56,
-                        border: TableBorder.all(
-                          color: Colors.grey.shade300,
-                          width: 1,
-                        ),
-                        columns: [
-                          const DataColumn(
-                            label: Text(
-                              'No',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                          const DataColumn(
-                            label: Text(
-                              'Product Name',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                          const DataColumn(
-                            label: Text(
-                              'P/N',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                          const DataColumn(
-                            label: Text(
-                              'HSN',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                          const DataColumn(
-                            label: Text(
-                              'UQC',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                          const DataColumn(
-                            label: Text(
-                              'Qty',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                            ),
-                            numeric: true,
-                          ),
-                          const DataColumn(
-                            label: Text(
-                              'Rate Per Unit',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                            ),
-                            numeric: true,
-                          ),
-                          const DataColumn(
-                            label: Text(
-                              'Amount',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                            ),
-                            numeric: true,
-                          ),
-                          if (hasTaxable)
-                            const DataColumn(
-                              label: Text(
-                                'CGST%',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
+                    // Items Table — full-width boxed table
+                    LayoutBuilder(
+                      builder: (ctx2, constraints) {
+                        final width = constraints.maxWidth;
+                        return SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(minWidth: width),
+                            child: Container(
+                              width: width,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                border: Border.all(
+                                  color: Colors.grey.shade300,
+                                  width: 1,
                                 ),
+                                borderRadius: BorderRadius.circular(6),
                               ),
-                              numeric: true,
-                            ),
-                          if (hasTaxable)
-                            const DataColumn(
-                              label: Text(
-                                'SGST%',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
+                              padding: const EdgeInsets.all(8),
+                              child: DataTable(
+                                columnSpacing: 16,
+                                horizontalMargin: 8,
+                                headingRowColor: WidgetStateProperty.all(
+                                  Colors.grey.shade100,
                                 ),
-                              ),
-                              numeric: true,
-                            ),
-                          if (hasTaxable)
-                            const DataColumn(
-                              label: Text(
-                                'IGST%',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
+                                headingRowHeight: 48,
+                                dataRowMinHeight: 40,
+                                dataRowMaxHeight: 56,
+                                border: TableBorder.all(
+                                  color: Colors.grey.shade300,
+                                  width: 1,
                                 ),
-                              ),
-                              numeric: true,
-                            ),
-                          if (hasTaxable)
-                            const DataColumn(
-                              label: Text(
-                                'UTGST%',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                ),
-                              ),
-                              numeric: true,
-                            ),
-                          if (hasTaxable)
-                            const DataColumn(
-                              label: Text(
-                                'Tax Amt',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                ),
-                              ),
-                              numeric: true,
-                            ),
-                          const DataColumn(
-                            label: Text(
-                              'Total Amount',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                            ),
-                            numeric: true,
-                          ),
-                        ],
-                        rows: items.asMap().entries.map((entry) {
-                          final idx = entry.key + 1;
-                          final it = entry.value;
-                          final productName =
-                              it['product_name'] as String? ?? '-';
-                          final partNumber =
-                              it['part_number'] as String? ?? '-';
-                          final hsn = it['hsn_code'] as String? ?? '-';
-                          final uqc = it['uqc_code'] as String? ?? '-';
-                          final qty = it['quantity'] as int;
-                          final rate = (it['selling_price'] as num).toDouble();
-                          final amount = (it['subtotal'] as num).toDouble();
-                          final cgstR = (it['cgst_rate'] as num).toDouble();
-                          final sgstR = (it['sgst_rate'] as num).toDouble();
-                          final igstR = (it['igst_rate'] as num).toDouble();
-                          final utgstR = (it['utgst_rate'] as num).toDouble();
-                          final taxAmt = (it['tax_amount'] as num).toDouble();
-                          final totalAmt = (it['total_amount'] as num)
-                              .toDouble();
-
-                          final cells = <DataCell>[
-                            DataCell(
-                              Text(
-                                '$idx',
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                            ),
-                            DataCell(
-                              SizedBox(
-                                width: 150,
-                                child: Text(
-                                  productName,
-                                  style: const TextStyle(fontSize: 12),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ),
-                            DataCell(
-                              Text(
-                                partNumber,
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                            ),
-                            DataCell(
-                              Text(hsn, style: const TextStyle(fontSize: 12)),
-                            ),
-                            DataCell(
-                              Text(uqc, style: const TextStyle(fontSize: 12)),
-                            ),
-                            DataCell(
-                              Text(
-                                '$qty',
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                            ),
-                            DataCell(
-                              Text(
-                                '₹${rate.toStringAsFixed(2)}',
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                            ),
-                            DataCell(
-                              Text(
-                                '₹${amount.toStringAsFixed(2)}',
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                            ),
-                          ];
-
-                          if (hasTaxable) {
-                            cells.addAll([
-                              DataCell(
-                                Text(
-                                  '${cgstR.toStringAsFixed(2)}%',
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              ),
-                              DataCell(
-                                Text(
-                                  '${sgstR.toStringAsFixed(2)}%',
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              ),
-                              DataCell(
-                                Text(
-                                  '${igstR.toStringAsFixed(2)}%',
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              ),
-                              DataCell(
-                                Text(
-                                  '${utgstR.toStringAsFixed(2)}%',
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              ),
-                              DataCell(
-                                Text(
-                                  '₹${taxAmt.toStringAsFixed(2)}',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.orange.shade700,
+                                columns: [
+                                  const DataColumn(
+                                    label: Text(
+                                      'No',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
-                            ]);
-                          }
+                                  const DataColumn(
+                                    label: Text(
+                                      'Product Name',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                  const DataColumn(
+                                    label: Text(
+                                      'P/N',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                  const DataColumn(
+                                    label: Text(
+                                      'HSN',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                  const DataColumn(
+                                    label: Text(
+                                      'UQC',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                  const DataColumn(
+                                    label: Text(
+                                      'Qty',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    numeric: true,
+                                  ),
+                                  const DataColumn(
+                                    label: Text(
+                                      'Rate Per Unit',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    numeric: true,
+                                  ),
+                                  const DataColumn(
+                                    label: Text(
+                                      'Amount',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    numeric: true,
+                                  ),
+                                  if (hasTaxable)
+                                    const DataColumn(
+                                      label: Text(
+                                        'CGST%',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      numeric: true,
+                                    ),
+                                  if (hasTaxable)
+                                    const DataColumn(
+                                      label: Text(
+                                        'SGST%',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      numeric: true,
+                                    ),
+                                  if (hasTaxable)
+                                    const DataColumn(
+                                      label: Text(
+                                        'IGST%',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      numeric: true,
+                                    ),
+                                  if (hasTaxable)
+                                    const DataColumn(
+                                      label: Text(
+                                        'UTGST%',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      numeric: true,
+                                    ),
+                                  if (hasTaxable)
+                                    const DataColumn(
+                                      label: Text(
+                                        'Tax Amt',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      numeric: true,
+                                    ),
+                                  const DataColumn(
+                                    label: Text(
+                                      'Total Amount',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    numeric: true,
+                                  ),
+                                ],
+                                rows: items.asMap().entries.map((entry) {
+                                  final idx = entry.key + 1;
+                                  final it = entry.value;
+                                  final productName =
+                                      it['product_name'] as String? ?? '-';
+                                  final partNumber =
+                                      it['part_number'] as String? ?? '-';
+                                  final hsn = it['hsn_code'] as String? ?? '-';
+                                  final uqc = it['uqc_code'] as String? ?? '-';
+                                  final qty = it['quantity'] as int;
+                                  final rate = (it['selling_price'] as num)
+                                      .toDouble();
+                                  final amount = (it['subtotal'] as num)
+                                      .toDouble();
+                                  final cgstR = (it['cgst_rate'] as num)
+                                      .toDouble();
+                                  final sgstR = (it['sgst_rate'] as num)
+                                      .toDouble();
+                                  final igstR = (it['igst_rate'] as num)
+                                      .toDouble();
+                                  final utgstR = (it['utgst_rate'] as num)
+                                      .toDouble();
+                                  final taxAmt = (it['tax_amount'] as num)
+                                      .toDouble();
+                                  final totalAmt = (it['total_amount'] as num)
+                                      .toDouble();
 
-                          cells.add(
-                            DataCell(
-                              Text(
-                                '₹${totalAmt.toStringAsFixed(2)}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                                  final cells = <DataCell>[
+                                    DataCell(
+                                      Text(
+                                        '$idx',
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                    DataCell(
+                                      SizedBox(
+                                        width: 150,
+                                        child: Text(
+                                          productName,
+                                          style: const TextStyle(fontSize: 12),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Text(
+                                        partNumber,
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Text(
+                                        hsn,
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Text(
+                                        uqc,
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Text(
+                                        '$qty',
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Text(
+                                        '₹${rate.toStringAsFixed(2)}',
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Text(
+                                        '₹${amount.toStringAsFixed(2)}',
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                  ];
+
+                                  if (hasTaxable) {
+                                    cells.addAll([
+                                      DataCell(
+                                        Text(
+                                          '${cgstR.toStringAsFixed(2)}%',
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
+                                      ),
+                                      DataCell(
+                                        Text(
+                                          '${sgstR.toStringAsFixed(2)}%',
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
+                                      ),
+                                      DataCell(
+                                        Text(
+                                          '${igstR.toStringAsFixed(2)}%',
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
+                                      ),
+                                      DataCell(
+                                        Text(
+                                          '${utgstR.toStringAsFixed(2)}%',
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
+                                      ),
+                                      DataCell(
+                                        Text(
+                                          '₹${taxAmt.toStringAsFixed(2)}',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.orange.shade700,
+                                          ),
+                                        ),
+                                      ),
+                                    ]);
+                                  }
+
+                                  cells.add(
+                                    DataCell(
+                                      Text(
+                                        '₹${totalAmt.toStringAsFixed(2)}',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+
+                                  return DataRow(cells: cells);
+                                }).toList(),
                               ),
                             ),
-                          );
-
-                          return DataRow(cells: cells);
-                        }).toList(),
-                      ),
+                          ),
+                        );
+                      },
                     ),
 
                     const SizedBox(height: 16),
