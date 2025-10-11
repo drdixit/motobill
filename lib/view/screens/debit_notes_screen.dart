@@ -955,6 +955,13 @@ class PurchaseItemsForDebitNote extends ConsumerWidget {
             return totalGst == 0;
           }).toList();
 
+          double subtotal = 0.0;
+          double totalTax = 0.0;
+          for (var it in items) {
+            subtotal += (it['subtotal'] as num).toDouble();
+            totalTax += (it['tax_amount'] as num).toDouble();
+          }
+          final grandTotal = subtotal + totalTax;
           Widget buildTable(
             List<Map<String, dynamic>> list, {
             required bool showTaxCols,
@@ -1376,6 +1383,36 @@ class PurchaseItemsForDebitNote extends ConsumerWidget {
                         );
                       },
                     ),
+                    // Totals after tables
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              'Subtotal: ₹${subtotal.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              'Tax Subtotal: ₹${totalTax.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              'Total: ₹${grandTotal.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    // Totals after tables
                   ],
                 ),
               ),

@@ -1024,6 +1024,14 @@ class BillItemsForCreditNote extends ConsumerWidget {
             return totalGst == 0;
           }).toList();
 
+          double subtotal = 0.0;
+          double totalTax = 0.0;
+          for (var it in items) {
+            subtotal += (it['subtotal'] as num).toDouble();
+            totalTax += (it['tax_amount'] as num).toDouble();
+          }
+          final grandTotal = subtotal + totalTax;
+
           Widget buildTable(
             List<Map<String, dynamic>> list, {
             required bool showTaxCols,
