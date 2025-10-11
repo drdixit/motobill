@@ -913,6 +913,32 @@ class DebitNoteDetailsScreen extends ConsumerWidget {
 }
 
 class PurchaseItemsForDebitNote extends ConsumerWidget {
+  Widget _buildTotalRow(String label, double amount, {bool isGrand = false}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontWeight: isGrand ? FontWeight.w700 : FontWeight.w600,
+            fontSize: isGrand ? 16 : 14,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          '₹${amount.toStringAsFixed(2)}',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: isGrand ? 18 : 14,
+            color: isGrand ? Colors.green.shade700 : Colors.black87,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Helper for summary row
   final int purchaseId;
   const PurchaseItemsForDebitNote({super.key, required this.purchaseId});
 
@@ -1330,6 +1356,22 @@ class PurchaseItemsForDebitNote extends ConsumerWidget {
                       const SizedBox(height: 16),
                     ],
 
+                    // Summary section after tables
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildTotalRow('Subtotal:', subtotal),
+                          const SizedBox(height: 8),
+                          _buildTotalRow('Tax:', totalTax),
+                          const SizedBox(height: 8),
+                          _buildTotalRow('Total:', grandTotal, isGrand: true),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
                     const Divider(),
                     const SizedBox(height: 16),
 
