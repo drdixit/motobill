@@ -1492,6 +1492,7 @@ class BillItemsForCreditNote extends ConsumerWidget {
                       data: (cns) {
                         if (cns.isEmpty) return const SizedBox.shrink();
                         return Card(
+                          color: Colors.white,
                           elevation: 2,
                           child: Padding(
                             padding: const EdgeInsets.all(12),
