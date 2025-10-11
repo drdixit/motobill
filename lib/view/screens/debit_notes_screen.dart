@@ -1383,6 +1383,7 @@ class PurchaseItemsForDebitNote extends ConsumerWidget {
                         if (cns.isEmpty) return const SizedBox.shrink();
                         return Card(
                           elevation: 2,
+                          color: AppColors.white,
                           child: Padding(
                             padding: const EdgeInsets.all(12),
                             child: Column(
