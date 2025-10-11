@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/database_provider.dart';
+import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_sizes.dart';
 import '../../repository/purchase_repository.dart';
 import '../../repository/debit_note_repository.dart';
 
@@ -127,25 +129,67 @@ class _DebitNotesScreenState extends ConsumerState<DebitNotesScreen>
             data: (notes) {
               if (notes.isEmpty)
                 return const Center(child: Text('No debit notes'));
-              return ListView.separated(
-                padding: const EdgeInsets.all(12),
-                itemCount: notes.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (context, idx) {
-                  final n = notes[idx];
-                  return ListTile(
-                    title: Text(n['debit_note_number'] ?? '-'),
-                    subtitle: Text(
-                      'Total: ₹${(n['total_amount'] as num).toStringAsFixed(2)}',
-                    ),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            DebitNoteDetailsScreen(debitNoteId: n['id'] as int),
+
+              return Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(AppSizes.paddingL),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(AppSizes.paddingM),
+                      decoration: BoxDecoration(
+                        color: AppColors.white,
+                        borderRadius: BorderRadius.circular(AppSizes.radiusM),
+                        border: Border.all(color: AppColors.divider),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.note_outlined, color: AppColors.success),
+                          const SizedBox(width: AppSizes.paddingS),
+                          Expanded(
+                            child: Text(
+                              'Existing Debit Notes',
+                              style: TextStyle(
+                                fontSize: AppSizes.fontL,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${notes.length}',
+                            style: TextStyle(color: AppColors.textSecondary),
+                          ),
+                        ],
                       ),
                     ),
-                  );
-                },
+                  ),
+                  Expanded(
+                    child: ListView.separated(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSizes.paddingL,
+                      ),
+                      itemCount: notes.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (context, idx) {
+                        final n = notes[idx];
+                        return ListTile(
+                          title: Text(n['debit_note_number'] ?? '-'),
+                          subtitle: Text(
+                            'Total: ₹${(n['total_amount'] as num).toStringAsFixed(2)}',
+                          ),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => DebitNoteDetailsScreen(
+                                debitNoteId: n['id'] as int,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               );
             },
           ),
@@ -156,33 +200,83 @@ class _DebitNotesScreenState extends ConsumerState<DebitNotesScreen>
             data: (purchases) {
               if (purchases.isEmpty)
                 return const Center(child: Text('No purchases found'));
-              return ListView.builder(
-                padding: const EdgeInsets.all(12),
-                itemCount: purchases.length,
-                itemBuilder: (context, index) {
-                  final p = purchases[index];
-                  return Card(
-                    child: ListTile(
-                      title: Text('Purchase: ${p['purchase_number'] ?? '-'}'),
-                      subtitle: Text(p['vendor_name'] ?? '-'),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
+
+              return Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(AppSizes.paddingL),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(AppSizes.paddingM),
+                      decoration: BoxDecoration(
+                        color: AppColors.white,
+                        borderRadius: BorderRadius.circular(AppSizes.radiusM),
+                        border: Border.all(color: AppColors.divider),
+                      ),
+                      child: Row(
                         children: [
-                          IconButton(
-                            icon: const Icon(Icons.note_add_outlined),
-                            onPressed: () =>
-                                _openCreateDebitNote(context, p['id'] as int),
+                          Icon(
+                            Icons.add_shopping_cart_outlined,
+                            color: AppColors.success,
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.receipt_long),
-                            onPressed: () =>
-                                _openPurchaseItems(context, p['id'] as int),
+                          const SizedBox(width: AppSizes.paddingS),
+                          Expanded(
+                            child: Text(
+                              'Create Debit Note',
+                              style: TextStyle(
+                                fontSize: AppSizes.fontL,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${purchases.length}',
+                            style: TextStyle(color: AppColors.textSecondary),
                           ),
                         ],
                       ),
                     ),
-                  );
-                },
+                  ),
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSizes.paddingL,
+                      ),
+                      itemCount: purchases.length,
+                      itemBuilder: (context, index) {
+                        final p = purchases[index];
+                        return Card(
+                          child: ListTile(
+                            title: Text(
+                              'Purchase: ${p['purchase_number'] ?? '-'}',
+                            ),
+                            subtitle: Text(p['vendor_name'] ?? '-'),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.note_add_outlined),
+                                  onPressed: () => _openCreateDebitNote(
+                                    context,
+                                    p['id'] as int,
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.receipt_long),
+                                  onPressed: () => _openPurchaseItems(
+                                    context,
+                                    p['id'] as int,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               );
             },
           ),
