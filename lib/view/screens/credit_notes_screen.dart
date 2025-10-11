@@ -438,6 +438,7 @@ class CreditNoteDetailsScreen extends ConsumerWidget {
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Card(
+              color: AppColors.white,
               elevation: 3,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
