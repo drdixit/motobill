@@ -1,87 +1,83 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_sizes.dart';
 import '../../core/providers/database_provider.dart';
-import '../../repository/bill_repository.dart';
+import '../../repository/purchase_repository.dart';
+import '../../repository/debit_note_repository.dart';
 
-final creditNotesProvider = FutureProvider<List<Map<String, dynamic>>>((
+final debitNotesProvider = FutureProvider<List<Map<String, dynamic>>>((
   ref,
 ) async {
   final db = await ref.watch(databaseProvider);
-  final result = await db.rawQuery('''SELECT cn.*, c.name as customer_name
-       FROM credit_notes cn
-       LEFT JOIN customers c ON cn.customer_id = c.id
-       WHERE cn.is_deleted = 0
-       ORDER BY cn.id DESC''');
-  return result;
+  final repo = DebitNoteRepository(db);
+  return repo.getAllDebitNotes();
 });
 
-final creditNoteItemsProvider =
+final debitNoteItemsProvider =
     FutureProvider.family<List<Map<String, dynamic>>, int>((
       ref,
-      creditNoteId,
+      debitNoteId,
     ) async {
       final db = await ref.watch(databaseProvider);
-      // Join credit_note_items with credit_notes and customers so the result
-      // contains the credit note metadata (number, customer_name, created_at, reason)
-      // which the details screen expects.
-      return await db.rawQuery(
-        '''
-      SELECT cni.*, cn.credit_note_number, cn.created_at, cn.reason, c.name as customer_name
-      FROM credit_note_items cni
-      LEFT JOIN credit_notes cn ON cni.credit_note_id = cn.id
-      LEFT JOIN customers c ON cn.customer_id = c.id
-      WHERE cni.credit_note_id = ? AND cni.is_deleted = 0
-      ORDER BY cni.id
-      ''',
-        [creditNoteId],
-      );
+      final repo = DebitNoteRepository(db);
+      return repo.getDebitNoteItems(debitNoteId);
     });
 
-final creditNotesBillsProvider = FutureProvider<List<Map<String, dynamic>>>((
+final purchasesProvider = FutureProvider<List<Map<String, dynamic>>>((
   ref,
 ) async {
   final db = await ref.watch(databaseProvider);
-  final repo = BillRepository(db);
-  return repo.getAllBills();
+  final repo = PurchaseRepository(db);
+  return repo.getAllPurchases();
 });
 
-final creditNotesBillItemsProvider =
-    FutureProvider.family<List<Map<String, dynamic>>, int>((ref, billId) async {
+final purchaseItemsProvider =
+    FutureProvider.family<List<Map<String, dynamic>>, int>((
+      ref,
+      purchaseId,
+    ) async {
       final db = await ref.watch(databaseProvider);
-      final repo = BillRepository(db);
-      return repo.getBillItems(billId);
+      final repo = PurchaseRepository(db);
+      return repo.getPurchaseItems(purchaseId);
     });
 
-// Credit notes for a specific bill
-final creditNotesForBillProvider =
-    FutureProvider.family<List<Map<String, dynamic>>, int>((ref, billId) async {
+final debitNotesForPurchaseProvider =
+    FutureProvider.family<List<Map<String, dynamic>>, int>((
+      ref,
+      purchaseId,
+    ) async {
       final db = await ref.watch(databaseProvider);
       return await db.rawQuery(
-        '''SELECT * FROM credit_notes WHERE bill_id = ? AND is_deleted = 0 ORDER BY id DESC''',
-        [billId],
+        '''SELECT * FROM debit_notes WHERE purchase_id = ? AND is_deleted = 0 ORDER BY id DESC''',
+        [purchaseId],
       );
     });
 
-// Returned quantities per bill_item_id for a bill
-final returnedQuantitiesProvider = FutureProvider.family<Map<int, int>, int>((
-  ref,
-  billId,
-) async {
-  final db = await ref.watch(databaseProvider);
-  final repo = BillRepository(db);
-  return repo.getReturnedQuantitiesForBill(billId);
-});
+final returnedQuantitiesForPurchaseProvider =
+    FutureProvider.family<Map<int, int>, int>((ref, purchaseId) async {
+      final db = await ref.watch(databaseProvider);
+      final rows = await db.rawQuery(
+        '''SELECT dni.purchase_item_id as purchase_item_id, SUM(dni.quantity) as returned_qty
+       FROM debit_note_items dni
+       INNER JOIN debit_notes dn ON dni.debit_note_id = dn.id
+       WHERE dn.purchase_id = ? AND dni.is_deleted = 0 AND dn.is_deleted = 0
+       GROUP BY dni.purchase_item_id''',
+        [purchaseId],
+      );
+      final Map<int, int> m = {};
+      for (final r in rows) {
+        m[r['purchase_item_id'] as int] = (r['returned_qty'] as num).toInt();
+      }
+      return m;
+    });
 
-class CreditNotesScreen extends ConsumerStatefulWidget {
-  const CreditNotesScreen({super.key});
+class DebitNotesScreen extends ConsumerStatefulWidget {
+  const DebitNotesScreen({super.key});
 
   @override
-  ConsumerState<CreditNotesScreen> createState() => _CreditNotesScreenState();
+  ConsumerState<DebitNotesScreen> createState() => _DebitNotesScreenState();
 }
 
-class _CreditNotesScreenState extends ConsumerState<CreditNotesScreen>
+class _DebitNotesScreenState extends ConsumerState<DebitNotesScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
@@ -99,44 +95,21 @@ class _CreditNotesScreenState extends ConsumerState<CreditNotesScreen>
 
   @override
   Widget build(BuildContext context) {
-    final notesAsync = ref.watch(creditNotesProvider);
-    final billsAsync = ref.watch(creditNotesBillsProvider);
+    final notesAsync = ref.watch(debitNotesProvider);
+    final purchasesAsync = ref.watch(purchasesProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Credit Notes'),
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.primary,
+        title: const Text('Debit Notes'),
+        backgroundColor: Colors.green,
+        foregroundColor: Colors.white,
         elevation: 0,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48),
           child: Container(
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              border: Border(
-                bottom: BorderSide(color: AppColors.border, width: 1),
-              ),
-            ),
+            color: Colors.white,
             child: TabBar(
               controller: _tabController,
-              indicatorColor: AppColors.primary,
-              indicatorWeight: 3,
-              indicatorSize: TabBarIndicatorSize.tab,
-              labelColor: AppColors.primary,
-              unselectedLabelColor: AppColors.textSecondary,
-              labelPadding: const EdgeInsets.symmetric(horizontal: 32),
-              labelStyle: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                fontFamily: 'Roboto',
-                letterSpacing: 0.3,
-              ),
-              unselectedLabelStyle: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-                fontFamily: 'Roboto',
-                letterSpacing: 0.3,
-              ),
               tabs: const [
                 Tab(text: 'Existing'),
                 Tab(text: 'Create'),
@@ -148,109 +121,27 @@ class _CreditNotesScreenState extends ConsumerState<CreditNotesScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
-          // Existing credit notes
           notesAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, st) => Center(child: Text('Error: $e')),
             data: (notes) {
               if (notes.isEmpty)
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.receipt_long_outlined,
-                        size: AppSizes.iconXL * 2,
-                        color: AppColors.textSecondary,
-                      ),
-                      const SizedBox(height: AppSizes.paddingL),
-                      Text(
-                        'No credit notes',
-                        style: TextStyle(
-                          fontSize: AppSizes.fontXL,
-                          color: AppColors.textSecondary,
-                          fontFamily: 'Roboto',
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-
+                return const Center(child: Text('No debit notes'));
               return ListView.separated(
-                padding: const EdgeInsets.all(AppSizes.paddingL),
+                padding: const EdgeInsets.all(12),
                 itemCount: notes.length,
-                separatorBuilder: (_, __) =>
-                    const SizedBox(height: AppSizes.paddingM),
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemBuilder: (context, idx) {
                   final n = notes[idx];
-                  return Container(
-                    padding: const EdgeInsets.all(AppSizes.paddingM),
-                    decoration: BoxDecoration(
-                      color: AppColors.white,
-                      borderRadius: BorderRadius.circular(AppSizes.radiusM),
-                      border: Border.all(color: AppColors.divider),
+                  return ListTile(
+                    title: Text(n['debit_note_number'] ?? '-'),
+                    subtitle: Text(
+                      'Total: ₹${(n['total_amount'] as num).toStringAsFixed(2)}',
                     ),
-                    child: InkWell(
-                      onTap: () => _openCreditNoteDetails(context, n['id']),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // First line: CN number (left) and total (right)
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  'CN${n['credit_note_number']}',
-                                  style: TextStyle(
-                                    fontSize: AppSizes.fontL,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              const SizedBox(width: AppSizes.paddingS),
-                              Text(
-                                '₹${(n['total_amount'] as num).toStringAsFixed(2)}',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: AppSizes.paddingXS),
-                          // Second line: customer name and optional reason (compact)
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  '${n['customer_name'] ?? '-'}',
-                                  style: TextStyle(
-                                    fontSize: AppSizes.fontM,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              if ((n['reason'] as String?)?.isNotEmpty ?? false)
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                    left: AppSizes.paddingS,
-                                  ),
-                                  child: Text(
-                                    'Reason: ${n['reason']}',
-                                    style: TextStyle(
-                                      color: AppColors.textSecondary,
-                                      fontSize: AppSizes.fontS,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ],
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            DebitNoteDetailsScreen(debitNoteId: n['id'] as int),
                       ),
                     ),
                   );
@@ -259,93 +150,36 @@ class _CreditNotesScreenState extends ConsumerState<CreditNotesScreen>
             },
           ),
 
-          // Create: list bills to create credit note from
-          billsAsync.when(
+          purchasesAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, st) => Center(child: Text('Error: $e')),
-            data: (bills) {
-              if (bills.isEmpty)
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.receipt_long_outlined,
-                        size: AppSizes.iconXL * 2,
-                        color: AppColors.textSecondary,
-                      ),
-                      const SizedBox(height: AppSizes.paddingL),
-                      Text(
-                        'No bills found',
-                        style: TextStyle(
-                          fontSize: AppSizes.fontXL,
-                          color: AppColors.textSecondary,
-                          fontFamily: 'Roboto',
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-
+            data: (purchases) {
+              if (purchases.isEmpty)
+                return const Center(child: Text('No purchases found'));
               return ListView.builder(
-                padding: const EdgeInsets.all(AppSizes.paddingL),
-                itemCount: bills.length,
+                padding: const EdgeInsets.all(12),
+                itemCount: purchases.length,
                 itemBuilder: (context, index) {
-                  final bill = bills[index];
-                  return Container(
-                    padding: const EdgeInsets.all(AppSizes.paddingM),
-                    margin: const EdgeInsets.symmetric(
-                      vertical: AppSizes.paddingXS,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.white,
-                      borderRadius: BorderRadius.circular(AppSizes.radiusM),
-                      border: Border.all(color: AppColors.divider),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Bill: ${bill['bill_number'] ?? '-'}',
-                                style: TextStyle(
-                                  fontSize: AppSizes.fontL,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                              const SizedBox(height: AppSizes.paddingXS),
-                              Text(
-                                bill['customer_name'] ?? '-',
-                                style: TextStyle(
-                                  fontSize: AppSizes.fontM,
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                            ],
+                  final p = purchases[index];
+                  return Card(
+                    child: ListTile(
+                      title: Text('Purchase: ${p['purchase_number'] ?? '-'}'),
+                      subtitle: Text(p['vendor_name'] ?? '-'),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.note_add_outlined),
+                            onPressed: () =>
+                                _openCreateDebitNote(context, p['id'] as int),
                           ),
-                        ),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.note_add_outlined),
-                              color: AppColors.primary,
-                              onPressed: () =>
-                                  _openCreateCreditNote(context, bill['id']),
-                              tooltip: 'Create Credit Note',
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.receipt_long),
-                              onPressed: () =>
-                                  _openBillItems(context, bill['id']),
-                              tooltip: 'View Items',
-                            ),
-                          ],
-                        ),
-                      ],
+                          IconButton(
+                            icon: const Icon(Icons.receipt_long),
+                            onPressed: () =>
+                                _openPurchaseItems(context, p['id'] as int),
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 },
@@ -357,44 +191,36 @@ class _CreditNotesScreenState extends ConsumerState<CreditNotesScreen>
     );
   }
 
-  void _openBillItems(BuildContext context, int billId) {
+  void _openPurchaseItems(BuildContext context, int purchaseId) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (ctx) => BillItemsForCreditNote(billId: billId),
+        builder: (_) => PurchaseItemsForDebitNote(purchaseId: purchaseId),
       ),
     );
   }
 
-  void _openCreateCreditNote(BuildContext context, int billId) {
+  void _openCreateDebitNote(BuildContext context, int purchaseId) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (ctx) => CreateCreditNoteScreen(billId: billId),
-      ),
-    );
-  }
-
-  void _openCreditNoteDetails(BuildContext context, int creditNoteId) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (ctx) => CreditNoteDetailsScreen(creditNoteId: creditNoteId),
+        builder: (_) => CreateDebitNoteScreen(purchaseId: purchaseId),
       ),
     );
   }
 }
 
-class CreditNoteDetailsScreen extends ConsumerWidget {
-  final int creditNoteId;
-  const CreditNoteDetailsScreen({super.key, required this.creditNoteId});
+class DebitNoteDetailsScreen extends ConsumerWidget {
+  final int debitNoteId;
+  const DebitNoteDetailsScreen({super.key, required this.debitNoteId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final itemsAsync = ref.watch(creditNoteItemsProvider(creditNoteId));
+    final itemsAsync = ref.watch(debitNoteItemsProvider(debitNoteId));
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Credit Note Details'),
-        backgroundColor: AppColors.primary,
+        title: const Text('Debit Note Details'),
+        backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         elevation: 0,
       ),
@@ -423,9 +249,9 @@ class CreditNoteDetailsScreen extends ConsumerWidget {
           }
           final grandTotal = subtotal + totalTax;
 
-          // Get credit note number, customer, date, reason from first item (all items have same credit_note_id)
-          final creditNoteNumber = items.first['credit_note_number'] ?? '-';
-          final customerName = items.first['customer_name'] ?? '-';
+          // Get debit note number, vendor, date, reason from first item
+          final debitNoteNumber = items.first['debit_note_number'] ?? '-';
+          final vendorName = items.first['vendor_name'] ?? '-';
           final createdAtStr = items.first['created_at'] ?? '';
           DateTime? createdAt;
           if (createdAtStr is String && createdAtStr.isNotEmpty) {
@@ -456,25 +282,25 @@ class CreditNoteDetailsScreen extends ConsumerWidget {
                             vertical: 6,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.purple.shade100,
+                            color: Colors.green.shade50,
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
-                            'Credit Note',
+                            'Debit Note',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: Colors.purple.shade700,
+                              color: Colors.green.shade700,
                             ),
                           ),
                         ),
                         const Spacer(),
                         Text(
-                          'CN$creditNoteNumber',
+                          'DN$debitNoteNumber',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w700,
-                            color: AppColors.primary,
+                            color: Colors.green.shade700,
                           ),
                         ),
                       ],
@@ -483,11 +309,11 @@ class CreditNoteDetailsScreen extends ConsumerWidget {
                     const Divider(),
                     const SizedBox(height: 16),
 
-                    // Customer Info
+                    // Vendor Info
                     Row(
                       children: [
                         Text(
-                          'Customer: ',
+                          'Vendor: ',
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -495,7 +321,7 @@ class CreditNoteDetailsScreen extends ConsumerWidget {
                           ),
                         ),
                         Text(
-                          customerName,
+                          vendorName,
                           style: const TextStyle(
                             fontSize: 14,
                             color: Colors.black87,
@@ -719,7 +545,7 @@ class CreditNoteDetailsScreen extends ConsumerWidget {
                           final hsn = it['hsn_code'] as String? ?? '-';
                           final uqc = it['uqc_code'] as String? ?? '-';
                           final qty = it['quantity'] as int;
-                          final rate = (it['selling_price'] as num).toDouble();
+                          final rate = (it['cost_price'] as num).toDouble();
                           final amount = (it['subtotal'] as num).toDouble();
                           final cgstR = (it['cgst_rate'] as num).toDouble();
                           final sgstR = (it['sgst_rate'] as num).toDouble();
@@ -928,22 +754,23 @@ class CreditNoteDetailsScreen extends ConsumerWidget {
   }
 }
 
-class BillItemsForCreditNote extends ConsumerWidget {
-  final int billId;
-  const BillItemsForCreditNote({super.key, required this.billId});
+class PurchaseItemsForDebitNote extends ConsumerWidget {
+  final int purchaseId;
+  const PurchaseItemsForDebitNote({super.key, required this.purchaseId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final itemsAsync = ref.watch(creditNotesBillItemsProvider(billId));
-    final existingCNAsync = ref.watch(creditNotesForBillProvider(billId));
+    final itemsAsync = ref.watch(purchaseItemsProvider(purchaseId));
+    final existingAsync = ref.watch(debitNotesForPurchaseProvider(purchaseId));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Bill Items')),
+      appBar: AppBar(title: const Text('Purchase Items')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // We'll show existing debit notes after items (as per request)
             itemsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, st) => Center(child: Text('Error: $e')),
@@ -1048,7 +875,7 @@ class BillItemsForCreditNote extends ConsumerWidget {
                                 final idx = entry.key + 1;
                                 final it = entry.value;
                                 final qty = it['quantity'] as int;
-                                final rate = (it['selling_price'] as num)
+                                final rate = (it['cost_price'] as num)
                                     .toDouble();
                                 final amount = (it['subtotal'] as num)
                                     .toDouble();
@@ -1134,31 +961,21 @@ class BillItemsForCreditNote extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (taxable.isNotEmpty) ...[
-                      Text(
-                        'Taxable Items',
-                        style: TextStyle(
-                          fontSize: AppSizes.fontL,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: AppSizes.paddingS),
+                      const Text('Taxable Items'),
+                      const SizedBox(height: 8),
+                      // Full width white bordered table
                       buildTable(
                         context,
                         taxable,
                         includeTaxPercentCols: true,
                         includeTaxAmountCol: true,
                       ),
-                      const SizedBox(height: AppSizes.paddingM),
+                      const SizedBox(height: 12),
                     ],
                     if (nonTaxable.isNotEmpty) ...[
-                      Text(
-                        'Non-taxable Items',
-                        style: TextStyle(
-                          fontSize: AppSizes.fontL,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: AppSizes.paddingS),
+                      const Text('Non-taxable Items'),
+                      const SizedBox(height: 8),
+                      // Non-taxable: no tax percent cols, no tax amt
                       buildTable(
                         context,
                         nonTaxable,
@@ -1170,10 +987,12 @@ class BillItemsForCreditNote extends ConsumerWidget {
                 );
               },
             ),
-            const SizedBox(height: AppSizes.paddingM),
-            existingCNAsync.when(
+
+            const SizedBox(height: 12),
+            // Existing debit notes shown last
+            existingAsync.when(
               loading: () => const SizedBox.shrink(),
-              error: (e, st) => Text('Error loading credit notes: $e'),
+              error: (e, st) => Text('Error loading debit notes: $e'),
               data: (cns) {
                 if (cns.isEmpty) return const SizedBox.shrink();
                 return Card(
@@ -1184,27 +1003,29 @@ class BillItemsForCreditNote extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Existing Credit Notes',
+                          'Existing Debit Notes',
                           style: TextStyle(
-                            fontSize: AppSizes.fontL,
+                            fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
                           ),
                         ),
-                        const SizedBox(height: AppSizes.paddingS),
+                        const SizedBox(height: 8),
                         ...cns.map((cn) {
                           final createdAt = cn['created_at'] as String? ?? '';
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
-                            title: Text(cn['credit_note_number'] ?? '-'),
+                            title: Text(cn['debit_note_number'] ?? '-'),
                             subtitle: Text(
                               'Total: ₹${(cn['total_amount'] as num).toStringAsFixed(2)} • ${createdAt.split('T').first}',
                             ),
-                            trailing: Icon(Icons.arrow_forward_ios, size: 14),
+                            trailing: const Icon(
+                              Icons.arrow_forward_ios,
+                              size: 14,
+                            ),
                             onTap: () => Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (_) => CreditNoteDetailsScreen(
-                                  creditNoteId: cn['id'] as int,
+                                builder: (_) => DebitNoteDetailsScreen(
+                                  debitNoteId: cn['id'] as int,
                                 ),
                               ),
                             ),
@@ -1223,27 +1044,28 @@ class BillItemsForCreditNote extends ConsumerWidget {
   }
 }
 
-class CreateCreditNoteScreen extends ConsumerStatefulWidget {
-  final int billId;
-  const CreateCreditNoteScreen({super.key, required this.billId});
+class CreateDebitNoteScreen extends ConsumerStatefulWidget {
+  final int purchaseId;
+  const CreateDebitNoteScreen({super.key, required this.purchaseId});
 
   @override
-  ConsumerState<CreateCreditNoteScreen> createState() =>
-      _CreateCreditNoteScreenState();
+  ConsumerState<CreateDebitNoteScreen> createState() =>
+      _CreateDebitNoteScreenState();
 }
 
-class _CreateCreditNoteScreenState
-    extends ConsumerState<CreateCreditNoteScreen> {
-  final Map<int, int> _returnQuantities = {}; // bill_item_id -> qty to return
+class _CreateDebitNoteScreenState extends ConsumerState<CreateDebitNoteScreen> {
+  final Map<int, int> _returnQuantities = {};
   final TextEditingController _reasonController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
-    final itemsAsync = ref.watch(creditNotesBillItemsProvider(widget.billId));
-    final returnedAsync = ref.watch(returnedQuantitiesProvider(widget.billId));
+    final itemsAsync = ref.watch(purchaseItemsProvider(widget.purchaseId));
+    final returnedAsync = ref.watch(
+      returnedQuantitiesForPurchaseProvider(widget.purchaseId),
+    );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Credit Note')),
+      appBar: AppBar(title: const Text('Create Debit Note')),
       body: itemsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, st) => Center(child: Text('Error: $e')),
@@ -1259,7 +1081,6 @@ class _CreateCreditNoteScreenState
                 padding: const EdgeInsets.all(12),
                 child: Column(
                   children: [
-                    // Reason field
                     TextField(
                       controller: _reasonController,
                       decoration: const InputDecoration(
@@ -1274,11 +1095,10 @@ class _CreateCreditNoteScreenState
                         separatorBuilder: (_, __) => const Divider(),
                         itemBuilder: (context, idx) {
                           final it = items[idx];
-                          final id = it['id'] as int; // bill_item id
+                          final id = it['id'] as int; // purchase_item id
                           final boughtQty = it['quantity'] as int;
                           final alreadyReturned = returnedMap[id] ?? 0;
                           final remaining = boughtQty - alreadyReturned;
-
                           final returnQty = _returnQuantities[id] ?? 0;
 
                           return ListTile(
@@ -1290,7 +1110,7 @@ class _CreateCreditNoteScreenState
                                   'Bought: $boughtQty   Remaining: $remaining',
                                 ),
                                 Text(
-                                  'Price: ₹${(it['selling_price'] as num).toStringAsFixed(2)}',
+                                  'Price: ₹${(it['cost_price'] as num).toStringAsFixed(2)}',
                                 ),
                               ],
                             ),
@@ -1329,9 +1149,9 @@ class _CreateCreditNoteScreenState
                     ),
                     ElevatedButton(
                       onPressed: _returnQuantities.values.any((v) => v > 0)
-                          ? _submitCreditNote
+                          ? _submitDebitNote
                           : null,
-                      child: const Text('Create Credit Note'),
+                      child: const Text('Create Debit Note'),
                     ),
                   ],
                 ),
@@ -1343,47 +1163,32 @@ class _CreateCreditNoteScreenState
     );
   }
 
-  Future<void> _submitCreditNote() async {
+  Future<void> _submitDebitNote() async {
     final db = await ref.read(databaseProvider);
-    final repo = BillRepository(db);
+    final repo = DebitNoteRepository(db);
+    final purchaseRepo = PurchaseRepository(db);
 
-    // Fetch bill and items to build credit note
-    final bill = await repo.getBillById(widget.billId);
-    if (bill == null) {
+    final purchase = await purchaseRepo.getPurchaseById(widget.purchaseId);
+    if (purchase == null) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Bill not found')));
+      ).showSnackBar(const SnackBar(content: Text('Purchase not found')));
       return;
     }
 
-    final items = await repo.getBillItems(widget.billId);
-    final returned = await repo.getReturnedQuantitiesForBill(widget.billId);
+    final items = await purchaseRepo.getPurchaseItems(widget.purchaseId);
 
-    final List<Map<String, dynamic>> creditItems = [];
+    final List<Map<String, dynamic>> debitItems = [];
     double subtotal = 0.0;
     double taxAmount = 0.0;
 
     for (final it in items) {
-      final billItemId = it['id'] as int;
-      final qtyToReturn = _returnQuantities[billItemId] ?? 0;
+      final purchaseItemId = it['id'] as int;
+      final qtyToReturn = _returnQuantities[purchaseItemId] ?? 0;
       if (qtyToReturn <= 0) continue;
 
-      final boughtQty = it['quantity'] as int;
-      final alreadyReturned = returned[billItemId] ?? 0;
-      final allowed = boughtQty - alreadyReturned;
-      if (qtyToReturn > allowed) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Return qty for ${it['product_name']} exceeds allowed ($allowed)',
-            ),
-          ),
-        );
-        return;
-      }
-
-      final sellingPrice = (it['selling_price'] as num).toDouble();
-      final lineSubtotal = sellingPrice * qtyToReturn;
+      final costPrice = (it['cost_price'] as num).toDouble();
+      final lineSubtotal = costPrice * qtyToReturn;
       final cgstRate = (it['cgst_rate'] as num).toDouble();
       final sgstRate = (it['sgst_rate'] as num).toDouble();
       final igstRate = (it['igst_rate'] as num).toDouble();
@@ -1399,14 +1204,14 @@ class _CreateCreditNoteScreenState
       subtotal += lineSubtotal;
       taxAmount += lineTax;
 
-      creditItems.add({
-        'bill_item_id': billItemId,
+      debitItems.add({
+        'purchase_item_id': purchaseItemId,
         'product_id': it['product_id'],
         'product_name': it['product_name'],
         'part_number': it['part_number'],
         'hsn_code': it['hsn_code'],
         'uqc_code': it['uqc_code'],
-        'selling_price': sellingPrice,
+        'cost_price': costPrice,
         'quantity': qtyToReturn,
         'subtotal': lineSubtotal,
         'cgst_rate': cgstRate,
@@ -1422,38 +1227,34 @@ class _CreateCreditNoteScreenState
       });
     }
 
-    if (creditItems.isEmpty) {
+    if (debitItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No items selected for return')),
       );
       return;
     }
 
-    final totalAmount = subtotal + taxAmount;
-
-    // Build credit note data
-    final creditNoteData = {
-      'bill_id': widget.billId,
-      'credit_note_number': await repo.generateCreditNoteNumber(),
-      'customer_id': bill['customer_id'],
+    final debitNoteData = {
+      'purchase_id': widget.purchaseId,
+      'debit_note_number': '',
+      'vendor_id': purchase['vendor_id'],
       'reason': _reasonController.text.trim(),
       'subtotal': subtotal,
       'tax_amount': taxAmount,
-      'total_amount': totalAmount,
+      'total_amount': subtotal + taxAmount,
     };
 
     try {
-      final newId = await repo.createCreditNote(creditNoteData, creditItems);
-      // Refresh the credit notes provider so Existing tab shows the new credit note immediately
-      ref.invalidate(creditNotesProvider);
+      final newId = await repo.createDebitNote(debitNoteData, debitItems);
+      ref.invalidate(debitNotesProvider);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Credit Note $newId created')));
+      ).showSnackBar(SnackBar(content: Text('Debit Note $newId created')));
       Navigator.of(context).pop();
     } catch (e) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error creating credit note: $e')));
+      ).showSnackBar(SnackBar(content: Text('Error creating debit note: $e')));
     }
   }
 }
