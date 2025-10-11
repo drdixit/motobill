@@ -130,66 +130,89 @@ class _DebitNotesScreenState extends ConsumerState<DebitNotesScreen>
               if (notes.isEmpty)
                 return const Center(child: Text('No debit notes'));
 
-              return Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(AppSizes.paddingL),
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(AppSizes.paddingM),
-                      decoration: BoxDecoration(
-                        color: AppColors.white,
-                        borderRadius: BorderRadius.circular(AppSizes.radiusM),
-                        border: Border.all(color: AppColors.divider),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.note_outlined, color: AppColors.success),
-                          const SizedBox(width: AppSizes.paddingS),
-                          Expanded(
-                            child: Text(
-                              'Existing Debit Notes',
-                              style: TextStyle(
-                                fontSize: AppSizes.fontL,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
+              return ListView.separated(
+                padding: const EdgeInsets.all(AppSizes.paddingL),
+                itemCount: notes.length,
+                separatorBuilder: (_, __) =>
+                    const SizedBox(height: AppSizes.paddingM),
+                itemBuilder: (context, idx) {
+                  final n = notes[idx];
+                  return Container(
+                    padding: const EdgeInsets.all(AppSizes.paddingM),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(AppSizes.radiusM),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: InkWell(
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => DebitNoteDetailsScreen(
+                            debitNoteId: n['id'] as int,
                           ),
-                          Text(
-                            '${notes.length}',
-                            style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'DN${n['debit_note_number'] ?? '-'}',
+                                  style: TextStyle(
+                                    fontSize: AppSizes.fontL,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black87,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: AppSizes.paddingS),
+                              Text(
+                                '₹${(n['total_amount'] as num).toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSizes.paddingXS),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  n['vendor_name'] ?? '-',
+                                  style: TextStyle(
+                                    fontSize: AppSizes.fontM,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if ((n['reason'] as String?)?.isNotEmpty ?? false)
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    left: AppSizes.paddingS,
+                                  ),
+                                  child: Text(
+                                    'Reason: ${n['reason']}',
+                                    style: TextStyle(
+                                      color: Colors.grey.shade600,
+                                      fontSize: AppSizes.fontS,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                            ],
                           ),
                         ],
                       ),
                     ),
-                  ),
-                  Expanded(
-                    child: ListView.separated(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSizes.paddingL,
-                      ),
-                      itemCount: notes.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (context, idx) {
-                        final n = notes[idx];
-                        return ListTile(
-                          title: Text(n['debit_note_number'] ?? '-'),
-                          subtitle: Text(
-                            'Total: ₹${(n['total_amount'] as num).toStringAsFixed(2)}',
-                          ),
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => DebitNoteDetailsScreen(
-                                debitNoteId: n['id'] as int,
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
+                  );
+                },
               );
             },
           ),
@@ -201,82 +224,68 @@ class _DebitNotesScreenState extends ConsumerState<DebitNotesScreen>
               if (purchases.isEmpty)
                 return const Center(child: Text('No purchases found'));
 
-              return Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(AppSizes.paddingL),
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(AppSizes.paddingM),
-                      decoration: BoxDecoration(
-                        color: AppColors.white,
-                        borderRadius: BorderRadius.circular(AppSizes.radiusM),
-                        border: Border.all(color: AppColors.divider),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.add_shopping_cart_outlined,
-                            color: AppColors.success,
-                          ),
-                          const SizedBox(width: AppSizes.paddingS),
-                          Expanded(
-                            child: Text(
-                              'Create Debit Note',
-                              style: TextStyle(
-                                fontSize: AppSizes.fontL,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary,
+              return ListView.builder(
+                padding: const EdgeInsets.all(AppSizes.paddingL),
+                itemCount: purchases.length,
+                itemBuilder: (context, index) {
+                  final p = purchases[index];
+                  return Container(
+                    padding: const EdgeInsets.all(AppSizes.paddingM),
+                    margin: const EdgeInsets.symmetric(
+                      vertical: AppSizes.paddingXS,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.white,
+                      borderRadius: BorderRadius.circular(AppSizes.radiusM),
+                      border: Border.all(color: AppColors.divider),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Purchase: ${p['purchase_number'] ?? '-'}',
+                                style: TextStyle(
+                                  fontSize: AppSizes.fontL,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                ),
                               ),
-                            ),
-                          ),
-                          Text(
-                            '${purchases.length}',
-                            style: TextStyle(color: AppColors.textSecondary),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: ListView.builder(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSizes.paddingL,
-                      ),
-                      itemCount: purchases.length,
-                      itemBuilder: (context, index) {
-                        final p = purchases[index];
-                        return Card(
-                          child: ListTile(
-                            title: Text(
-                              'Purchase: ${p['purchase_number'] ?? '-'}',
-                            ),
-                            subtitle: Text(p['vendor_name'] ?? '-'),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.note_add_outlined),
-                                  onPressed: () => _openCreateDebitNote(
-                                    context,
-                                    p['id'] as int,
-                                  ),
+                              const SizedBox(height: AppSizes.paddingXS),
+                              Text(
+                                p['vendor_name'] ?? '-',
+                                style: TextStyle(
+                                  fontSize: AppSizes.fontM,
+                                  color: AppColors.textSecondary,
                                 ),
-                                IconButton(
-                                  icon: const Icon(Icons.receipt_long),
-                                  onPressed: () => _openPurchaseItems(
-                                    context,
-                                    p['id'] as int,
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                        );
-                      },
+                        ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.note_add_outlined),
+                              color: AppColors.primary,
+                              onPressed: () =>
+                                  _openCreateDebitNote(context, p['id'] as int),
+                              tooltip: 'Create Debit Note',
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.receipt_long),
+                              onPressed: () =>
+                                  _openPurchaseItems(context, p['id'] as int),
+                              tooltip: 'View Items',
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                  );
+                },
               );
             },
           ),
