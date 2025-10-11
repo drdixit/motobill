@@ -438,6 +438,20 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
               ),
             ),
           ),
+          // Summary section after table
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                _buildTotalRow('Subtotal:', _subtotal),
+                const SizedBox(width: 40),
+                _buildTotalRow('Tax:', _totalTax),
+                const SizedBox(width: 40),
+                _buildTotalRow('Total:', _grandTotal, isGrand: true),
+              ],
+            ),
+          ),
           _buildFooter(),
         ],
       ),
