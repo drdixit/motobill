@@ -87,21 +87,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.receipt_long,
-              size: AppSizes.iconXL * 2,
-              color: AppColors.primary,
-            ),
-            const SizedBox(height: AppSizes.paddingXL),
-            Text(
-              'Sales',
-              style: TextStyle(
-                fontSize: AppSizes.fontXXL,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-                fontFamily: 'Roboto',
-              ),
-            ),
             const SizedBox(height: AppSizes.paddingXL),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
