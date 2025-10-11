@@ -1425,36 +1425,6 @@ class PurchaseItemsForDebitNote extends ConsumerWidget {
                         );
                       },
                     ),
-                    // Totals after tables
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              'Subtotal: ₹${subtotal.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            Text(
-                              'Tax Subtotal: ₹${totalTax.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            Text(
-                              'Total: ₹${grandTotal.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    // Totals after tables
                   ],
                 ),
               ),
