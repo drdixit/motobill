@@ -271,6 +271,10 @@ class _CartItemWidgetState extends State<_CartItemWidget> {
   late TextEditingController priceController;
   late TextEditingController totalController;
 
+  late FocusNode qtyFocusNode;
+  late FocusNode priceFocusNode;
+  late FocusNode totalFocusNode;
+
   @override
   void initState() {
     super.initState();
@@ -285,42 +289,40 @@ class _CartItemWidgetState extends State<_CartItemWidget> {
     totalController = TextEditingController(
       text: widget.item.totalAmount.toStringAsFixed(2),
     );
+
+    qtyFocusNode = FocusNode();
+    priceFocusNode = FocusNode();
+    totalFocusNode = FocusNode();
   }
 
   @override
   void didUpdateWidget(_CartItemWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // Update text only if value changed, preserve cursor position
-    if (oldWidget.item.quantity != widget.item.quantity) {
+    // Only update text if field is NOT focused (user is not editing)
+    if (oldWidget.item.quantity != widget.item.quantity &&
+        !qtyFocusNode.hasFocus) {
       final newText = '${widget.item.quantity}';
       if (qtyController.text != newText) {
-        qtyController.value = qtyController.value.copyWith(
-          text: newText,
-          selection: TextSelection.collapsed(offset: newText.length),
-        );
+        qtyController.text = newText;
       }
     }
 
-    if (oldWidget.item.sellingPrice != widget.item.sellingPrice ||
-        oldWidget.item.taxAmount != widget.item.taxAmount) {
+    if ((oldWidget.item.sellingPrice != widget.item.sellingPrice ||
+            oldWidget.item.taxAmount != widget.item.taxAmount) &&
+        !priceFocusNode.hasFocus) {
       final priceWithTax = _calculatePriceWithTax(widget.item);
       final newText = priceWithTax.toStringAsFixed(2);
       if (priceController.text != newText) {
-        priceController.value = priceController.value.copyWith(
-          text: newText,
-          selection: TextSelection.collapsed(offset: newText.length),
-        );
+        priceController.text = newText;
       }
     }
 
-    if (oldWidget.item.totalAmount != widget.item.totalAmount) {
+    if (oldWidget.item.totalAmount != widget.item.totalAmount &&
+        !totalFocusNode.hasFocus) {
       final newText = widget.item.totalAmount.toStringAsFixed(2);
       if (totalController.text != newText) {
-        totalController.value = totalController.value.copyWith(
-          text: newText,
-          selection: TextSelection.collapsed(offset: newText.length),
-        );
+        totalController.text = newText;
       }
     }
   }
@@ -330,6 +332,9 @@ class _CartItemWidgetState extends State<_CartItemWidget> {
     qtyController.dispose();
     priceController.dispose();
     totalController.dispose();
+    qtyFocusNode.dispose();
+    priceFocusNode.dispose();
+    totalFocusNode.dispose();
     super.dispose();
   }
 
@@ -379,6 +384,7 @@ class _CartItemWidgetState extends State<_CartItemWidget> {
               width: 50,
               child: TextFormField(
                 controller: qtyController,
+                focusNode: qtyFocusNode,
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: false,
                 ),
@@ -425,6 +431,7 @@ class _CartItemWidgetState extends State<_CartItemWidget> {
               width: 70,
               child: TextFormField(
                 controller: priceController,
+                focusNode: priceFocusNode,
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
@@ -495,6 +502,7 @@ class _CartItemWidgetState extends State<_CartItemWidget> {
               width: 75,
               child: TextFormField(
                 controller: totalController,
+                focusNode: totalFocusNode,
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
