@@ -145,4 +145,91 @@ class PosRepository {
       throw Exception('Failed to get company GST number: $e');
     }
   }
+
+  /// Get last custom price (per unit with tax) for a product sold to a customer
+  /// Returns null if no previous sale found or if default price was used
+  Future<double?> getLastCustomPrice(int customerId, int productId) async {
+    try {
+      final result = await _db.rawQuery(
+        '''
+        SELECT bi.total_amount, bi.quantity
+        FROM bill_items bi
+        INNER JOIN bills b ON bi.bill_id = b.id
+        WHERE b.customer_id = ?
+          AND bi.product_id = ?
+          AND b.is_deleted = 0
+          AND bi.is_deleted = 0
+        ORDER BY b.created_at DESC
+        LIMIT 1
+      ''',
+        [customerId, productId],
+      );
+
+      if (result.isEmpty) return null;
+
+      final totalAmount = result.first['total_amount'] as double;
+      final quantity = result.first['quantity'] as int;
+
+      if (quantity == 0) return null;
+
+      // Calculate per unit price with tax
+      return totalAmount / quantity;
+    } catch (e) {
+      throw Exception('Failed to get last custom price: $e');
+    }
+  }
+
+  /// Get last custom prices for multiple products sold to a customer
+  /// Returns a map of productId -> lastCustomPrice (per unit with tax)
+  Future<Map<int, double>> getLastCustomPrices(
+    int customerId,
+    List<int> productIds,
+  ) async {
+    try {
+      if (productIds.isEmpty) return {};
+
+      final placeholders = List.filled(productIds.length, '?').join(',');
+
+      final result = await _db.rawQuery(
+        '''
+        SELECT
+          bi.product_id,
+          bi.total_amount,
+          bi.quantity,
+          b.created_at
+        FROM bill_items bi
+        INNER JOIN bills b ON bi.bill_id = b.id
+        WHERE b.customer_id = ?
+          AND bi.product_id IN ($placeholders)
+          AND b.is_deleted = 0
+          AND bi.is_deleted = 0
+        ORDER BY b.created_at DESC
+      ''',
+        [customerId, ...productIds],
+      );
+
+      final Map<int, double> prices = {};
+      final Set<int> processedProducts = {};
+
+      for (final row in result) {
+        final productId = row['product_id'] as int;
+
+        // Only take the first (most recent) price for each product
+        if (!processedProducts.contains(productId)) {
+          final totalAmount = row['total_amount'] as double;
+          final quantity = row['quantity'] as int;
+
+          if (quantity > 0) {
+            prices[productId] = totalAmount / quantity;
+          }
+
+          processedProducts.add(productId);
+        }
+      }
+
+      return prices;
+    } catch (e) {
+      throw Exception('Failed to get last custom prices: $e');
+    }
+  }
 }

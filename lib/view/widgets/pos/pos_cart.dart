@@ -383,7 +383,13 @@ class PosCart extends ConsumerWidget {
                     itemCount: state.cartItems.length,
                     itemBuilder: (context, index) {
                       final item = state.cartItems[index];
-                      return _buildCartItem(context, item, viewModel);
+                      final lastPrice = state.lastCustomPrices[item.productId];
+                      return _buildCartItem(
+                        context,
+                        item,
+                        viewModel,
+                        lastPrice,
+                      );
                     },
                   ),
           ),
@@ -464,11 +470,13 @@ class PosCart extends ConsumerWidget {
     BuildContext context,
     BillItem item,
     PosViewModel viewModel,
+    double? lastCustomPrice,
   ) {
     return _CartItemWidget(
       key: ValueKey(item.productId),
       item: item,
       viewModel: viewModel,
+      lastCustomPrice: lastCustomPrice,
     );
   }
 }
@@ -476,11 +484,13 @@ class PosCart extends ConsumerWidget {
 class _CartItemWidget extends StatefulWidget {
   final BillItem item;
   final PosViewModel viewModel;
+  final double? lastCustomPrice;
 
   const _CartItemWidget({
     super.key,
     required this.item,
     required this.viewModel,
+    this.lastCustomPrice,
   });
 
   @override
@@ -570,7 +580,7 @@ class _CartItemWidgetState extends State<_CartItemWidget> {
     return Card(
       margin: const EdgeInsets.only(bottom: AppSizes.paddingS),
       elevation: 0,
-      color: AppColors.backgroundSecondary,
+      color: AppColors.backgroundTertiary,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppSizes.radiusM),
         side: BorderSide(color: AppColors.border, width: 0.5),
@@ -647,6 +657,29 @@ class _CartItemWidgetState extends State<_CartItemWidget> {
               ),
             ),
             const SizedBox(width: AppSizes.paddingS),
+            // Last Custom Price Display (if exists)
+            if (widget.lastCustomPrice != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.info.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                  border: Border.all(
+                    color: AppColors.info.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  '₹${widget.lastCustomPrice!.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: AppSizes.fontXS,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.info,
+                  ),
+                ),
+              ),
+            if (widget.lastCustomPrice != null)
+              const SizedBox(width: AppSizes.paddingS),
             // Single Price (editable)
             SizedBox(
               width: 70,
