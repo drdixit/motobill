@@ -215,14 +215,91 @@ class PosCart extends ConsumerWidget {
     BillItem item,
     PosViewModel viewModel,
   ) {
-    final qtyController = TextEditingController(text: '${item.quantity}');
-    final priceController = TextEditingController(
-      text: item.sellingPrice.toStringAsFixed(2),
+    return _CartItemWidget(
+      key: ValueKey(item.productId),
+      item: item,
+      viewModel: viewModel,
     );
-    final totalController = TextEditingController(
-      text: item.totalAmount.toStringAsFixed(2),
-    );
+  }
+}
 
+class _CartItemWidget extends StatefulWidget {
+  final BillItem item;
+  final PosViewModel viewModel;
+
+  const _CartItemWidget({
+    super.key,
+    required this.item,
+    required this.viewModel,
+  });
+
+  @override
+  State<_CartItemWidget> createState() => _CartItemWidgetState();
+}
+
+class _CartItemWidgetState extends State<_CartItemWidget> {
+  late TextEditingController qtyController;
+  late TextEditingController priceController;
+  late TextEditingController totalController;
+
+  @override
+  void initState() {
+    super.initState();
+    qtyController = TextEditingController(text: '${widget.item.quantity}');
+    priceController = TextEditingController(
+      text: widget.item.sellingPrice.toStringAsFixed(2),
+    );
+    totalController = TextEditingController(
+      text: widget.item.totalAmount.toStringAsFixed(2),
+    );
+  }
+
+  @override
+  void didUpdateWidget(_CartItemWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // Update text only if value changed, preserve cursor position
+    if (oldWidget.item.quantity != widget.item.quantity) {
+      final newText = '${widget.item.quantity}';
+      if (qtyController.text != newText) {
+        qtyController.value = qtyController.value.copyWith(
+          text: newText,
+          selection: TextSelection.collapsed(offset: newText.length),
+        );
+      }
+    }
+
+    if (oldWidget.item.sellingPrice != widget.item.sellingPrice) {
+      final newText = widget.item.sellingPrice.toStringAsFixed(2);
+      if (priceController.text != newText) {
+        priceController.value = priceController.value.copyWith(
+          text: newText,
+          selection: TextSelection.collapsed(offset: newText.length),
+        );
+      }
+    }
+
+    if (oldWidget.item.totalAmount != widget.item.totalAmount) {
+      final newText = widget.item.totalAmount.toStringAsFixed(2);
+      if (totalController.text != newText) {
+        totalController.value = totalController.value.copyWith(
+          text: newText,
+          selection: TextSelection.collapsed(offset: newText.length),
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    qtyController.dispose();
+    priceController.dispose();
+    totalController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.only(bottom: AppSizes.paddingS),
       elevation: 0,
@@ -242,9 +319,9 @@ class PosCart extends ConsumerWidget {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  item.partNumber != null
-                      ? '${item.productName} (${item.partNumber})'
-                      : item.productName,
+                  widget.item.partNumber != null
+                      ? '${widget.item.productName} (${widget.item.partNumber})'
+                      : widget.item.productName,
                   style: TextStyle(
                     fontSize: AppSizes.fontS,
                     fontWeight: FontWeight.w600,
@@ -290,9 +367,13 @@ class PosCart extends ConsumerWidget {
                   isDense: true,
                 ),
                 onChanged: (value) {
+                  if (value.isEmpty) return;
                   final newQty = int.tryParse(value);
                   if (newQty != null && newQty > 0) {
-                    viewModel.updateCartItemQuantity(item.productId, newQty);
+                    widget.viewModel.updateCartItemQuantity(
+                      widget.item.productId,
+                      newQty,
+                    );
                   }
                 },
               ),
@@ -332,9 +413,13 @@ class PosCart extends ConsumerWidget {
                   isDense: true,
                 ),
                 onChanged: (value) {
+                  if (value.isEmpty) return;
                   final newPrice = double.tryParse(value);
                   if (newPrice != null && newPrice > 0) {
-                    viewModel.updateCartItemPrice(item.productId, newPrice);
+                    widget.viewModel.updateCartItemPrice(
+                      widget.item.productId,
+                      newPrice,
+                    );
                   }
                 },
               ),
@@ -346,7 +431,7 @@ class PosCart extends ConsumerWidget {
               child: Align(
                 alignment: Alignment.center,
                 child: Text(
-                  '₹${item.taxAmount.toStringAsFixed(2)}',
+                  '₹${widget.item.taxAmount.toStringAsFixed(2)}',
                   style: TextStyle(
                     fontSize: AppSizes.fontXS,
                     color: AppColors.textTertiary,
@@ -391,9 +476,13 @@ class PosCart extends ConsumerWidget {
                   isDense: true,
                 ),
                 onChanged: (value) {
+                  if (value.isEmpty) return;
                   final newTotal = double.tryParse(value);
                   if (newTotal != null && newTotal > 0) {
-                    viewModel.updateCartItemTotal(item.productId, newTotal);
+                    widget.viewModel.updateCartItemTotal(
+                      widget.item.productId,
+                      newTotal,
+                    );
                   }
                 },
               ),
@@ -401,7 +490,8 @@ class PosCart extends ConsumerWidget {
             const SizedBox(width: AppSizes.paddingS),
             // Delete button
             InkWell(
-              onTap: () => viewModel.removeFromCart(item.productId),
+              onTap: () =>
+                  widget.viewModel.removeFromCart(widget.item.productId),
               child: Icon(
                 Icons.close,
                 size: AppSizes.iconS,
@@ -413,7 +503,9 @@ class PosCart extends ConsumerWidget {
       ),
     );
   }
+}
 
+extension on PosCart {
   Widget _buildCartSummary(
     PosState state,
     PosViewModel viewModel,
