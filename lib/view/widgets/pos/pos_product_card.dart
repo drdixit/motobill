@@ -28,6 +28,7 @@ class PosProductCard extends StatelessWidget {
         side: BorderSide(color: AppColors.border, width: 0.5),
       ),
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: onTap,
         onSecondaryTap: onSecondaryTap,
         child: Stack(
