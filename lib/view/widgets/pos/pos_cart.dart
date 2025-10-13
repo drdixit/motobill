@@ -494,22 +494,6 @@ class _CartItemWidgetState extends State<_CartItemWidget> {
               ),
             ),
             const SizedBox(width: AppSizes.paddingS),
-            // Tax (non-editable)
-            SizedBox(
-              width: 55,
-              child: Align(
-                alignment: Alignment.center,
-                child: Text(
-                  '₹${widget.item.taxAmount.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontSize: AppSizes.fontXS,
-                    color: AppColors.textTertiary,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ),
-            const SizedBox(width: AppSizes.paddingS),
             // Total (editable)
             SizedBox(
               width: 75,
