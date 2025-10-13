@@ -82,7 +82,26 @@ class BillRepository {
       );
 
       for (final it in items) {
-        await txn.rawInsert(
+        // First, validate stock availability
+        final stockCheck = await txn.rawQuery(
+          '''SELECT COALESCE(SUM(quantity_remaining), 0) as available
+             FROM stock_batches
+             WHERE product_id = ? AND is_deleted = 0 AND quantity_remaining > 0''',
+          [it.productId],
+        );
+
+        final availableQty = stockCheck.isNotEmpty
+            ? (stockCheck.first['available'] as num).toInt()
+            : 0;
+
+        if (availableQty < it.quantity) {
+          throw Exception(
+            'Insufficient stock for ${it.productName}. Available: $availableQty, Required: ${it.quantity}',
+          );
+        }
+
+        // Insert bill item
+        final billItemId = await txn.rawInsert(
           '''INSERT INTO bill_items
              (bill_id, product_id, product_name, part_number, hsn_code, uqc_code, cost_price, selling_price, quantity, subtotal, cgst_rate, sgst_rate, igst_rate, utgst_rate, cgst_amount, sgst_amount, igst_amount, utgst_amount, tax_amount, total_amount, created_at, updated_at, is_deleted)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), 0)''',
@@ -109,6 +128,59 @@ class BillRepository {
             it.totalAmount,
           ],
         );
+
+        // Allocate stock using FIFO (First In First Out)
+        int remainingQty = it.quantity;
+
+        // Get stock batches ordered by ID (oldest first)
+        final batches = await txn.rawQuery(
+          '''SELECT id, quantity_remaining, cost_price
+             FROM stock_batches
+             WHERE product_id = ? AND is_deleted = 0 AND quantity_remaining > 0
+             ORDER BY id ASC''',
+          [it.productId],
+        );
+
+        for (final batch in batches) {
+          if (remainingQty <= 0) break;
+
+          final batchId = batch['id'] as int;
+          final qtyRemaining = (batch['quantity_remaining'] as num).toInt();
+          final batchCostPrice = (batch['cost_price'] as num).toDouble();
+
+          if (qtyRemaining <= 0) continue;
+
+          // Allocate as much as possible from this batch
+          final allocate = remainingQty > qtyRemaining
+              ? qtyRemaining
+              : remainingQty;
+
+          // Deduct from stock batch
+          await txn.rawUpdate(
+            '''UPDATE stock_batches
+               SET quantity_remaining = quantity_remaining - ?,
+                   updated_at = datetime('now')
+               WHERE id = ?''',
+            [allocate, batchId],
+          );
+
+          // Record stock batch usage
+          await txn.rawInsert(
+            '''INSERT INTO stock_batch_usage
+               (bill_item_id, stock_batch_id, quantity_used, cost_price, created_at)
+               VALUES (?, ?, ?, ?, datetime('now'))''',
+            [billItemId, batchId, allocate, batchCostPrice],
+          );
+
+          remainingQty -= allocate;
+        }
+
+        // If there's still remaining quantity (shouldn't happen after validation)
+        if (remainingQty > 0) {
+          throw Exception(
+            'Failed to allocate stock for ${it.productName}. Missing: $remainingQty units',
+          );
+        }
       }
 
       return billId;

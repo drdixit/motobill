@@ -7,7 +7,9 @@ import '../model/sub_category.dart';
 import '../model/manufacturer.dart';
 import '../repository/pos_repository.dart';
 import '../repository/customer_repository.dart';
+import '../repository/bill_repository.dart';
 import '../core/providers/database_provider.dart';
+import '../core/providers/repository_provider.dart';
 
 final posRepositoryProvider = Provider<PosRepository>((ref) {
   throw UnimplementedError('Use posRepositoryFutureProvider instead');
@@ -129,10 +131,15 @@ class PosState {
 class PosViewModel extends StateNotifier<PosState> {
   final PosRepository? _repository;
   final CustomerRepository? _customerRepository;
+  final BillRepository? _billRepository;
 
-  PosViewModel(PosRepository repository, CustomerRepository customerRepository)
-    : _repository = repository,
+  PosViewModel(
+    PosRepository repository,
+    CustomerRepository customerRepository,
+    BillRepository billRepository,
+  ) : _repository = repository,
       _customerRepository = customerRepository,
+      _billRepository = billRepository,
       super(PosState()) {
     loadInitialData();
   }
@@ -141,6 +148,7 @@ class PosViewModel extends StateNotifier<PosState> {
   PosViewModel._loading()
     : _repository = null,
       _customerRepository = null,
+      _billRepository = null,
       super(PosState(isLoading: true));
 
   Future<void> loadInitialData() async {
@@ -560,21 +568,73 @@ class PosViewModel extends StateNotifier<PosState> {
       totalAmount: totalAmount,
     );
   }
+
+  // Checkout and create bill
+  Future<String?> checkout() async {
+    if (_billRepository == null) return null;
+
+    // Validate cart is not empty
+    if (state.cartItems.isEmpty) {
+      state = state.copyWith(error: 'Cart is empty');
+      return null;
+    }
+
+    // Validate customer is selected
+    if (state.selectedCustomer == null) {
+      state = state.copyWith(error: 'Please select a customer');
+      return null;
+    }
+
+    state = state.copyWith(isLoading: true, clearError: true);
+
+    try {
+      // Generate bill number
+      final billNumber = await _billRepository.generateBillNumber();
+
+      // Create bill object
+      final bill = Bill(
+        billNumber: billNumber,
+        customerId: state.selectedCustomer!.id!,
+        subtotal: state.subtotal,
+        taxAmount: state.taxAmount,
+        totalAmount: state.totalAmount,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      // Create bill in database (this will also update stock batches)
+      await _billRepository.createBill(bill, state.cartItems);
+
+      // Clear cart after successful bill creation
+      state = state.copyWith(cartItems: [], isLoading: false);
+
+      return billNumber;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Failed to create bill: $e',
+      );
+      return null;
+    }
+  }
 }
 
 // Provider that waits for repository and creates ViewModel
 final posViewModelProvider = StateNotifierProvider<PosViewModel, PosState>((
   ref,
 ) {
-  // Watch both repository futures and get the values synchronously
+  // Watch repository futures and get the values synchronously
   // This will cause the provider to rebuild when repositories are ready
   final repository = ref.watch(posRepositoryFutureProvider).value;
   final customerRepository = ref.watch(customerRepositoryFutureProvider).value;
+  final billRepository = ref.watch(billRepositoryFutureProvider).value;
 
-  if (repository == null || customerRepository == null) {
+  if (repository == null ||
+      customerRepository == null ||
+      billRepository == null) {
     // Return a ViewModel with loading state while repositories initialize
     return PosViewModel._loading();
   }
 
-  return PosViewModel(repository, customerRepository);
+  return PosViewModel(repository, customerRepository, billRepository);
 });
