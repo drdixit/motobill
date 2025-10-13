@@ -7,8 +7,14 @@ import '../../../model/pos_product.dart';
 class PosProductCard extends StatelessWidget {
   final PosProduct product;
   final VoidCallback onTap;
+  final int cartQuantity;
 
-  const PosProductCard({super.key, required this.product, required this.onTap});
+  const PosProductCard({
+    super.key,
+    required this.product,
+    required this.onTap,
+    this.cartQuantity = 0,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -22,66 +28,98 @@ class PosProductCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppSizes.radiusM),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSizes.paddingM),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Product Image (Top)
-              Expanded(child: Center(child: _buildProductImage())),
-              const SizedBox(height: AppSizes.paddingS),
-
-              // Product Name and Part Number with Price
-              Row(
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(AppSizes.paddingM),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Product Name
-                        Text(
-                          product.name,
-                          style: TextStyle(
-                            fontSize: AppSizes.fontM,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                  // Product Image (Top)
+                  Expanded(child: Center(child: _buildProductImage())),
+                  const SizedBox(height: AppSizes.paddingS),
 
-                        // Part Number
-                        if (product.partNumber != null) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            product.partNumber!,
-                            style: TextStyle(
-                              fontSize: AppSizes.fontS,
-                              color: AppColors.textSecondary,
+                  // Product Name and Part Number with Price
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Product Name
+                            Text(
+                              product.name,
+                              style: TextStyle(
+                                fontSize: AppSizes.fontM,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: AppSizes.paddingS),
 
-                  // Price (Right-aligned)
-                  Text(
-                    '₹${product.sellingPrice.toStringAsFixed(2)}',
-                    style: TextStyle(
-                      fontSize: AppSizes.fontL,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
-                    ),
+                            // Part Number
+                            if (product.partNumber != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                product.partNumber!,
+                                style: TextStyle(
+                                  fontSize: AppSizes.fontS,
+                                  color: AppColors.textSecondary,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: AppSizes.paddingS),
+
+                      // Price (Right-aligned)
+                      Text(
+                        '₹${product.sellingPrice.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: AppSizes.fontL,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+            // Quantity Badge
+            if (cartQuantity > 0)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AppColors.success,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    '$cartQuantity',
+                    style: TextStyle(
+                      fontSize: AppSizes.fontS,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.white,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );

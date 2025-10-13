@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../view_model/pos_viewmodel.dart';
 import '../../../model/bill.dart';
+import '../../../model/customer.dart';
 
 class PosCart extends ConsumerWidget {
   const PosCart({super.key});
@@ -21,7 +23,7 @@ class PosCart extends ConsumerWidget {
       ),
       child: Column(
         children: [
-          // Header
+          // Header with Customer Selection
           Container(
             padding: const EdgeInsets.all(AppSizes.paddingM),
             decoration: BoxDecoration(
@@ -30,38 +32,100 @@ class PosCart extends ConsumerWidget {
                 bottom: BorderSide(color: AppColors.border, width: 1),
               ),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.shopping_cart, size: AppSizes.iconM),
-                const SizedBox(width: AppSizes.paddingS),
-                Text(
-                  'Cart',
-                  style: TextStyle(
-                    fontSize: AppSizes.fontL,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const Spacer(),
-                if (state.cartItems.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSizes.paddingS,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(AppSizes.radiusM),
-                    ),
-                    child: Text(
-                      '${state.totalItems}',
+                Row(
+                  children: [
+                    Icon(Icons.shopping_cart, size: AppSizes.iconM),
+                    const SizedBox(width: AppSizes.paddingS),
+                    Text(
+                      'Cart',
                       style: TextStyle(
-                        fontSize: AppSizes.fontS,
+                        fontSize: AppSizes.fontL,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.white,
+                        color: AppColors.textPrimary,
                       ),
                     ),
+                    const Spacer(),
+                    if (state.cartItems.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSizes.paddingS,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(AppSizes.radiusM),
+                        ),
+                        child: Text(
+                          '${state.totalItems}',
+                          style: TextStyle(
+                            fontSize: AppSizes.fontS,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.white,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppSizes.paddingM),
+                // Customer Selection Dropdown
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: state.selectedCustomer == null
+                          ? AppColors.error
+                          : AppColors.border,
+                      width: state.selectedCustomer == null ? 2 : 1,
+                    ),
+                    borderRadius: BorderRadius.circular(AppSizes.radiusM),
                   ),
+                  child: DropdownButtonFormField<Customer>(
+                    value: state.selectedCustomer,
+                    decoration: InputDecoration(
+                      labelText: 'Select Customer *',
+                      labelStyle: TextStyle(
+                        color: state.selectedCustomer == null
+                            ? AppColors.error
+                            : AppColors.textSecondary,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.person,
+                        color: state.selectedCustomer == null
+                            ? AppColors.error
+                            : AppColors.primary,
+                      ),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: AppSizes.paddingM,
+                        vertical: AppSizes.paddingS,
+                      ),
+                    ),
+                    hint: Text(
+                      'Choose customer to create bill',
+                      style: TextStyle(
+                        fontSize: AppSizes.fontS,
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                    items: state.customers.map((customer) {
+                      return DropdownMenuItem<Customer>(
+                        value: customer,
+                        child: Text(
+                          customer.name,
+                          style: TextStyle(
+                            fontSize: AppSizes.fontM,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (customer) => viewModel.selectCustomer(customer),
+                    isExpanded: true,
+                    dropdownColor: AppColors.surface,
+                  ),
+                ),
               ],
             ),
           ),
@@ -135,8 +199,8 @@ class PosCart extends ConsumerWidget {
       child: Padding(
         padding: const EdgeInsets.all(AppSizes.paddingM),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // First Row: Product info and delete
             Row(
               children: [
                 Expanded(
@@ -173,80 +237,144 @@ class PosCart extends ConsumerWidget {
                     color: AppColors.error,
                   ),
                   onPressed: () => viewModel.removeFromCart(item.productId),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
                 ),
               ],
             ),
+
             const SizedBox(height: AppSizes.paddingM),
+
+            // Second Row: Quantity, Price, Total
             Row(
               children: [
-                // Quantity Controls
-                Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: AppColors.border),
-                    borderRadius: BorderRadius.circular(AppSizes.radiusM),
-                  ),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.remove, size: AppSizes.iconS),
-                        onPressed: () {
-                          viewModel.updateCartItemQuantity(
-                            item.productId,
-                            item.quantity - 1,
-                          );
-                        },
-                        padding: const EdgeInsets.all(4),
-                        constraints: const BoxConstraints(),
+                // Quantity Input
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Qty',
+                      style: TextStyle(
+                        fontSize: AppSizes.fontXS,
+                        color: AppColors.textTertiary,
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSizes.paddingM,
+                    ),
+                    const SizedBox(height: 4),
+                    SizedBox(
+                      width: 70,
+                      height: 38,
+                      child: TextFormField(
+                        initialValue: '${item.quantity}',
+                        keyboardType: TextInputType.number,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: AppSizes.fontM,
+                          fontWeight: FontWeight.w600,
                         ),
-                        child: Text(
-                          '${item.quantity}',
-                          style: TextStyle(
-                            fontSize: AppSizes.fontM,
-                            fontWeight: FontWeight.w600,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                        decoration: InputDecoration(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: AppSizes.paddingS,
+                            vertical: AppSizes.paddingS,
                           ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppSizes.radiusM,
+                            ),
+                            borderSide: BorderSide(color: AppColors.border),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppSizes.radiusM,
+                            ),
+                            borderSide: BorderSide(color: AppColors.border),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppSizes.radiusM,
+                            ),
+                            borderSide: BorderSide(
+                              color: AppColors.primary,
+                              width: 2,
+                            ),
+                          ),
+                          isDense: true,
+                        ),
+                        onChanged: (value) {
+                          final newQty = int.tryParse(value);
+                          if (newQty != null && newQty > 0) {
+                            viewModel.updateCartItemQuantity(
+                              item.productId,
+                              newQty,
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(width: AppSizes.paddingM),
+
+                // Price
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Price',
+                      style: TextStyle(
+                        fontSize: AppSizes.fontXS,
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '₹${item.sellingPrice.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: AppSizes.fontM,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const Spacer(),
+
+                // Total with Tax
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'Total',
+                      style: TextStyle(
+                        fontSize: AppSizes.fontXS,
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '₹${item.totalAmount.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: AppSizes.fontL,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    if (item.taxAmount > 0)
+                      Text(
+                        '(+₹${item.taxAmount.toStringAsFixed(2)} tax)',
+                        style: TextStyle(
+                          fontSize: AppSizes.fontXS,
+                          color: AppColors.textTertiary,
                         ),
                       ),
-                      IconButton(
-                        icon: Icon(Icons.add, size: AppSizes.iconS),
-                        onPressed: () {
-                          viewModel.updateCartItemQuantity(
-                            item.productId,
-                            item.quantity + 1,
-                          );
-                        },
-                        padding: const EdgeInsets.all(4),
-                        constraints: const BoxConstraints(),
-                      ),
-                    ],
-                  ),
-                ),
-                const Spacer(),
-                // Price
-                Text(
-                  '₹${item.totalAmount.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontSize: AppSizes.fontL,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
-                  ),
+                  ],
                 ),
               ],
             ),
-            // Tax info
-            if (item.taxAmount > 0) ...[
-              const SizedBox(height: AppSizes.paddingS),
-              Text(
-                'Tax: ₹${item.taxAmount.toStringAsFixed(2)} (${(item.cgstRate + item.sgstRate).toStringAsFixed(0)}%)',
-                style: TextStyle(
-                  fontSize: AppSizes.fontXS,
-                  color: AppColors.textTertiary,
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -332,16 +460,22 @@ class PosCart extends ConsumerWidget {
               Expanded(
                 flex: 2,
                 child: ElevatedButton(
-                  onPressed: () {
-                    // TODO: Navigate to checkout or save bill
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Checkout functionality coming soon'),
-                      ),
-                    );
-                  },
+                  onPressed: state.selectedCustomer == null
+                      ? null
+                      : () {
+                          // TODO: Navigate to checkout or save bill
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Creating bill for ${state.selectedCustomer!.name}...',
+                              ),
+                            ),
+                          );
+                        },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
+                    backgroundColor: state.selectedCustomer == null
+                        ? AppColors.border
+                        : AppColors.primary,
                     foregroundColor: AppColors.white,
                     padding: const EdgeInsets.symmetric(
                       vertical: AppSizes.paddingM,
@@ -349,6 +483,8 @@ class PosCart extends ConsumerWidget {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(AppSizes.radiusM),
                     ),
+                    disabledBackgroundColor: AppColors.border,
+                    disabledForegroundColor: AppColors.textTertiary,
                   ),
                   child: Text(
                     'Checkout',
@@ -361,6 +497,38 @@ class PosCart extends ConsumerWidget {
               ),
             ],
           ),
+
+          // Customer warning
+          if (state.selectedCustomer == null) ...[
+            const SizedBox(height: AppSizes.paddingM),
+            Container(
+              padding: const EdgeInsets.all(AppSizes.paddingS),
+              decoration: BoxDecoration(
+                color: AppColors.error.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                border: Border.all(color: AppColors.error.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    size: AppSizes.iconS,
+                    color: AppColors.error,
+                  ),
+                  const SizedBox(width: AppSizes.paddingS),
+                  Expanded(
+                    child: Text(
+                      'Please select a customer to checkout',
+                      style: TextStyle(
+                        fontSize: AppSizes.fontS,
+                        color: AppColors.error,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

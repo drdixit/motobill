@@ -1,10 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../model/pos_product.dart';
 import '../model/bill.dart';
+import '../model/customer.dart';
 import '../model/main_category.dart';
 import '../model/sub_category.dart';
 import '../model/manufacturer.dart';
 import '../repository/pos_repository.dart';
+import '../repository/customer_repository.dart';
 import '../core/providers/database_provider.dart';
 
 final posRepositoryProvider = Provider<PosRepository>((ref) {
@@ -16,6 +18,13 @@ final posRepositoryFutureProvider = FutureProvider<PosRepository>((ref) async {
   return PosRepository(db);
 });
 
+final customerRepositoryFutureProvider = FutureProvider<CustomerRepository>((
+  ref,
+) async {
+  final db = await ref.watch(databaseProvider);
+  return CustomerRepository(db);
+});
+
 class PosState {
   final List<PosProduct> allProducts;
   final List<PosProduct> filteredProducts;
@@ -23,6 +32,8 @@ class PosState {
   final List<MainCategory> mainCategories;
   final List<SubCategory> subCategories;
   final List<Manufacturer> manufacturers;
+  final List<Customer> customers;
+  final Customer? selectedCustomer;
   final int? selectedMainCategoryId;
   final int? selectedSubCategoryId;
   final int? selectedManufacturerId;
@@ -37,6 +48,8 @@ class PosState {
     this.mainCategories = const [],
     this.subCategories = const [],
     this.manufacturers = const [],
+    this.customers = const [],
+    this.selectedCustomer,
     this.selectedMainCategoryId,
     this.selectedSubCategoryId,
     this.selectedManufacturerId,
@@ -68,6 +81,9 @@ class PosState {
     List<MainCategory>? mainCategories,
     List<SubCategory>? subCategories,
     List<Manufacturer>? manufacturers,
+    List<Customer>? customers,
+    Customer? selectedCustomer,
+    bool clearCustomer = false,
     int? selectedMainCategoryId,
     bool clearMainCategory = false,
     int? selectedSubCategoryId,
@@ -86,6 +102,10 @@ class PosState {
       mainCategories: mainCategories ?? this.mainCategories,
       subCategories: subCategories ?? this.subCategories,
       manufacturers: manufacturers ?? this.manufacturers,
+      customers: customers ?? this.customers,
+      selectedCustomer: clearCustomer
+          ? null
+          : (selectedCustomer ?? this.selectedCustomer),
       selectedMainCategoryId: clearMainCategory
           ? null
           : (selectedMainCategoryId ?? this.selectedMainCategoryId),
@@ -104,9 +124,11 @@ class PosState {
 
 class PosViewModel extends StateNotifier<PosState> {
   final PosRepository? _repository;
+  final CustomerRepository? _customerRepository;
 
-  PosViewModel(PosRepository repository)
+  PosViewModel(PosRepository repository, CustomerRepository customerRepository)
     : _repository = repository,
+      _customerRepository = customerRepository,
       super(PosState()) {
     loadInitialData();
   }
@@ -114,22 +136,25 @@ class PosViewModel extends StateNotifier<PosState> {
   // Loading constructor for when repository isn't ready yet
   PosViewModel._loading()
     : _repository = null,
+      _customerRepository = null,
       super(PosState(isLoading: true));
 
   Future<void> loadInitialData() async {
-    if (_repository == null) return;
+    if (_repository == null || _customerRepository == null) return;
 
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final mainCategories = await _repository.getAllMainCategories();
       final manufacturers = await _repository.getAllManufacturers();
       final products = await _repository.getProductsForPos();
+      final customers = await _customerRepository.getAllCustomers();
 
       state = state.copyWith(
         mainCategories: mainCategories,
         manufacturers: manufacturers,
         allProducts: products,
         filteredProducts: products,
+        customers: customers,
         isLoading: false,
       );
     } catch (e) {
@@ -285,7 +310,36 @@ class PosViewModel extends StateNotifier<PosState> {
   }
 
   void clearCart() {
-    state = state.copyWith(cartItems: []);
+    state = state.copyWith(cartItems: [], clearCustomer: true);
+  }
+
+  void selectCustomer(Customer? customer) {
+    state = state.copyWith(
+      selectedCustomer: customer,
+      clearCustomer: customer == null,
+    );
+  }
+
+  void addToCartWithCustomPrice(PosProduct product, double customPrice) {
+    final productWithCustomPrice = PosProduct(
+      id: product.id,
+      name: product.name,
+      partNumber: product.partNumber,
+      hsnCode: product.hsnCode,
+      uqcCode: product.uqcCode,
+      hsnCodeId: product.hsnCodeId,
+      uqcId: product.uqcId,
+      costPrice: product.costPrice,
+      sellingPrice: customPrice,
+      imagePath: product.imagePath,
+      mainCategoryName: product.mainCategoryName,
+      subCategoryName: product.subCategoryName,
+      subCategoryId: product.subCategoryId,
+      manufacturerName: product.manufacturerName,
+      manufacturerId: product.manufacturerId,
+      isTaxable: product.isTaxable,
+    );
+    addToCart(productWithCustomPrice);
   }
 
   BillItem _createBillItem(PosProduct product, int quantity) {
@@ -337,14 +391,15 @@ class PosViewModel extends StateNotifier<PosState> {
 final posViewModelProvider = StateNotifierProvider<PosViewModel, PosState>((
   ref,
 ) {
-  // Watch the repository future and get the value synchronously
-  // This will cause the provider to rebuild when repository is ready
+  // Watch both repository futures and get the values synchronously
+  // This will cause the provider to rebuild when repositories are ready
   final repository = ref.watch(posRepositoryFutureProvider).value;
+  final customerRepository = ref.watch(customerRepositoryFutureProvider).value;
 
-  if (repository == null) {
-    // Return a ViewModel with loading state while repository initializes
+  if (repository == null || customerRepository == null) {
+    // Return a ViewModel with loading state while repositories initialize
     return PosViewModel._loading();
   }
 
-  return PosViewModel(repository);
+  return PosViewModel(repository, customerRepository);
 });

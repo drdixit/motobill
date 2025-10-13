@@ -149,8 +149,14 @@ class PosScreen extends ConsumerWidget {
       itemCount: state.filteredProducts.length,
       itemBuilder: (context, index) {
         final product = state.filteredProducts[index];
+        final cartItem = state.cartItems
+            .where((item) => item.productId == product.id)
+            .firstOrNull;
+        final cartQuantity = cartItem?.quantity ?? 0;
+
         return PosProductCard(
           product: product,
+          cartQuantity: cartQuantity,
           onTap: () => viewModel.addToCart(product),
         );
       },
