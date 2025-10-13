@@ -37,6 +37,7 @@ class PosState {
   final List<Customer> customers;
   final Customer? selectedCustomer;
   final String? companyGstNumber;
+  final Map<int, double> lastCustomPrices; // productId -> last price with tax
   final int? selectedMainCategoryId;
   final int? selectedSubCategoryId;
   final int? selectedManufacturerId;
@@ -54,6 +55,7 @@ class PosState {
     this.customers = const [],
     this.selectedCustomer,
     this.companyGstNumber,
+    this.lastCustomPrices = const {},
     this.selectedMainCategoryId,
     this.selectedSubCategoryId,
     this.selectedManufacturerId,
@@ -89,6 +91,7 @@ class PosState {
     Customer? selectedCustomer,
     bool clearCustomer = false,
     String? companyGstNumber,
+    Map<int, double>? lastCustomPrices,
     int? selectedMainCategoryId,
     bool clearMainCategory = false,
     int? selectedSubCategoryId,
@@ -111,6 +114,7 @@ class PosState {
       selectedCustomer: clearCustomer
           ? null
           : (selectedCustomer ?? this.selectedCustomer),
+      lastCustomPrices: lastCustomPrices ?? this.lastCustomPrices,
       selectedMainCategoryId: clearMainCategory
           ? null
           : (selectedMainCategoryId ?? this.selectedMainCategoryId),
@@ -401,13 +405,28 @@ class PosViewModel extends StateNotifier<PosState> {
     state = state.copyWith(cartItems: [], clearCustomer: true);
   }
 
-  void selectCustomer(Customer? customer) {
+  void selectCustomer(Customer? customer) async {
     print('\n=== SELECT CUSTOMER CALLED ===');
     print(
       'New Customer: ${customer?.name ?? "None"} (GST: ${customer?.gstNumber ?? "None"})',
     );
     print('Cart has ${state.cartItems.length} items');
     print('Company GST: ${state.companyGstNumber}');
+
+    // Load last custom prices for this customer
+    Map<int, double> customPrices = {};
+    if (customer != null && customer.id != null && _repository != null) {
+      try {
+        final productIds = state.allProducts.map((p) => p.id).toList();
+        customPrices = await _repository.getLastCustomPrices(
+          customer.id!,
+          productIds,
+        );
+        print('Loaded ${customPrices.length} custom prices for customer');
+      } catch (e) {
+        print('Failed to load custom prices: $e');
+      }
+    }
 
     // Recalculate all cart items with new GST logic when customer changes
     if (state.cartItems.isNotEmpty) {
@@ -428,11 +447,13 @@ class PosViewModel extends StateNotifier<PosState> {
         selectedCustomer: customer,
         clearCustomer: customer == null,
         cartItems: updatedCart,
+        lastCustomPrices: customPrices,
       );
     } else {
       state = state.copyWith(
         selectedCustomer: customer,
         clearCustomer: customer == null,
+        lastCustomPrices: customPrices,
       );
     }
   }
