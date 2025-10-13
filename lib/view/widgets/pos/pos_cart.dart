@@ -53,6 +53,58 @@ class DecimalTextInputFormatter extends TextInputFormatter {
 class PosCart extends ConsumerWidget {
   const PosCart({super.key});
 
+  /// Fuzzy search helper that checks if searchText matches targetText
+  /// Returns true if all characters in searchText appear in targetText in order
+  bool _fuzzyMatch(String searchText, String targetText) {
+    if (searchText.isEmpty) return true;
+    if (targetText.isEmpty) return false;
+
+    final search = searchText.toLowerCase();
+    final target = targetText.toLowerCase();
+
+    int searchIndex = 0;
+    int targetIndex = 0;
+
+    while (searchIndex < search.length && targetIndex < target.length) {
+      if (search[searchIndex] == target[targetIndex]) {
+        searchIndex++;
+      }
+      targetIndex++;
+    }
+
+    return searchIndex == search.length;
+  }
+
+  /// Search customer across multiple fields with fuzzy matching
+  bool _matchesCustomer(Customer customer, String query) {
+    if (query.isEmpty) return true;
+
+    // Search in name (required field)
+    if (_fuzzyMatch(query, customer.name)) return true;
+
+    // Search in legal name (optional)
+    if (customer.legalName != null && _fuzzyMatch(query, customer.legalName!)) {
+      return true;
+    }
+
+    // Search in GST number (optional)
+    if (customer.gstNumber != null && _fuzzyMatch(query, customer.gstNumber!)) {
+      return true;
+    }
+
+    // Search in mobile number (optional)
+    if (customer.phone != null && _fuzzyMatch(query, customer.phone!)) {
+      return true;
+    }
+
+    // Search in email (optional)
+    if (customer.email != null && _fuzzyMatch(query, customer.email!)) {
+      return true;
+    }
+
+    return false;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(posViewModelProvider);
@@ -134,8 +186,9 @@ class PosCart extends ConsumerWidget {
                         return state.customers;
                       }
                       return state.customers.where((customer) {
-                        return customer.name.toLowerCase().contains(
-                          textEditingValue.text.toLowerCase(),
+                        return _matchesCustomer(
+                          customer,
+                          textEditingValue.text,
                         );
                       });
                     },
@@ -164,7 +217,7 @@ class PosCart extends ConsumerWidget {
                                     ? AppColors.error
                                     : AppColors.textSecondary,
                               ),
-                              hintText: 'Search customer by name...',
+                              hintText: 'Search by name, GST, mobile, email...',
                               hintStyle: TextStyle(
                                 fontSize: AppSizes.fontS,
                                 color: AppColors.textTertiary,
