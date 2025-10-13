@@ -103,8 +103,8 @@ class BillRepository {
         // Insert bill item
         final billItemId = await txn.rawInsert(
           '''INSERT INTO bill_items
-             (bill_id, product_id, product_name, part_number, hsn_code, uqc_code, cost_price, selling_price, quantity, subtotal, cgst_rate, sgst_rate, igst_rate, utgst_rate, cgst_amount, sgst_amount, igst_amount, utgst_amount, tax_amount, total_amount, created_at, updated_at, is_deleted)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), 0)''',
+             (bill_id, product_id, product_name, part_number, hsn_code, uqc_code, cost_price, selling_price, quantity, subtotal, cgst_rate, sgst_rate, igst_rate, utgst_rate, cgst_amount, sgst_amount, igst_amount, utgst_amount, tax_amount, total_amount, is_deleted)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
           [
             billId,
             it.productId,
@@ -126,6 +126,7 @@ class BillRepository {
             it.utgstAmount,
             it.taxAmount,
             it.totalAmount,
+            0, // is_deleted
           ],
         );
 
