@@ -294,7 +294,43 @@ class PosViewModel extends StateNotifier<PosState> {
     final updatedCart = state.cartItems.map((item) {
       if (item.productId == productId) {
         final product = state.allProducts.firstWhere((p) => p.id == productId);
-        return _createBillItem(product, newQuantity);
+        return _createBillItem(product, newQuantity, item.sellingPrice);
+      }
+      return item;
+    }).toList();
+
+    state = state.copyWith(cartItems: updatedCart);
+  }
+
+  void updateCartItemPrice(int productId, double newPrice) {
+    if (newPrice <= 0) return;
+
+    final updatedCart = state.cartItems.map((item) {
+      if (item.productId == productId) {
+        final product = state.allProducts.firstWhere((p) => p.id == productId);
+        return _createBillItem(product, item.quantity, newPrice);
+      }
+      return item;
+    }).toList();
+
+    state = state.copyWith(cartItems: updatedCart);
+  }
+
+  void updateCartItemTotal(int productId, double newTotal) {
+    if (newTotal <= 0) return;
+
+    final updatedCart = state.cartItems.map((item) {
+      if (item.productId == productId) {
+        final product = state.allProducts.firstWhere((p) => p.id == productId);
+
+        double calculatedPrice;
+        if (product.isTaxable) {
+          calculatedPrice = newTotal / (item.quantity * 1.18);
+        } else {
+          calculatedPrice = newTotal / item.quantity;
+        }
+
+        return _createBillItem(product, item.quantity, calculatedPrice);
       }
       return item;
     }).toList();
@@ -342,8 +378,13 @@ class PosViewModel extends StateNotifier<PosState> {
     addToCart(productWithCustomPrice);
   }
 
-  BillItem _createBillItem(PosProduct product, int quantity) {
-    final subtotal = product.sellingPrice * quantity;
+  BillItem _createBillItem(
+    PosProduct product,
+    int quantity, [
+    double? customPrice,
+  ]) {
+    final price = customPrice ?? product.sellingPrice;
+    final subtotal = price * quantity;
 
     // For now, using simple GST calculation (can be enhanced later)
     // Assuming 18% GST split as 9% CGST + 9% SGST for taxable items
@@ -370,7 +411,7 @@ class PosViewModel extends StateNotifier<PosState> {
       hsnCode: product.hsnCode,
       uqcCode: product.uqcCode,
       costPrice: product.costPrice,
-      sellingPrice: product.sellingPrice,
+      sellingPrice: price,
       quantity: quantity,
       subtotal: subtotal,
       cgstRate: cgstRate,

@@ -7,6 +7,33 @@ import '../../../view_model/pos_viewmodel.dart';
 import '../../../model/bill.dart';
 import '../../../model/customer.dart';
 
+// Custom formatter to allow only one decimal point
+class DecimalTextInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    // Allow only digits and single decimal point
+    final text = newValue.text;
+
+    // Check if text contains only valid characters (digits and decimal point)
+    if (!RegExp(r'^[0-9]*\.?[0-9]*$').hasMatch(text)) {
+      return oldValue;
+    }
+
+    // Count decimal points
+    final decimalCount = text.split('.').length - 1;
+
+    // Reject if more than one decimal point
+    if (decimalCount > 1) {
+      return oldValue;
+    }
+
+    return newValue;
+  }
+}
+
 class PosCart extends ConsumerWidget {
   const PosCart({super.key});
 
@@ -188,6 +215,14 @@ class PosCart extends ConsumerWidget {
     BillItem item,
     PosViewModel viewModel,
   ) {
+    final qtyController = TextEditingController(text: '${item.quantity}');
+    final priceController = TextEditingController(
+      text: item.sellingPrice.toStringAsFixed(2),
+    );
+    final totalController = TextEditingController(
+      text: item.totalAmount.toStringAsFixed(2),
+    );
+
     return Card(
       margin: const EdgeInsets.only(bottom: AppSizes.paddingS),
       elevation: 0,
@@ -197,36 +232,38 @@ class PosCart extends ConsumerWidget {
         side: BorderSide(color: AppColors.border, width: 0.5),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSizes.paddingM,
-          vertical: AppSizes.paddingS,
-        ),
+        padding: const EdgeInsets.all(AppSizes.paddingS),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Product name (left)
+            // Product name
             Expanded(
               flex: 3,
-              child: Text(
-                item.partNumber != null
-                    ? '${item.productName} (${item.partNumber})'
-                    : item.productName,
-                style: TextStyle(
-                  fontSize: AppSizes.fontS,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  item.partNumber != null
+                      ? '${item.productName} (${item.partNumber})'
+                      : item.productName,
+                  style: TextStyle(
+                    fontSize: AppSizes.fontS,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: AppSizes.paddingS),
-            // Quantity
+            // Quantity (editable)
             SizedBox(
               width: 50,
-              height: 32,
               child: TextFormField(
-                initialValue: '${item.quantity}',
-                keyboardType: TextInputType.number,
+                controller: qtyController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: false,
+                ),
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: AppSizes.fontS,
@@ -236,7 +273,7 @@ class PosCart extends ConsumerWidget {
                 decoration: InputDecoration(
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 4,
-                    vertical: 4,
+                    vertical: 10,
                   ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppSizes.radiusS),
@@ -261,36 +298,105 @@ class PosCart extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: AppSizes.paddingS),
-            // Price x Qty
-            Text(
-              '₹${item.sellingPrice.toStringAsFixed(0)} x ${item.quantity}',
-              style: TextStyle(
-                fontSize: AppSizes.fontS,
-                color: AppColors.textSecondary,
+            // Single Price (editable)
+            SizedBox(
+              width: 70,
+              child: TextFormField(
+                controller: priceController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: AppSizes.fontS,
+                  fontWeight: FontWeight.w600,
+                ),
+                inputFormatters: [DecimalTextInputFormatter()],
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 10,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                    borderSide: BorderSide(color: AppColors.border),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                    borderSide: BorderSide(color: AppColors.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                    borderSide: BorderSide(color: AppColors.primary, width: 2),
+                  ),
+                  isDense: true,
+                ),
+                onChanged: (value) {
+                  final newPrice = double.tryParse(value);
+                  if (newPrice != null && newPrice > 0) {
+                    viewModel.updateCartItemPrice(item.productId, newPrice);
+                  }
+                },
               ),
             ),
             const SizedBox(width: AppSizes.paddingS),
-            // Total with tax
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '₹${item.totalAmount.toStringAsFixed(2)}',
+            // Tax (non-editable)
+            SizedBox(
+              width: 55,
+              child: Align(
+                alignment: Alignment.center,
+                child: Text(
+                  '₹${item.taxAmount.toStringAsFixed(2)}',
                   style: TextStyle(
-                    fontSize: AppSizes.fontM,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
+                    fontSize: AppSizes.fontXS,
+                    color: AppColors.textTertiary,
                   ),
+                  textAlign: TextAlign.center,
                 ),
-                if (item.taxAmount > 0)
-                  Text(
-                    '(+₹${item.taxAmount.toStringAsFixed(2)} tax)',
-                    style: TextStyle(
-                      fontSize: AppSizes.fontXS,
-                      color: AppColors.textTertiary,
-                    ),
+              ),
+            ),
+            const SizedBox(width: AppSizes.paddingS),
+            // Total (editable)
+            SizedBox(
+              width: 75,
+              child: TextFormField(
+                controller: totalController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: AppSizes.fontS,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
+                inputFormatters: [DecimalTextInputFormatter()],
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 10,
                   ),
-              ],
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                    borderSide: BorderSide(color: AppColors.primary),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                    borderSide: BorderSide(color: AppColors.primary),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                    borderSide: BorderSide(color: AppColors.primary, width: 2),
+                  ),
+                  isDense: true,
+                ),
+                onChanged: (value) {
+                  final newTotal = double.tryParse(value);
+                  if (newTotal != null && newTotal > 0) {
+                    viewModel.updateCartItemTotal(item.productId, newTotal);
+                  }
+                },
+              ),
             ),
             const SizedBox(width: AppSizes.paddingS),
             // Delete button
