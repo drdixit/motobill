@@ -16,7 +16,7 @@ class PosCart extends ConsumerWidget {
     final viewModel = ref.read(posViewModelProvider.notifier);
 
     return Container(
-      width: 380,
+      width: 520,
       decoration: BoxDecoration(
         color: AppColors.surface,
         border: Border(left: BorderSide(color: AppColors.border, width: 1)),
@@ -189,7 +189,7 @@ class PosCart extends ConsumerWidget {
     PosViewModel viewModel,
   ) {
     return Card(
-      margin: const EdgeInsets.only(bottom: AppSizes.paddingM),
+      margin: const EdgeInsets.only(bottom: AppSizes.paddingS),
       elevation: 0,
       color: AppColors.backgroundSecondary,
       shape: RoundedRectangleBorder(
@@ -197,183 +197,110 @@ class PosCart extends ConsumerWidget {
         side: BorderSide(color: AppColors.border, width: 0.5),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(AppSizes.paddingM),
-        child: Column(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSizes.paddingM,
+          vertical: AppSizes.paddingS,
+        ),
+        child: Row(
           children: [
-            // First Row: Product info and delete
-            Row(
+            // Product name (left)
+            Expanded(
+              flex: 3,
+              child: Text(
+                item.partNumber != null
+                    ? '${item.productName} (${item.partNumber})'
+                    : item.productName,
+                style: TextStyle(
+                  fontSize: AppSizes.fontS,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: AppSizes.paddingS),
+            // Quantity
+            SizedBox(
+              width: 50,
+              height: 32,
+              child: TextFormField(
+                initialValue: '${item.quantity}',
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: AppSizes.fontS,
+                  fontWeight: FontWeight.w600,
+                ),
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 4,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                    borderSide: BorderSide(color: AppColors.border),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                    borderSide: BorderSide(color: AppColors.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                    borderSide: BorderSide(color: AppColors.primary, width: 2),
+                  ),
+                  isDense: true,
+                ),
+                onChanged: (value) {
+                  final newQty = int.tryParse(value);
+                  if (newQty != null && newQty > 0) {
+                    viewModel.updateCartItemQuantity(item.productId, newQty);
+                  }
+                },
+              ),
+            ),
+            const SizedBox(width: AppSizes.paddingS),
+            // Price x Qty
+            Text(
+              '₹${item.sellingPrice.toStringAsFixed(0)} x ${item.quantity}',
+              style: TextStyle(
+                fontSize: AppSizes.fontS,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(width: AppSizes.paddingS),
+            // Total with tax
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.productName,
-                        style: TextStyle(
-                          fontSize: AppSizes.fontM,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (item.partNumber != null) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          item.partNumber!,
-                          style: TextStyle(
-                            fontSize: AppSizes.fontS,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ],
+                Text(
+                  '₹${item.totalAmount.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: AppSizes.fontM,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
                   ),
                 ),
-                IconButton(
-                  icon: Icon(
-                    Icons.delete_outline,
-                    size: AppSizes.iconM,
-                    color: AppColors.error,
+                if (item.taxAmount > 0)
+                  Text(
+                    '(+₹${item.taxAmount.toStringAsFixed(2)} tax)',
+                    style: TextStyle(
+                      fontSize: AppSizes.fontXS,
+                      color: AppColors.textTertiary,
+                    ),
                   ),
-                  onPressed: () => viewModel.removeFromCart(item.productId),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
               ],
             ),
-
-            const SizedBox(height: AppSizes.paddingM),
-
-            // Second Row: Quantity, Price, Total
-            Row(
-              children: [
-                // Quantity Input
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Qty',
-                      style: TextStyle(
-                        fontSize: AppSizes.fontXS,
-                        color: AppColors.textTertiary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    SizedBox(
-                      width: 70,
-                      height: 38,
-                      child: TextFormField(
-                        initialValue: '${item.quantity}',
-                        keyboardType: TextInputType.number,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: AppSizes.fontM,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                        ],
-                        decoration: InputDecoration(
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: AppSizes.paddingS,
-                            vertical: AppSizes.paddingS,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(
-                              AppSizes.radiusM,
-                            ),
-                            borderSide: BorderSide(color: AppColors.border),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(
-                              AppSizes.radiusM,
-                            ),
-                            borderSide: BorderSide(color: AppColors.border),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(
-                              AppSizes.radiusM,
-                            ),
-                            borderSide: BorderSide(
-                              color: AppColors.primary,
-                              width: 2,
-                            ),
-                          ),
-                          isDense: true,
-                        ),
-                        onChanged: (value) {
-                          final newQty = int.tryParse(value);
-                          if (newQty != null && newQty > 0) {
-                            viewModel.updateCartItemQuantity(
-                              item.productId,
-                              newQty,
-                            );
-                          }
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(width: AppSizes.paddingM),
-
-                // Price
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Price',
-                      style: TextStyle(
-                        fontSize: AppSizes.fontXS,
-                        color: AppColors.textTertiary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '₹${item.sellingPrice.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontSize: AppSizes.fontM,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const Spacer(),
-
-                // Total with Tax
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      'Total',
-                      style: TextStyle(
-                        fontSize: AppSizes.fontXS,
-                        color: AppColors.textTertiary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '₹${item.totalAmount.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontSize: AppSizes.fontL,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                    if (item.taxAmount > 0)
-                      Text(
-                        '(+₹${item.taxAmount.toStringAsFixed(2)} tax)',
-                        style: TextStyle(
-                          fontSize: AppSizes.fontXS,
-                          color: AppColors.textTertiary,
-                        ),
-                      ),
-                  ],
-                ),
-              ],
+            const SizedBox(width: AppSizes.paddingS),
+            // Delete button
+            InkWell(
+              onTap: () => viewModel.removeFromCart(item.productId),
+              child: Icon(
+                Icons.close,
+                size: AppSizes.iconS,
+                color: AppColors.error,
+              ),
             ),
           ],
         ),
@@ -396,15 +323,15 @@ class PosCart extends ConsumerWidget {
         children: [
           // Subtotal
           _buildSummaryRow('Subtotal:', state.subtotal),
-          const SizedBox(height: AppSizes.paddingS),
+          const SizedBox(height: 4),
 
           // Tax
           _buildSummaryRow('Tax:', state.taxAmount),
-          const SizedBox(height: AppSizes.paddingS),
+          const SizedBox(height: 4),
 
           // Divider
           Divider(color: AppColors.border, thickness: 1),
-          const SizedBox(height: AppSizes.paddingS),
+          const SizedBox(height: 4),
 
           // Total
           Row(
@@ -413,7 +340,7 @@ class PosCart extends ConsumerWidget {
               Text(
                 'Total:',
                 style: TextStyle(
-                  fontSize: AppSizes.fontXL,
+                  fontSize: AppSizes.fontM,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textPrimary,
                 ),
@@ -421,7 +348,7 @@ class PosCart extends ConsumerWidget {
               Text(
                 '₹${state.totalAmount.toStringAsFixed(2)}',
                 style: TextStyle(
-                  fontSize: AppSizes.fontXXL,
+                  fontSize: AppSizes.fontL,
                   fontWeight: FontWeight.bold,
                   color: AppColors.primary,
                 ),
@@ -429,7 +356,7 @@ class PosCart extends ConsumerWidget {
             ],
           ),
 
-          const SizedBox(height: AppSizes.paddingL),
+          const SizedBox(height: AppSizes.paddingM),
 
           // Action Buttons
           Row(
@@ -541,14 +468,14 @@ class PosCart extends ConsumerWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: AppSizes.fontM,
+            fontSize: AppSizes.fontS,
             color: AppColors.textSecondary,
           ),
         ),
         Text(
           '₹${amount.toStringAsFixed(2)}',
           style: TextStyle(
-            fontSize: AppSizes.fontM,
+            fontSize: AppSizes.fontS,
             fontWeight: FontWeight.w600,
             color: AppColors.textPrimary,
           ),
