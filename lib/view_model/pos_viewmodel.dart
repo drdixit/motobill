@@ -437,6 +437,24 @@ class PosViewModel extends StateNotifier<PosState> {
     }
   }
 
+  Future<void> refreshCustomersAndSelect(int customerId) async {
+    if (_customerRepository == null) return;
+
+    try {
+      // Refresh customer list
+      final customers = await _customerRepository.getAllCustomers();
+
+      // Find and select the newly created customer
+      final newCustomer = customers.firstWhere((c) => c.id == customerId);
+
+      // Update state with new customer list and select the new customer
+      state = state.copyWith(customers: customers);
+      selectCustomer(newCustomer);
+    } catch (e) {
+      print('Failed to refresh customers: $e');
+    }
+  }
+
   void addToCartWithCustomPrice(PosProduct product, double customPrice) {
     final productWithCustomPrice = PosProduct(
       id: product.id,
