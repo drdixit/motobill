@@ -64,7 +64,11 @@ class PosCart extends ConsumerWidget {
         children: [
           // Header
           Container(
-            padding: const EdgeInsets.all(AppSizes.paddingM),
+            height: 64,
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSizes.paddingM,
+              vertical: AppSizes.paddingM,
+            ),
             decoration: BoxDecoration(
               color: AppColors.backgroundSecondary,
               border: Border(

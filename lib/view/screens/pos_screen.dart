@@ -36,7 +36,11 @@ class PosScreen extends ConsumerWidget {
       children: [
         // Header
         Container(
-          padding: const EdgeInsets.all(AppSizes.paddingM),
+          height: 64,
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSizes.paddingM,
+            vertical: AppSizes.paddingM,
+          ),
           decoration: BoxDecoration(
             color: AppColors.backgroundSecondary,
             border: Border(
@@ -56,26 +60,26 @@ class PosScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: AppSizes.paddingM),
+              Expanded(child: _buildSearchBar(ref, state)),
+              const SizedBox(width: AppSizes.paddingM),
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: AppSizes.paddingM,
-                  vertical: AppSizes.paddingS,
+                  horizontal: AppSizes.paddingS,
+                  vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(AppSizes.radiusM),
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(AppSizes.radiusS),
                 ),
                 child: Text(
-                  '${state.filteredProducts.length} items',
+                  '${state.filteredProducts.length}',
                   style: TextStyle(
-                    fontSize: AppSizes.fontM,
+                    fontSize: AppSizes.fontS,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.primary,
+                    color: AppColors.white,
                   ),
                 ),
               ),
-              const SizedBox(width: AppSizes.paddingM),
-              Expanded(child: _buildSearchBar(ref, state)),
             ],
           ),
         ),
