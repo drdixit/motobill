@@ -27,57 +27,58 @@ class PosProductCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Product Image
+              // Product Image (Top)
               Expanded(child: Center(child: _buildProductImage())),
               const SizedBox(height: AppSizes.paddingS),
 
-              // Product Name
-              Text(
-                product.name,
-                style: TextStyle(
-                  fontSize: AppSizes.fontM,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
+              // Product Name and Part Number with Price
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Product Name
+                        Text(
+                          product.name,
+                          style: TextStyle(
+                            fontSize: AppSizes.fontM,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
 
-              // Part Number
-              if (product.partNumber != null) ...[
-                const SizedBox(height: 2),
-                Text(
-                  product.partNumber!,
-                  style: TextStyle(
-                    fontSize: AppSizes.fontS,
-                    color: AppColors.textSecondary,
+                        // Part Number
+                        if (product.partNumber != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            product.partNumber!,
+                            style: TextStyle(
+                              fontSize: AppSizes.fontS,
+                              color: AppColors.textSecondary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                  const SizedBox(width: AppSizes.paddingS),
 
-              const SizedBox(height: AppSizes.paddingS),
-
-              // Price
-              Text(
-                '₹${product.sellingPrice.toStringAsFixed(2)}',
-                style: TextStyle(
-                  fontSize: AppSizes.fontL,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primary,
-                ),
-              ),
-
-              // Manufacturer
-              Text(
-                product.manufacturerName,
-                style: TextStyle(
-                  fontSize: AppSizes.fontXS,
-                  color: AppColors.textTertiary,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                  // Price (Right-aligned)
+                  Text(
+                    '₹${product.sellingPrice.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontSize: AppSizes.fontL,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

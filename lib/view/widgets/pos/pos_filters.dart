@@ -4,24 +4,11 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../view_model/pos_viewmodel.dart';
 
-class PosFilters extends ConsumerStatefulWidget {
+class PosFilters extends ConsumerWidget {
   const PosFilters({super.key});
 
   @override
-  ConsumerState<PosFilters> createState() => _PosFiltersState();
-}
-
-class _PosFiltersState extends ConsumerState<PosFilters> {
-  final TextEditingController _searchController = TextEditingController();
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(posViewModelProvider);
     final viewModel = ref.read(posViewModelProvider.notifier);
 
@@ -57,11 +44,9 @@ class _PosFiltersState extends ConsumerState<PosFilters> {
                 const Spacer(),
                 if (state.selectedMainCategoryId != null ||
                     state.selectedSubCategoryId != null ||
-                    state.selectedManufacturerId != null ||
-                    state.searchQuery.isNotEmpty)
+                    state.selectedManufacturerId != null)
                   TextButton(
                     onPressed: () {
-                      _searchController.clear();
                       viewModel.clearFilters();
                     },
                     child: Text(
@@ -81,37 +66,6 @@ class _PosFiltersState extends ConsumerState<PosFilters> {
             child: ListView(
               padding: const EdgeInsets.all(AppSizes.paddingM),
               children: [
-                // Search
-                TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: 'Search products...',
-                    prefixIcon: Icon(Icons.search, size: AppSizes.iconM),
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: Icon(Icons.clear, size: AppSizes.iconM),
-                            onPressed: () {
-                              _searchController.clear();
-                              viewModel.setSearchQuery('');
-                            },
-                          )
-                        : null,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppSizes.radiusM),
-                      borderSide: BorderSide(color: AppColors.border),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: AppSizes.paddingM,
-                      vertical: AppSizes.paddingS,
-                    ),
-                  ),
-                  onChanged: (value) {
-                    viewModel.setSearchQuery(value);
-                  },
-                ),
-
-                const SizedBox(height: AppSizes.paddingL),
-
                 // Main Category Filter
                 _buildFilterSection(
                   title: 'Main Category',

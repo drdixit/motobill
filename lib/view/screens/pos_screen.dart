@@ -74,6 +74,8 @@ class PosScreen extends ConsumerWidget {
                   ),
                 ),
               ),
+              const SizedBox(width: AppSizes.paddingM),
+              Expanded(child: _buildSearchBar(ref, state)),
             ],
           ),
         ),
@@ -92,14 +94,55 @@ class PosScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildSearchBar(WidgetRef ref, PosState state) {
+    final viewModel = ref.read(posViewModelProvider.notifier);
+
+    return TextField(
+      decoration: InputDecoration(
+        hintText: 'Search products...',
+        hintStyle: TextStyle(
+          fontSize: AppSizes.fontM,
+          color: AppColors.textTertiary,
+        ),
+        prefixIcon: Icon(Icons.search, size: AppSizes.iconM),
+        suffixIcon: state.searchQuery.isNotEmpty
+            ? IconButton(
+                icon: Icon(Icons.clear, size: AppSizes.iconM),
+                onPressed: () => viewModel.setSearchQuery(''),
+              )
+            : null,
+        filled: true,
+        fillColor: AppColors.surface,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppSizes.radiusM),
+          borderSide: BorderSide(color: AppColors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppSizes.radiusM),
+          borderSide: BorderSide(color: AppColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppSizes.radiusM),
+          borderSide: BorderSide(color: AppColors.primary, width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppSizes.paddingM,
+          vertical: AppSizes.paddingS,
+        ),
+        isDense: true,
+      ),
+      onChanged: (value) => viewModel.setSearchQuery(value),
+    );
+  }
+
   Widget _buildProductsGrid(PosState state, WidgetRef ref) {
     final viewModel = ref.read(posViewModelProvider.notifier);
 
     return GridView.builder(
       padding: const EdgeInsets.all(AppSizes.paddingM),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 200,
-        childAspectRatio: 0.75,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        childAspectRatio: 0.85,
         crossAxisSpacing: AppSizes.paddingM,
         mainAxisSpacing: AppSizes.paddingM,
       ),
