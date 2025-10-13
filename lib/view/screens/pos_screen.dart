@@ -141,7 +141,7 @@ class PosScreen extends ConsumerWidget {
     return GridView.builder(
       padding: const EdgeInsets.all(AppSizes.paddingM),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 5,
+        crossAxisCount: 4,
         childAspectRatio: 0.85,
         crossAxisSpacing: AppSizes.paddingM,
         mainAxisSpacing: AppSizes.paddingM,
