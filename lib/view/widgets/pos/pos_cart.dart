@@ -6,15 +6,19 @@ import '../../../core/constants/app_sizes.dart';
 import '../../../view_model/pos_viewmodel.dart';
 import '../../../model/bill.dart';
 
-// Custom formatter to allow only one decimal point
+// Custom formatter to allow only one decimal point and max 2 decimal places
 class DecimalTextInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    // Allow only digits and single decimal point
     final text = newValue.text;
+
+    // Allow empty text
+    if (text.isEmpty) {
+      return newValue;
+    }
 
     // Check if text contains only valid characters (digits and decimal point)
     if (!RegExp(r'^[0-9]*\.?[0-9]*$').hasMatch(text)) {
@@ -27,6 +31,15 @@ class DecimalTextInputFormatter extends TextInputFormatter {
     // Reject if more than one decimal point
     if (decimalCount > 1) {
       return oldValue;
+    }
+
+    // If there's a decimal point, check decimal places
+    if (text.contains('.')) {
+      final parts = text.split('.');
+      // Reject if more than 2 digits after decimal point
+      if (parts[1].length > 2) {
+        return oldValue;
+      }
     }
 
     return newValue;
@@ -686,15 +699,25 @@ extension on PosCart {
                 child: ElevatedButton(
                   onPressed: state.selectedCustomer == null
                       ? null
-                      : () {
-                          // TODO: Navigate to checkout or save bill
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Creating bill for ${state.selectedCustomer!.name}...',
+                      : () async {
+                          final billNumber = await viewModel.checkout();
+                          if (billNumber != null && context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Bill $billNumber created successfully!',
+                                ),
+                                backgroundColor: AppColors.success,
                               ),
-                            ),
-                          );
+                            );
+                          } else if (state.error != null && context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(state.error!),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                          }
                         },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: state.selectedCustomer == null
