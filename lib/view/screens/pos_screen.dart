@@ -103,7 +103,7 @@ class PosScreen extends ConsumerWidget {
 
     return TextField(
       decoration: InputDecoration(
-        hintText: 'Search products...',
+        hintText: 'Search by name or part number...',
         hintStyle: TextStyle(
           fontSize: AppSizes.fontM,
           color: AppColors.textTertiary,
