@@ -103,13 +103,22 @@ class PosState {
 }
 
 class PosViewModel extends StateNotifier<PosState> {
-  final PosRepository _repository;
+  final PosRepository? _repository;
 
-  PosViewModel(this._repository) : super(PosState()) {
+  PosViewModel(PosRepository repository)
+    : _repository = repository,
+      super(PosState()) {
     loadInitialData();
   }
 
+  // Loading constructor for when repository isn't ready yet
+  PosViewModel._loading()
+    : _repository = null,
+      super(PosState(isLoading: true));
+
   Future<void> loadInitialData() async {
+    if (_repository == null) return;
+
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final mainCategories = await _repository.getAllMainCategories();
@@ -132,6 +141,8 @@ class PosViewModel extends StateNotifier<PosState> {
   }
 
   Future<void> selectMainCategory(int? categoryId) async {
+    if (_repository == null) return;
+
     // Allow clicking the same category to deselect it
     if (categoryId == state.selectedMainCategoryId && categoryId != null) {
       categoryId = null;
@@ -207,6 +218,8 @@ class PosViewModel extends StateNotifier<PosState> {
   }
 
   Future<void> _applyFilters() async {
+    if (_repository == null) return;
+
     state = state.copyWith(isLoading: true);
     try {
       final products = await _repository.getProductsForPos(
@@ -320,14 +333,18 @@ class PosViewModel extends StateNotifier<PosState> {
   }
 }
 
+// Provider that waits for repository and creates ViewModel
 final posViewModelProvider = StateNotifierProvider<PosViewModel, PosState>((
   ref,
 ) {
-  final repositoryAsync = ref.watch(posRepositoryFutureProvider);
-  return repositoryAsync.when(
-    data: (repository) => PosViewModel(repository),
-    loading: () =>
-        PosViewModel(throw UnimplementedError('Repository not ready')),
-    error: (error, stack) => throw error,
-  );
+  // Watch the repository future and get the value synchronously
+  // This will cause the provider to rebuild when repository is ready
+  final repository = ref.watch(posRepositoryFutureProvider).value;
+
+  if (repository == null) {
+    // Return a ViewModel with loading state while repository initializes
+    return PosViewModel._loading();
+  }
+
+  return PosViewModel(repository);
 });
