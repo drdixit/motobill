@@ -309,42 +309,43 @@ class PosCart extends ConsumerWidget {
                                   padding: EdgeInsets.zero,
                                   shrinkWrap: true,
                                   itemCount: options.length,
-                                  itemBuilder:
-                                      (BuildContext context, int index) {
-                                        final customer = options.elementAt(
-                                          index,
-                                        );
-                                        return ListTile(
-                                          leading: Icon(
-                                            Icons.person,
-                                            color: AppColors.primary,
-                                            size: AppSizes.iconM,
-                                          ),
-                                          title: Text(
-                                            customer.name,
-                                            style: TextStyle(
-                                              fontSize: AppSizes.fontM,
-                                              color: AppColors.textPrimary,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                          subtitle: customer.gstNumber != null
-                                              ? Text(
-                                                  'GST: ${customer.gstNumber}',
-                                                  style: TextStyle(
-                                                    fontSize: AppSizes.fontS,
-                                                    color:
-                                                        AppColors.textSecondary,
-                                                  ),
-                                                )
-                                              : null,
-                                          onTap: () {
-                                            onSelected(customer);
-                                          },
-                                          hoverColor: AppColors.primary
-                                              .withOpacity(0.1),
-                                        );
+                                  itemBuilder: (BuildContext context, int index) {
+                                    final customer = options.elementAt(index);
+                                    return ListTile(
+                                      leading: Icon(
+                                        Icons.person,
+                                        color: AppColors.primary,
+                                        size: AppSizes.iconM,
+                                      ),
+                                      title: Text(
+                                        customer.legalName != null
+                                            ? '${customer.name} (${customer.legalName})'
+                                            : customer.name,
+                                        style: TextStyle(
+                                          fontSize: AppSizes.fontM,
+                                          color: AppColors.textPrimary,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      ),
+                                      subtitle: customer.gstNumber != null
+                                          ? Text(
+                                              'GST: ${customer.gstNumber}',
+                                              style: TextStyle(
+                                                fontSize: AppSizes.fontS,
+                                                color: AppColors.textSecondary,
+                                              ),
+                                            )
+                                          : null,
+                                      onTap: () {
+                                        onSelected(customer);
                                       },
+                                      hoverColor: AppColors.primary.withOpacity(
+                                        0.1,
+                                      ),
+                                    );
+                                  },
                                 ),
                               ),
                             ),
