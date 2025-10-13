@@ -7,12 +7,14 @@ import '../../../model/pos_product.dart';
 class PosProductCard extends StatelessWidget {
   final PosProduct product;
   final VoidCallback onTap;
+  final VoidCallback? onSecondaryTap;
   final int cartQuantity;
 
   const PosProductCard({
     super.key,
     required this.product,
     required this.onTap,
+    this.onSecondaryTap,
     this.cartQuantity = 0,
   });
 
@@ -25,9 +27,9 @@ class PosProductCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppSizes.radiusM),
         side: BorderSide(color: AppColors.border, width: 0.5),
       ),
-      child: InkWell(
+      child: GestureDetector(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppSizes.radiusM),
+        onSecondaryTap: onSecondaryTap,
         child: Stack(
           children: [
             Padding(

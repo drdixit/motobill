@@ -5,7 +5,6 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../view_model/pos_viewmodel.dart';
 import '../../../model/bill.dart';
-import '../../../model/customer.dart';
 
 // Custom formatter to allow only one decimal point
 class DecimalTextInputFormatter extends TextInputFormatter {
@@ -50,7 +49,7 @@ class PosCart extends ConsumerWidget {
       ),
       child: Column(
         children: [
-          // Header with Customer Selection
+          // Header
           Container(
             padding: const EdgeInsets.all(AppSizes.paddingM),
             decoration: BoxDecoration(
@@ -59,100 +58,38 @@ class PosCart extends ConsumerWidget {
                 bottom: BorderSide(color: AppColors.border, width: 1),
               ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.shopping_cart, size: AppSizes.iconM),
-                    const SizedBox(width: AppSizes.paddingS),
-                    Text(
-                      'Cart',
-                      style: TextStyle(
-                        fontSize: AppSizes.fontL,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const Spacer(),
-                    if (state.cartItems.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSizes.paddingS,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary,
-                          borderRadius: BorderRadius.circular(AppSizes.radiusM),
-                        ),
-                        child: Text(
-                          '${state.totalItems}',
-                          style: TextStyle(
-                            fontSize: AppSizes.fontS,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.white,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: AppSizes.paddingM),
-                // Customer Selection Dropdown
-                Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: state.selectedCustomer == null
-                          ? AppColors.error
-                          : AppColors.border,
-                      width: state.selectedCustomer == null ? 2 : 1,
-                    ),
-                    borderRadius: BorderRadius.circular(AppSizes.radiusM),
+                Icon(Icons.shopping_cart, size: AppSizes.iconM),
+                const SizedBox(width: AppSizes.paddingS),
+                Text(
+                  'Cart',
+                  style: TextStyle(
+                    fontSize: AppSizes.fontL,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
                   ),
-                  child: DropdownButtonFormField<Customer>(
-                    value: state.selectedCustomer,
-                    decoration: InputDecoration(
-                      labelText: 'Select Customer *',
-                      labelStyle: TextStyle(
-                        color: state.selectedCustomer == null
-                            ? AppColors.error
-                            : AppColors.textSecondary,
-                      ),
-                      prefixIcon: Icon(
-                        Icons.person,
-                        color: state.selectedCustomer == null
-                            ? AppColors.error
-                            : AppColors.primary,
-                      ),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: AppSizes.paddingM,
-                        vertical: AppSizes.paddingS,
-                      ),
+                ),
+                const Spacer(),
+                if (state.cartItems.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSizes.paddingS,
+                      vertical: 2,
                     ),
-                    hint: Text(
-                      'Choose customer to create bill',
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(AppSizes.radiusM),
+                    ),
+                    child: Text(
+                      '${state.totalItems}',
                       style: TextStyle(
                         fontSize: AppSizes.fontS,
-                        color: AppColors.textTertiary,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.white,
                       ),
                     ),
-                    items: state.customers.map((customer) {
-                      return DropdownMenuItem<Customer>(
-                        value: customer,
-                        child: Text(
-                          customer.name,
-                          style: TextStyle(
-                            fontSize: AppSizes.fontM,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (customer) => viewModel.selectCustomer(customer),
-                    isExpanded: true,
-                    dropdownColor: AppColors.surface,
                   ),
-                ),
               ],
             ),
           ),
