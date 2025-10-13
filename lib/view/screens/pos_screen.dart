@@ -143,12 +143,12 @@ class PosScreen extends ConsumerWidget {
     final viewModel = ref.read(posViewModelProvider.notifier);
 
     return GridView.builder(
-      padding: const EdgeInsets.all(AppSizes.paddingM),
+      padding: const EdgeInsets.all(AppSizes.paddingS),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 4,
         childAspectRatio: 0.85,
-        crossAxisSpacing: AppSizes.paddingM,
-        mainAxisSpacing: AppSizes.paddingM,
+        crossAxisSpacing: AppSizes.paddingS,
+        mainAxisSpacing: AppSizes.paddingS,
       ),
       itemCount: state.filteredProducts.length,
       itemBuilder: (context, index) {

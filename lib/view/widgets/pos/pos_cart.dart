@@ -5,6 +5,10 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../view_model/pos_viewmodel.dart';
 import '../../../model/bill.dart';
+import '../../../model/customer.dart';
+import '../../../repository/customer_repository.dart';
+import '../../../core/providers/database_provider.dart';
+import '../customer_form_dialog.dart';
 
 // Custom formatter to allow only one decimal point and max 2 decimal places
 class DecimalTextInputFormatter extends TextInputFormatter {
@@ -92,11 +96,11 @@ class PosCart extends ConsumerWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppSizes.paddingS,
-                      vertical: 2,
+                      vertical: 4,
                     ),
                     decoration: BoxDecoration(
                       color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(AppSizes.radiusM),
+                      borderRadius: BorderRadius.circular(AppSizes.radiusS),
                     ),
                     child: Text(
                       '${state.totalItems}',
@@ -123,68 +127,181 @@ class PosCart extends ConsumerWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: state.selectedCustomer == null
-                            ? AppColors.error
-                            : AppColors.border,
-                        width: state.selectedCustomer == null ? 2 : 1,
-                      ),
-                      borderRadius: BorderRadius.circular(AppSizes.radiusM),
-                    ),
-                    child: DropdownButtonFormField(
-                      value: state.selectedCustomer,
-                      decoration: InputDecoration(
-                        labelText: 'Select Customer *',
-                        labelStyle: TextStyle(
-                          color: state.selectedCustomer == null
-                              ? AppColors.error
-                              : AppColors.textSecondary,
-                        ),
-                        prefixIcon: Icon(
-                          Icons.person,
-                          color: state.selectedCustomer == null
-                              ? AppColors.error
-                              : AppColors.primary,
-                        ),
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: AppSizes.paddingM,
-                          vertical: AppSizes.paddingS,
-                        ),
-                      ),
-                      hint: Text(
-                        'Choose customer to create bill',
-                        style: TextStyle(
-                          fontSize: AppSizes.fontS,
-                          color: AppColors.textTertiary,
-                        ),
-                      ),
-                      items: state.customers.map((customer) {
-                        return DropdownMenuItem(
-                          value: customer,
-                          child: Text(
-                            customer.name,
-                            style: TextStyle(
-                              fontSize: AppSizes.fontM,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
+                  child: Autocomplete<Customer>(
+                    key: ValueKey(state.selectedCustomer?.id),
+                    optionsBuilder: (TextEditingValue textEditingValue) {
+                      if (textEditingValue.text.isEmpty) {
+                        return state.customers;
+                      }
+                      return state.customers.where((customer) {
+                        return customer.name.toLowerCase().contains(
+                          textEditingValue.text.toLowerCase(),
                         );
-                      }).toList(),
-                      onChanged: (customer) =>
-                          viewModel.selectCustomer(customer),
-                      isExpanded: true,
-                      dropdownColor: AppColors.surface,
-                    ),
+                      });
+                    },
+                    displayStringForOption: (Customer customer) =>
+                        customer.name,
+                    onSelected: (Customer customer) {
+                      viewModel.selectCustomer(customer);
+                    },
+                    initialValue: state.selectedCustomer != null
+                        ? TextEditingValue(text: state.selectedCustomer!.name)
+                        : null,
+                    fieldViewBuilder:
+                        (
+                          BuildContext context,
+                          TextEditingController textController,
+                          FocusNode focusNode,
+                          VoidCallback onFieldSubmitted,
+                        ) {
+                          return TextField(
+                            controller: textController,
+                            focusNode: focusNode,
+                            decoration: InputDecoration(
+                              labelText: 'Select Customer *',
+                              labelStyle: TextStyle(
+                                color: state.selectedCustomer == null
+                                    ? AppColors.error
+                                    : AppColors.textSecondary,
+                              ),
+                              hintText: 'Search customer by name...',
+                              hintStyle: TextStyle(
+                                fontSize: AppSizes.fontS,
+                                color: AppColors.textTertiary,
+                              ),
+                              prefixIcon: Icon(
+                                Icons.person,
+                                color: state.selectedCustomer == null
+                                    ? AppColors.error
+                                    : AppColors.primary,
+                              ),
+                              suffixIcon: state.selectedCustomer != null
+                                  ? IconButton(
+                                      icon: Icon(
+                                        Icons.clear,
+                                        size: AppSizes.iconS,
+                                      ),
+                                      onPressed: () {
+                                        textController.clear();
+                                        viewModel.selectCustomer(null);
+                                      },
+                                    )
+                                  : null,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppSizes.radiusM,
+                                ),
+                                borderSide: BorderSide(
+                                  color: state.selectedCustomer == null
+                                      ? AppColors.error
+                                      : AppColors.border,
+                                  width: state.selectedCustomer == null ? 2 : 1,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppSizes.radiusM,
+                                ),
+                                borderSide: BorderSide(
+                                  color: state.selectedCustomer == null
+                                      ? AppColors.error
+                                      : AppColors.border,
+                                  width: state.selectedCustomer == null ? 2 : 1,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppSizes.radiusM,
+                                ),
+                                borderSide: BorderSide(
+                                  color: state.selectedCustomer == null
+                                      ? AppColors.error
+                                      : AppColors.primary,
+                                  width: 2,
+                                ),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: AppSizes.paddingM,
+                                vertical: AppSizes.paddingM,
+                              ),
+                            ),
+                          );
+                        },
+                    optionsViewBuilder:
+                        (
+                          BuildContext context,
+                          AutocompleteOnSelected<Customer> onSelected,
+                          Iterable<Customer> options,
+                        ) {
+                          return Align(
+                            alignment: Alignment.topLeft,
+                            child: Material(
+                              elevation: 4,
+                              borderRadius: BorderRadius.circular(
+                                AppSizes.radiusM,
+                              ),
+                              child: Container(
+                                constraints: const BoxConstraints(
+                                  maxHeight: 200,
+                                ),
+                                width: 400,
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface,
+                                  borderRadius: BorderRadius.circular(
+                                    AppSizes.radiusM,
+                                  ),
+                                  border: Border.all(color: AppColors.border),
+                                ),
+                                child: ListView.builder(
+                                  padding: EdgeInsets.zero,
+                                  shrinkWrap: true,
+                                  itemCount: options.length,
+                                  itemBuilder:
+                                      (BuildContext context, int index) {
+                                        final customer = options.elementAt(
+                                          index,
+                                        );
+                                        return ListTile(
+                                          leading: Icon(
+                                            Icons.person,
+                                            color: AppColors.primary,
+                                            size: AppSizes.iconM,
+                                          ),
+                                          title: Text(
+                                            customer.name,
+                                            style: TextStyle(
+                                              fontSize: AppSizes.fontM,
+                                              color: AppColors.textPrimary,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                          subtitle: customer.gstNumber != null
+                                              ? Text(
+                                                  'GST: ${customer.gstNumber}',
+                                                  style: TextStyle(
+                                                    fontSize: AppSizes.fontS,
+                                                    color:
+                                                        AppColors.textSecondary,
+                                                  ),
+                                                )
+                                              : null,
+                                          onTap: () {
+                                            onSelected(customer);
+                                          },
+                                          hoverColor: AppColors.primary
+                                              .withOpacity(0.1),
+                                        );
+                                      },
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                   ),
                 ),
                 const SizedBox(width: AppSizes.paddingM),
                 ElevatedButton.icon(
-                  onPressed: () {
-                    // TODO: Implement add customer functionality
-                  },
+                  onPressed: () => _showAddCustomerDialog(context, ref),
                   icon: Icon(Icons.person_add, size: AppSizes.iconS),
                   label: Text('Add Customer'),
                   style: ElevatedButton.styleFrom(
@@ -221,6 +338,39 @@ class PosCart extends ConsumerWidget {
           if (state.cartItems.isNotEmpty)
             _buildCartSummary(state, viewModel, context),
         ],
+      ),
+    );
+  }
+
+  void _showAddCustomerDialog(BuildContext context, WidgetRef ref) async {
+    final viewModel = ref.read(posViewModelProvider.notifier);
+    final db = await ref.read(databaseProvider);
+    final customerRepository = CustomerRepository(db);
+
+    showDialog(
+      context: context,
+      builder: (context) => CustomerFormDialog(
+        customer: null,
+        onSave: (newCustomer) async {
+          Navigator.of(context).pop();
+          try {
+            // Create customer in database
+            final customerId = await customerRepository.createCustomer(
+              newCustomer,
+            );
+            // Refresh customer list and auto-select the new customer
+            await viewModel.refreshCustomersAndSelect(customerId);
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Failed to create customer: $e'),
+                  backgroundColor: AppColors.error,
+                ),
+              );
+            }
+          }
+        },
       ),
     );
   }
@@ -559,8 +709,8 @@ class _CartItemWidgetState extends State<_CartItemWidget> {
               onTap: () =>
                   widget.viewModel.removeFromCart(widget.item.productId),
               child: Icon(
-                Icons.close,
-                size: AppSizes.iconS,
+                Icons.delete,
+                size: AppSizes.iconM,
                 color: AppColors.error,
               ),
             ),
