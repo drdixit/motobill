@@ -33,7 +33,10 @@ class PosRepository {
           sc.name as sub_category_name,
           mc.name as main_category_name,
           m.name as manufacturer_name,
-          pi.image_path
+          pi.image_path,
+          g.cgst as cgst_rate,
+          g.sgst as sgst_rate,
+          g.igst as igst_rate
         FROM products p
         LEFT JOIN hsn_codes h ON p.hsn_code_id = h.id
         LEFT JOIN uqcs u ON p.uqc_id = u.id
@@ -45,6 +48,7 @@ class PosRepository {
           FROM product_images
           WHERE is_primary = 1 AND is_deleted = 0
         ) pi ON p.id = pi.product_id
+        LEFT JOIN gst_rates g ON p.hsn_code_id = g.hsn_code_id AND g.is_deleted = 0 AND g.is_enabled = 1
         WHERE p.is_deleted = 0 AND p.is_enabled = 1
       ''');
 
@@ -123,6 +127,22 @@ class PosRepository {
       return result.map((json) => Manufacturer.fromJson(json)).toList();
     } catch (e) {
       throw Exception('Failed to get manufacturers: $e');
+    }
+  }
+
+  Future<String?> getCompanyGstNumber() async {
+    try {
+      final result = await _db.rawQuery('''
+        SELECT gst_number FROM company_info
+        WHERE is_primary = 1 AND is_deleted = 0 AND is_enabled = 1
+        LIMIT 1
+      ''');
+      if (result.isNotEmpty) {
+        return result.first['gst_number'] as String?;
+      }
+      return null;
+    } catch (e) {
+      throw Exception('Failed to get company GST number: $e');
     }
   }
 }

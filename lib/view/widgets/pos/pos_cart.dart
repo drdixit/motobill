@@ -94,6 +94,98 @@ class PosCart extends ConsumerWidget {
             ),
           ),
 
+          // Customer Selection
+          Container(
+            padding: const EdgeInsets.all(AppSizes.paddingM),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              border: Border(
+                bottom: BorderSide(color: AppColors.border, width: 1),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: state.selectedCustomer == null
+                            ? AppColors.error
+                            : AppColors.border,
+                        width: state.selectedCustomer == null ? 2 : 1,
+                      ),
+                      borderRadius: BorderRadius.circular(AppSizes.radiusM),
+                    ),
+                    child: DropdownButtonFormField(
+                      value: state.selectedCustomer,
+                      decoration: InputDecoration(
+                        labelText: 'Select Customer *',
+                        labelStyle: TextStyle(
+                          color: state.selectedCustomer == null
+                              ? AppColors.error
+                              : AppColors.textSecondary,
+                        ),
+                        prefixIcon: Icon(
+                          Icons.person,
+                          color: state.selectedCustomer == null
+                              ? AppColors.error
+                              : AppColors.primary,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: AppSizes.paddingM,
+                          vertical: AppSizes.paddingS,
+                        ),
+                      ),
+                      hint: Text(
+                        'Choose customer to create bill',
+                        style: TextStyle(
+                          fontSize: AppSizes.fontS,
+                          color: AppColors.textTertiary,
+                        ),
+                      ),
+                      items: state.customers.map((customer) {
+                        return DropdownMenuItem(
+                          value: customer,
+                          child: Text(
+                            customer.name,
+                            style: TextStyle(
+                              fontSize: AppSizes.fontM,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (customer) =>
+                          viewModel.selectCustomer(customer),
+                      isExpanded: true,
+                      dropdownColor: AppColors.surface,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSizes.paddingM),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    // TODO: Implement add customer functionality
+                  },
+                  icon: Icon(Icons.person_add, size: AppSizes.iconS),
+                  label: Text('Add Customer'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSizes.paddingM,
+                      vertical: AppSizes.paddingM,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppSizes.radiusM),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           // Cart Items
           Expanded(
             child: state.cartItems.isEmpty
@@ -183,9 +275,13 @@ class _CartItemWidgetState extends State<_CartItemWidget> {
   void initState() {
     super.initState();
     qtyController = TextEditingController(text: '${widget.item.quantity}');
+
+    // Calculate price with tax (per unit including tax)
+    final priceWithTax = _calculatePriceWithTax(widget.item);
     priceController = TextEditingController(
-      text: widget.item.sellingPrice.toStringAsFixed(2),
+      text: priceWithTax.toStringAsFixed(2),
     );
+
     totalController = TextEditingController(
       text: widget.item.totalAmount.toStringAsFixed(2),
     );
@@ -206,8 +302,10 @@ class _CartItemWidgetState extends State<_CartItemWidget> {
       }
     }
 
-    if (oldWidget.item.sellingPrice != widget.item.sellingPrice) {
-      final newText = widget.item.sellingPrice.toStringAsFixed(2);
+    if (oldWidget.item.sellingPrice != widget.item.sellingPrice ||
+        oldWidget.item.taxAmount != widget.item.taxAmount) {
+      final priceWithTax = _calculatePriceWithTax(widget.item);
+      final newText = priceWithTax.toStringAsFixed(2);
       if (priceController.text != newText) {
         priceController.value = priceController.value.copyWith(
           text: newText,
@@ -233,6 +331,12 @@ class _CartItemWidgetState extends State<_CartItemWidget> {
     priceController.dispose();
     totalController.dispose();
     super.dispose();
+  }
+
+  // Calculate per-unit price including tax
+  double _calculatePriceWithTax(BillItem item) {
+    if (item.quantity == 0) return 0.0;
+    return item.totalAmount / item.quantity;
   }
 
   @override
@@ -351,11 +455,19 @@ class _CartItemWidgetState extends State<_CartItemWidget> {
                 ),
                 onChanged: (value) {
                   if (value.isEmpty) return;
-                  final newPrice = double.tryParse(value);
-                  if (newPrice != null && newPrice > 0) {
+                  final priceWithTax = double.tryParse(value);
+                  if (priceWithTax != null && priceWithTax > 0) {
+                    // Reverse calculate price without tax
+                    final totalTaxRate =
+                        widget.item.cgstRate +
+                        widget.item.sgstRate +
+                        widget.item.igstRate;
+                    final priceWithoutTax = totalTaxRate > 0
+                        ? priceWithTax / (1 + totalTaxRate / 100)
+                        : priceWithTax;
                     widget.viewModel.updateCartItemPrice(
                       widget.item.productId,
-                      newPrice,
+                      priceWithoutTax,
                     );
                   }
                 },
@@ -414,11 +526,19 @@ class _CartItemWidgetState extends State<_CartItemWidget> {
                 ),
                 onChanged: (value) {
                   if (value.isEmpty) return;
-                  final newTotal = double.tryParse(value);
-                  if (newTotal != null && newTotal > 0) {
+                  final totalWithTax = double.tryParse(value);
+                  if (totalWithTax != null && totalWithTax > 0) {
+                    // Reverse calculate total without tax (subtotal)
+                    final totalTaxRate =
+                        widget.item.cgstRate +
+                        widget.item.sgstRate +
+                        widget.item.igstRate;
+                    final subtotal = totalTaxRate > 0
+                        ? totalWithTax / (1 + totalTaxRate / 100)
+                        : totalWithTax;
                     widget.viewModel.updateCartItemTotal(
                       widget.item.productId,
-                      newTotal,
+                      subtotal,
                     );
                   }
                 },
@@ -456,36 +576,70 @@ extension on PosCart {
       padding: const EdgeInsets.all(AppSizes.paddingM),
       child: Column(
         children: [
-          // Subtotal
-          _buildSummaryRow('Subtotal:', state.subtotal),
-          const SizedBox(height: 4),
-
-          // Tax
-          _buildSummaryRow('Tax:', state.taxAmount),
-          const SizedBox(height: 4),
-
-          // Divider
-          Divider(color: AppColors.border, thickness: 1),
-          const SizedBox(height: 4),
-
-          // Total
+          // Subtotal, Tax, and Total
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Total:',
-                style: TextStyle(
-                  fontSize: AppSizes.fontM,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+              Expanded(
+                child: Row(
+                  children: [
+                    Text(
+                      'Subtotal: ',
+                      style: TextStyle(
+                        fontSize: AppSizes.fontS,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    Text(
+                      '₹${state.subtotal.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: AppSizes.fontS,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              Text(
-                '₹${state.totalAmount.toStringAsFixed(2)}',
-                style: TextStyle(
-                  fontSize: AppSizes.fontL,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primary,
+              Expanded(
+                child: Row(
+                  children: [
+                    Text(
+                      'Tax: ',
+                      style: TextStyle(
+                        fontSize: AppSizes.fontS,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    Text(
+                      '₹${state.taxAmount.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: AppSizes.fontS,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Row(
+                  children: [
+                    Text(
+                      'Total: ',
+                      style: TextStyle(
+                        fontSize: AppSizes.fontM,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    Text(
+                      '₹${state.totalAmount.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: AppSizes.fontM,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -593,29 +747,6 @@ extension on PosCart {
           ],
         ],
       ),
-    );
-  }
-
-  Widget _buildSummaryRow(String label, double amount) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: AppSizes.fontS,
-            color: AppColors.textSecondary,
-          ),
-        ),
-        Text(
-          '₹${amount.toStringAsFixed(2)}',
-          style: TextStyle(
-            fontSize: AppSizes.fontS,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textPrimary,
-          ),
-        ),
-      ],
     );
   }
 }

@@ -15,6 +15,9 @@ class PosProduct {
   final int uqcId;
   final int subCategoryId;
   final int manufacturerId;
+  final double? cgstRate;
+  final double? sgstRate;
+  final double? igstRate;
 
   PosProduct({
     required this.id,
@@ -33,6 +36,9 @@ class PosProduct {
     required this.uqcId,
     required this.subCategoryId,
     required this.manufacturerId,
+    this.cgstRate,
+    this.sgstRate,
+    this.igstRate,
   });
 
   factory PosProduct.fromJson(Map<String, dynamic> json) {
@@ -53,6 +59,15 @@ class PosProduct {
       uqcId: json['uqc_id'] as int,
       subCategoryId: json['sub_category_id'] as int,
       manufacturerId: json['manufacturer_id'] as int,
+      cgstRate: json['cgst_rate'] != null
+          ? (json['cgst_rate'] as num).toDouble()
+          : null,
+      sgstRate: json['sgst_rate'] != null
+          ? (json['sgst_rate'] as num).toDouble()
+          : null,
+      igstRate: json['igst_rate'] != null
+          ? (json['igst_rate'] as num).toDouble()
+          : null,
     );
   }
 }
