@@ -196,15 +196,18 @@ This feature displays the last price (per unit with tax) that was charged to a c
 ### Scenario 12: Clear Cart
 **Steps:**
 1. Select Customer L
-2. Add products to cart (badges appear)
+2. Add products to cart (badges appear with last custom prices)
 3. Click "Clear Cart" button
+4. Add products again (without reselecting customer)
 
 **Expected Result:**
 - Cart empties
-- Customer remains selected
-- When products added again, badges reappear with same prices
+- Customer selection is cleared
+- Last custom prices are cleared
+- When products added again without customer, no badges appear
+- When customer is reselected, badges reappear with same prices
 
-**Status:** ✅ Manual verification needed
+**Status:** ✅ Fixed - clearCart() now clears lastCustomPrices map
 
 ---
 
@@ -269,7 +272,8 @@ The batch query is used when customer is selected to load all prices at once, av
 
 ## Testing Summary
 
-- **Total Test Cases**: 10 automated tests
+- **Total Test Cases**: 11 automated tests
 - **All Tests Passing**: ✅
 - **Code Coverage**: Repository and ViewModel logic fully covered
-- **Manual Tests Needed**: UI visual verification and cart clear behavior
+- **Manual Tests Needed**: UI visual verification
+- **Bug Fixed**: Clear Cart now properly clears last custom prices

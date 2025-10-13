@@ -282,19 +282,68 @@ class PosViewModel extends StateNotifier<PosState> {
     _applyFilters();
   }
 
+  /// Fuzzy search helper that checks if searchText matches targetText
+  /// Returns true if all characters in searchText appear in targetText in order
+  bool _fuzzyMatch(String searchText, String targetText) {
+    if (searchText.isEmpty) return true;
+    if (targetText.isEmpty) return false;
+
+    final search = searchText.toLowerCase();
+    final target = targetText.toLowerCase();
+
+    int searchIndex = 0;
+    int targetIndex = 0;
+
+    while (searchIndex < search.length && targetIndex < target.length) {
+      if (search[searchIndex] == target[targetIndex]) {
+        searchIndex++;
+      }
+      targetIndex++;
+    }
+
+    return searchIndex == search.length;
+  }
+
+  /// Check if product matches search query with fuzzy matching
+  bool _matchesSearchQuery(PosProduct product, String query) {
+    if (query.isEmpty) return true;
+
+    // Search in product name
+    if (_fuzzyMatch(query, product.name)) return true;
+
+    // Search in part number (if exists)
+    if (product.partNumber != null && _fuzzyMatch(query, product.partNumber!)) {
+      return true;
+    }
+
+    return false;
+  }
+
   Future<void> _applyFilters() async {
     if (_repository == null) return;
 
     state = state.copyWith(isLoading: true);
     try {
+      // Get products from database with category/manufacturer filters
+      // Don't pass searchQuery to DB - we'll do fuzzy search in memory
       final products = await _repository.getProductsForPos(
         mainCategoryId: state.selectedMainCategoryId,
         subCategoryId: state.selectedSubCategoryId,
         manufacturerId: state.selectedManufacturerId,
-        searchQuery: state.searchQuery.isEmpty ? null : state.searchQuery,
+        searchQuery: null, // Don't use DB search
       );
 
-      state = state.copyWith(filteredProducts: products, isLoading: false);
+      // Apply fuzzy search filter in memory
+      final filteredProducts = state.searchQuery.isEmpty
+          ? products
+          : products
+                .where((p) => _matchesSearchQuery(p, state.searchQuery))
+                .toList();
+
+      state = state.copyWith(
+        filteredProducts: filteredProducts,
+        isLoading: false,
+      );
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
@@ -402,7 +451,11 @@ class PosViewModel extends StateNotifier<PosState> {
   }
 
   void clearCart() {
-    state = state.copyWith(cartItems: [], clearCustomer: true);
+    state = state.copyWith(
+      cartItems: [],
+      clearCustomer: true,
+      lastCustomPrices: {},
+    );
   }
 
   void selectCustomer(Customer? customer) async {

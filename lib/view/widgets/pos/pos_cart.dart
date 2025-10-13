@@ -610,6 +610,29 @@ class _CartItemWidgetState extends State<_CartItemWidget> {
               ),
             ),
             const SizedBox(width: AppSizes.paddingS),
+            // Last Custom Price Display (if exists)
+            if (widget.lastCustomPrice != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.info.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                  border: Border.all(
+                    color: AppColors.info.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  '₹${widget.lastCustomPrice!.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: AppSizes.fontXS,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.info,
+                  ),
+                ),
+              ),
+            if (widget.lastCustomPrice != null)
+              const SizedBox(width: AppSizes.paddingS),
             // Quantity (editable)
             SizedBox(
               width: 50,
@@ -657,29 +680,6 @@ class _CartItemWidgetState extends State<_CartItemWidget> {
               ),
             ),
             const SizedBox(width: AppSizes.paddingS),
-            // Last Custom Price Display (if exists)
-            if (widget.lastCustomPrice != null)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.info.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(AppSizes.radiusS),
-                  border: Border.all(
-                    color: AppColors.info.withOpacity(0.3),
-                    width: 1,
-                  ),
-                ),
-                child: Text(
-                  '₹${widget.lastCustomPrice!.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontSize: AppSizes.fontXS,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.info,
-                  ),
-                ),
-              ),
-            if (widget.lastCustomPrice != null)
-              const SizedBox(width: AppSizes.paddingS),
             // Single Price (editable)
             SizedBox(
               width: 70,
