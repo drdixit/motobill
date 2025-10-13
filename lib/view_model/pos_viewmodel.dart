@@ -132,10 +132,14 @@ class PosViewModel extends StateNotifier<PosState> {
   }
 
   Future<void> selectMainCategory(int? categoryId) async {
-    if (categoryId == state.selectedMainCategoryId) return;
+    // Allow clicking the same category to deselect it
+    if (categoryId == state.selectedMainCategoryId && categoryId != null) {
+      categoryId = null;
+    }
 
     state = state.copyWith(
       selectedMainCategoryId: categoryId,
+      clearMainCategory: categoryId == null,
       clearSubCategory: true,
       isLoading: true,
     );
@@ -160,12 +164,29 @@ class PosViewModel extends StateNotifier<PosState> {
   }
 
   void selectSubCategory(int? subCategoryId) {
-    state = state.copyWith(selectedSubCategoryId: subCategoryId);
+    // Allow clicking the same sub-category to deselect it
+    if (subCategoryId == state.selectedSubCategoryId && subCategoryId != null) {
+      subCategoryId = null;
+    }
+
+    state = state.copyWith(
+      selectedSubCategoryId: subCategoryId,
+      clearSubCategory: subCategoryId == null,
+    );
     _applyFilters();
   }
 
   void selectManufacturer(int? manufacturerId) {
-    state = state.copyWith(selectedManufacturerId: manufacturerId);
+    // Allow clicking the same manufacturer to deselect it
+    if (manufacturerId == state.selectedManufacturerId &&
+        manufacturerId != null) {
+      manufacturerId = null;
+    }
+
+    state = state.copyWith(
+      selectedManufacturerId: manufacturerId,
+      clearManufacturer: manufacturerId == null,
+    );
     _applyFilters();
   }
 
