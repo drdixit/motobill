@@ -40,29 +40,30 @@ class PosProductCard extends StatelessWidget {
                   const SizedBox(height: AppSizes.paddingS),
 
                   // Product Name and Part Number with Price
-                  Row(
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Product Name
-                            Text(
-                              product.name,
-                              style: TextStyle(
-                                fontSize: AppSizes.fontM,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                      // Product Name
+                      Text(
+                        product.name,
+                        style: TextStyle(
+                          fontSize: AppSizes.fontM,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
 
-                            // Part Number
-                            if (product.partNumber != null) ...[
-                              const SizedBox(height: 2),
-                              Text(
+                      // Part Number and Price Row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Part Number
+                          if (product.partNumber != null)
+                            Expanded(
+                              child: Text(
                                 product.partNumber!,
                                 style: TextStyle(
                                   fontSize: AppSizes.fontS,
@@ -71,20 +72,18 @@ class PosProductCard extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: AppSizes.paddingS),
+                            ),
 
-                      // Price (Right-aligned)
-                      Text(
-                        '₹${product.sellingPrice.toStringAsFixed(2)}',
-                        style: TextStyle(
-                          fontSize: AppSizes.fontL,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primary,
-                        ),
+                          // Price
+                          Text(
+                            '₹${product.sellingPrice.toStringAsFixed(0)}',
+                            style: TextStyle(
+                              fontSize: AppSizes.fontM,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
