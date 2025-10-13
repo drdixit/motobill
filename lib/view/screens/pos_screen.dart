@@ -32,6 +32,8 @@ class PosScreen extends ConsumerWidget {
   }
 
   Widget _buildProductsSection(PosState state, WidgetRef ref) {
+    final viewModel = ref.read(posViewModelProvider.notifier);
+
     return Column(
       children: [
         // Header
@@ -77,6 +79,72 @@ class PosScreen extends ConsumerWidget {
               const SizedBox(width: AppSizes.paddingM),
               Expanded(child: _buildSearchBar(ref, state)),
             ],
+          ),
+        ),
+
+        // Customer Selection (Fixed - Non-scrollable)
+        Container(
+          padding: const EdgeInsets.all(AppSizes.paddingM),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            border: Border(
+              bottom: BorderSide(color: AppColors.border, width: 1),
+            ),
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: state.selectedCustomer == null
+                    ? AppColors.error
+                    : AppColors.border,
+                width: state.selectedCustomer == null ? 2 : 1,
+              ),
+              borderRadius: BorderRadius.circular(AppSizes.radiusM),
+            ),
+            child: DropdownButtonFormField(
+              value: state.selectedCustomer,
+              decoration: InputDecoration(
+                labelText: 'Select Customer *',
+                labelStyle: TextStyle(
+                  color: state.selectedCustomer == null
+                      ? AppColors.error
+                      : AppColors.textSecondary,
+                ),
+                prefixIcon: Icon(
+                  Icons.person,
+                  color: state.selectedCustomer == null
+                      ? AppColors.error
+                      : AppColors.primary,
+                ),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: AppSizes.paddingM,
+                  vertical: AppSizes.paddingS,
+                ),
+              ),
+              hint: Text(
+                'Choose customer to create bill',
+                style: TextStyle(
+                  fontSize: AppSizes.fontS,
+                  color: AppColors.textTertiary,
+                ),
+              ),
+              items: state.customers.map((customer) {
+                return DropdownMenuItem(
+                  value: customer,
+                  child: Text(
+                    customer.name,
+                    style: TextStyle(
+                      fontSize: AppSizes.fontM,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                );
+              }).toList(),
+              onChanged: (customer) => viewModel.selectCustomer(customer),
+              isExpanded: true,
+              dropdownColor: AppColors.surface,
+            ),
           ),
         ),
 
@@ -158,6 +226,13 @@ class PosScreen extends ConsumerWidget {
           product: product,
           cartQuantity: cartQuantity,
           onTap: () => viewModel.addToCart(product),
+          onSecondaryTap: () {
+            if (cartQuantity > 1) {
+              viewModel.updateCartItemQuantity(product.id, cartQuantity - 1);
+            } else if (cartQuantity == 1) {
+              viewModel.removeFromCart(product.id);
+            }
+          },
         );
       },
     );
