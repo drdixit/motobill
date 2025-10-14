@@ -153,7 +153,16 @@ class PurchaseRepository {
   // Get purchase by id
   Future<Map<String, dynamic>?> getPurchaseById(int id) async {
     final result = await _db.rawQuery(
-      '''SELECT p.*, v.name as vendor_name, v.gst_number as vendor_gst
+      '''SELECT p.*,
+         v.name as vendor_name,
+         v.gst_number as vendor_gst,
+         v.phone as vendor_phone,
+         v.email as vendor_email,
+         v.address_line1 as vendor_address_line1,
+         v.address_line2 as vendor_address_line2,
+         v.city as vendor_city,
+         v.state as vendor_state,
+         v.pincode as vendor_pincode
       FROM purchases p
       LEFT JOIN vendors v ON p.vendor_id = v.id
       WHERE p.id = ? AND p.is_deleted = 0''',
@@ -178,13 +187,15 @@ class PurchaseRepository {
     );
   }
 
-  // Generate auto-purchase number in format: AUTO-PUR-YYYYMMDD-XXX
+  // Generate auto-purchase number in format: AUTO-DDMMYYXXXXX
+  // Example: AUTO-20122500001 for 20 Dec 2025, first auto-purchase
+  // Maximum 99999 auto-purchases per day (00001 to 99999)
   Future<String> generateAutoPurchaseNumber(Transaction txn) async {
     final now = DateTime.now();
-    final year = now.year.toString();
-    final month = now.month.toString().padLeft(2, '0');
     final day = now.day.toString().padLeft(2, '0');
-    final datePrefix = 'AUTO-PUR-$year$month$day';
+    final month = now.month.toString().padLeft(2, '0');
+    final year = now.year.toString().substring(2); // Last 2 digits of year
+    final datePrefix = 'AUTO-$day$month$year'; // AUTO-DDMMYY
 
     // Get the last auto-purchase number for today
     final result = await txn.rawQuery(
@@ -199,16 +210,24 @@ class PurchaseRepository {
 
     if (result.isNotEmpty) {
       final lastNumber = result.first['purchase_number'] as String;
-      // Extract the last 3 digits (sequence number)
-      final parts = lastNumber.split('-');
-      if (parts.length == 4) {
-        final lastSequence = int.tryParse(parts[3]) ?? 0;
+      // Extract the last 5 digits (sequence number)
+      // Format: AUTO-DDMMYYXXXXX (total 16 chars, last 5 are sequence)
+      if (lastNumber.length >= 16) {
+        final lastSequence = int.tryParse(lastNumber.substring(11)) ?? 0;
+
+        // Check if we've reached the daily limit
+        if (lastSequence >= 99999) {
+          throw Exception(
+            'Daily auto-purchase limit reached (99,999). Please come back tomorrow.',
+          );
+        }
+
         sequenceNumber = lastSequence + 1;
       }
     }
 
-    // Format: AUTO-PUR-YYYYMMDD-XXX (3 digits sequence)
-    return '$datePrefix-${sequenceNumber.toString().padLeft(3, '0')}';
+    // Format: AUTO-DDMMYYXXXXX (4 chars prefix + 6 chars date + 5 digits sequence)
+    return '$datePrefix${sequenceNumber.toString().padLeft(5, '0')}';
   }
 
   // Create automatic purchase for insufficient stock (called from bill creation)

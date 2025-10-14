@@ -4,9 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../model/bill.dart';
+import '../../../model/customer.dart';
 import '../../../repository/bill_repository.dart';
 import '../../../repository/customer_repository.dart';
 import '../../../repository/gst_rate_repository.dart';
+import '../../widgets/customer_form_dialog.dart';
+import '../debit_notes_screen.dart';
 
 // Providers
 final billRepositoryProvider = FutureProvider<BillRepository>((ref) async {
@@ -14,13 +17,10 @@ final billRepositoryProvider = FutureProvider<BillRepository>((ref) async {
   return BillRepository(db);
 });
 
-final customerListForBillProvider = FutureProvider<List<Map<String, dynamic>>>((
-  ref,
-) async {
+final customerListForBillProvider = FutureProvider<List<Customer>>((ref) async {
   final db = await ref.watch(databaseProvider);
   final repository = CustomerRepository(db);
-  final customers = await repository.getAllCustomers();
-  return customers.map((c) => c.toJson()).toList();
+  return await repository.getAllCustomers();
 });
 
 final productListForBillProvider = FutureProvider<List<Map<String, dynamic>>>((
@@ -28,7 +28,7 @@ final productListForBillProvider = FutureProvider<List<Map<String, dynamic>>>((
 ) async {
   final db = await ref.watch(databaseProvider);
   return await db.rawQuery('''
-    SELECT p.id, p.name, p.part_number, p.cost_price, p.selling_price, p.is_taxable,
+    SELECT p.id, p.name, p.part_number, p.cost_price, p.selling_price, p.is_taxable, p.negative_allow,
            h.code as hsn_code, u.code as uqc_code
     FROM products p
     LEFT JOIN hsn_codes h ON p.hsn_code_id = h.id
@@ -66,8 +66,6 @@ class CreateBillScreen extends ConsumerStatefulWidget {
 class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  int? _selectedCustomerId;
-
   final List<BillRow> _rows = [];
 
   double _subtotal = 0.0;
@@ -78,7 +76,7 @@ class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
 
   List<Map<String, dynamic>> _products = [];
   List<Map<String, dynamic>> _gstRates = [];
-  List<Map<String, dynamic>> _customers = [];
+  Customer? _selectedCustomer;
   String? _companyGstNumber;
   bool _isInterState = false;
   bool _dataInitialized = false;
@@ -209,25 +207,15 @@ class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
     });
   }
 
-  void _checkInterStateAndUpdateRows(int? customerId) {
-    if (customerId == null ||
+  void _checkInterStateAndUpdateRows(Customer? customer) {
+    if (customer == null ||
         _companyGstNumber == null ||
         _companyGstNumber!.length < 2) {
       _isInterState = false;
       return;
     }
 
-    final customer = _customers.firstWhere(
-      (c) => c['id'] == customerId,
-      orElse: () => <String, dynamic>{},
-    );
-
-    if (customer.isEmpty) {
-      _isInterState = false;
-      return;
-    }
-
-    final customerGstNumber = customer['gst_number'] as String?;
+    final customerGstNumber = customer.gstNumber;
 
     // Edge cases: customer has no GST number, assume inter-state for safety
     if (customerGstNumber == null ||
@@ -272,6 +260,16 @@ class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
       return;
     }
 
+    if (_selectedCustomer == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a customer'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     final validRows = _rows.where((row) => row.isValid()).toList();
 
     if (validRows.isEmpty) {
@@ -294,7 +292,7 @@ class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
 
       final bill = Bill(
         billNumber: billNumber,
-        customerId: _selectedCustomerId!,
+        customerId: _selectedCustomer!.id!,
         subtotal: _subtotal,
         taxAmount: _totalTax,
         totalAmount: _grandTotal,
@@ -304,6 +302,9 @@ class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
 
       final items = validRows.map((row) => row.toBillItem()).toList();
       await repository.createBill(bill, items);
+
+      // Invalidate purchases list so auto-purchases show in Debit Notes
+      ref.invalidate(purchasesProvider);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -316,8 +317,18 @@ class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Error Creating Bill'),
+            content: Text(e.toString()),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
         );
       }
     } finally {
@@ -395,7 +406,6 @@ class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
                       if (!_dataInitialized) {
                         _products = products;
                         _gstRates = gstRates;
-                        _customers = customers;
                         _companyGstNumber = company?['gst_number'] as String?;
                         _dataInitialized = true;
                         if (_rows.isEmpty) {
@@ -404,7 +414,6 @@ class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
                       } else {
                         _products = products;
                         _gstRates = gstRates;
-                        _customers = customers;
                         _companyGstNumber = company?['gst_number'] as String?;
                         for (var row in _rows) {
                           row.updateData(_products, _gstRates);
@@ -422,7 +431,7 @@ class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
     );
   }
 
-  Widget _buildForm(List<Map<String, dynamic>> customers) {
+  Widget _buildForm(List<Customer> customers) {
     return Form(
       key: _formKey,
       child: Column(
@@ -447,50 +456,268 @@ class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
     );
   }
 
-  Widget _buildHeader(List<Map<String, dynamic>> customers) {
+  /// Fuzzy search helper
+  bool _fuzzyMatch(String searchText, String targetText) {
+    if (searchText.isEmpty) return true;
+    if (targetText.isEmpty) return false;
+
+    final search = searchText.toLowerCase();
+    final target = targetText.toLowerCase();
+
+    int searchIndex = 0;
+    int targetIndex = 0;
+
+    while (searchIndex < search.length && targetIndex < target.length) {
+      if (search[searchIndex] == target[targetIndex]) {
+        searchIndex++;
+      }
+      targetIndex++;
+    }
+
+    return searchIndex == search.length;
+  }
+
+  /// Search customer across multiple fields
+  bool _matchesCustomer(Customer customer, String query) {
+    if (query.isEmpty) return true;
+
+    if (_fuzzyMatch(query, customer.name)) return true;
+    if (customer.legalName != null && _fuzzyMatch(query, customer.legalName!)) {
+      return true;
+    }
+    if (customer.gstNumber != null && _fuzzyMatch(query, customer.gstNumber!)) {
+      return true;
+    }
+    if (customer.phone != null && _fuzzyMatch(query, customer.phone!)) {
+      return true;
+    }
+    if (customer.email != null && _fuzzyMatch(query, customer.email!)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  void _showAddCustomerDialog() async {
+    final db = await ref.read(databaseProvider);
+    final customerRepository = CustomerRepository(db);
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => CustomerFormDialog(
+        customer: null,
+        onSave: (newCustomer) async {
+          Navigator.of(context).pop();
+          try {
+            final customerId = await customerRepository.createCustomer(
+              newCustomer,
+            );
+            // Refresh customer list
+            ref.invalidate(customerListForBillProvider);
+            // Wait for refresh
+            await Future.delayed(const Duration(milliseconds: 100));
+            // Auto-select the new customer
+            final customers = await ref.read(
+              customerListForBillProvider.future,
+            );
+            final customer = customers.firstWhere((c) => c.id == customerId);
+            setState(() {
+              _selectedCustomer = customer;
+              _checkInterStateAndUpdateRows(customer);
+            });
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Failed to create customer: $e'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildHeader(List<Customer> customers) {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
           Expanded(
-            flex: 2,
-            child: DropdownButtonFormField<int>(
-              value: _selectedCustomerId,
-              decoration: InputDecoration(
-                labelText: 'Customer *',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 16,
-                ),
-                filled: true,
-                fillColor: Colors.grey.shade50,
-              ),
-              hint: const Text('Select customer'),
-              items: customers.map((customer) {
-                return DropdownMenuItem<int>(
-                  value: customer['id'] as int,
-                  child: Text(
-                    customer['name'] as String,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  _selectedCustomerId = value;
-                  _checkInterStateAndUpdateRows(value);
+            flex: 3,
+            child: Autocomplete<Customer>(
+              key: ValueKey(_selectedCustomer?.id),
+              optionsBuilder: (TextEditingValue textEditingValue) {
+                if (textEditingValue.text.isEmpty) {
+                  return customers;
+                }
+                return customers.where((customer) {
+                  return _matchesCustomer(customer, textEditingValue.text);
                 });
               },
-              validator: (value) {
-                if (value == null) {
-                  return 'Please select a customer';
-                }
-                return null;
+              displayStringForOption: (Customer customer) => customer.name,
+              onSelected: (Customer customer) {
+                setState(() {
+                  _selectedCustomer = customer;
+                  _checkInterStateAndUpdateRows(customer);
+                });
               },
+              initialValue: _selectedCustomer != null
+                  ? TextEditingValue(text: _selectedCustomer!.name)
+                  : null,
+              fieldViewBuilder:
+                  (
+                    BuildContext context,
+                    TextEditingController textController,
+                    FocusNode focusNode,
+                    VoidCallback onFieldSubmitted,
+                  ) {
+                    return TextField(
+                      controller: textController,
+                      focusNode: focusNode,
+                      decoration: InputDecoration(
+                        labelText: 'Select Customer *',
+                        labelStyle: TextStyle(
+                          color: _selectedCustomer == null
+                              ? Colors.red
+                              : Colors.grey.shade700,
+                        ),
+                        hintText: 'Search by name, GST, mobile, email...',
+                        hintStyle: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade400,
+                        ),
+                        prefixIcon: Icon(
+                          Icons.person,
+                          color: _selectedCustomer == null
+                              ? Colors.red
+                              : AppColors.primary,
+                        ),
+                        suffixIcon: _selectedCustomer != null
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 20),
+                                onPressed: () {
+                                  textController.clear();
+                                  setState(() {
+                                    _selectedCustomer = null;
+                                    _checkInterStateAndUpdateRows(null);
+                                  });
+                                },
+                              )
+                            : null,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(
+                            color: _selectedCustomer == null
+                                ? Colors.red
+                                : Colors.grey.shade300,
+                            width: _selectedCustomer == null ? 2 : 1,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(
+                            color: _selectedCustomer == null
+                                ? Colors.red
+                                : Colors.grey.shade300,
+                            width: _selectedCustomer == null ? 2 : 1,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(
+                            color: _selectedCustomer == null
+                                ? Colors.red
+                                : AppColors.primary,
+                            width: 2,
+                          ),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 16,
+                        ),
+                      ),
+                    );
+                  },
+              optionsViewBuilder:
+                  (
+                    BuildContext context,
+                    AutocompleteOnSelected<Customer> onSelected,
+                    Iterable<Customer> options,
+                  ) {
+                    return Align(
+                      alignment: Alignment.topLeft,
+                      child: Material(
+                        elevation: 4,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          constraints: const BoxConstraints(maxHeight: 200),
+                          width: 500,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: ListView.builder(
+                            padding: EdgeInsets.zero,
+                            shrinkWrap: true,
+                            itemCount: options.length,
+                            itemBuilder: (BuildContext context, int index) {
+                              final customer = options.elementAt(index);
+                              return ListTile(
+                                leading: Icon(
+                                  Icons.person,
+                                  color: AppColors.primary,
+                                  size: 20,
+                                ),
+                                title: Text(
+                                  customer.legalName != null
+                                      ? '${customer.name} (${customer.legalName})'
+                                      : customer.name,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                ),
+                                subtitle: customer.gstNumber != null
+                                    ? Text(
+                                        'GST: ${customer.gstNumber}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      )
+                                    : null,
+                                onTap: () => onSelected(customer),
+                                hoverColor: AppColors.primary.withOpacity(0.1),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+            ),
+          ),
+          const SizedBox(width: 16),
+          ElevatedButton.icon(
+            onPressed: _showAddCustomerDialog,
+            icon: const Icon(Icons.person_add, size: 18),
+            label: const Text('Add Customer'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
           ),
         ],
