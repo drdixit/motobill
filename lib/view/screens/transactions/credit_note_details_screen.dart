@@ -1,139 +1,170 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/database_provider.dart';
-import '../../../repository/bill_repository.dart';
 
-// Provider for bill details
-final billDetailsProvider = FutureProvider.family<Map<String, dynamic>?, int>((
-  ref,
-  billId,
-) async {
-  final db = await ref.watch(databaseProvider);
-  final repository = BillRepository(db);
+// Provider for credit note details
+final creditNoteDetailsProvider =
+    FutureProvider.family<Map<String, dynamic>?, int>((
+      ref,
+      creditNoteId,
+    ) async {
+      final db = await ref.watch(databaseProvider);
 
-  final bill = await repository.getBillById(billId);
-  if (bill == null) return null;
+      // Get credit note details
+      final creditNoteResult = await db.rawQuery(
+        '''SELECT cn.*,
+       c.name as customer_name,
+       c.legal_name as customer_legal_name,
+       c.gst_number as customer_gst_number,
+       c.phone as customer_phone,
+       c.email as customer_email,
+       c.address_line1 as customer_address_line1,
+       c.address_line2 as customer_address_line2,
+       c.city as customer_city,
+       c.state as customer_state,
+       c.pincode as customer_pincode,
+       b.bill_number as bill_number
+    FROM credit_notes cn
+    LEFT JOIN customers c ON cn.customer_id = c.id
+    LEFT JOIN bills b ON cn.bill_id = b.id
+    WHERE cn.id = ? AND cn.is_deleted = 0''',
+        [creditNoteId],
+      );
 
-  final items = await repository.getBillItems(billId);
+      if (creditNoteResult.isEmpty) return null;
+      final creditNote = creditNoteResult.first;
 
-  // Separate taxable and non-taxable items
-  final taxableItems = items.where((item) {
-    final cgstRate = (item['cgst_rate'] as num?) ?? 0;
-    final sgstRate = (item['sgst_rate'] as num?) ?? 0;
-    final igstRate = (item['igst_rate'] as num?) ?? 0;
-    final utgstRate = (item['utgst_rate'] as num?) ?? 0;
-    return cgstRate > 0 || sgstRate > 0 || igstRate > 0 || utgstRate > 0;
-  }).toList();
+      // Get credit note items
+      final items = await db.rawQuery(
+        '''SELECT * FROM credit_note_items
+    WHERE credit_note_id = ? AND is_deleted = 0
+    ORDER BY id''',
+        [creditNoteId],
+      );
 
-  final nonTaxableItems = items.where((item) {
-    final cgstRate = (item['cgst_rate'] as num?) ?? 0;
-    final sgstRate = (item['sgst_rate'] as num?) ?? 0;
-    final igstRate = (item['igst_rate'] as num?) ?? 0;
-    final utgstRate = (item['utgst_rate'] as num?) ?? 0;
-    return cgstRate == 0 && sgstRate == 0 && igstRate == 0 && utgstRate == 0;
-  }).toList();
+      // Separate taxable and non-taxable items
+      final taxableItems = items.where((item) {
+        final cgstRate = (item['cgst_rate'] as num?) ?? 0;
+        final sgstRate = (item['sgst_rate'] as num?) ?? 0;
+        final igstRate = (item['igst_rate'] as num?) ?? 0;
+        final utgstRate = (item['utgst_rate'] as num?) ?? 0;
+        return cgstRate > 0 || sgstRate > 0 || igstRate > 0 || utgstRate > 0;
+      }).toList();
 
-  // Transform items to match expected format
-  final transformedTaxableItems = taxableItems.map((item) {
-    final quantity = (item['quantity'] as num?) ?? 0;
-    final sellingPrice = (item['selling_price'] as num?) ?? 0;
-    final cgstRate = (item['cgst_rate'] as num?) ?? 0;
-    final sgstRate = (item['sgst_rate'] as num?) ?? 0;
-    final igstRate = (item['igst_rate'] as num?) ?? 0;
-    final utgstRate = (item['utgst_rate'] as num?) ?? 0;
+      final nonTaxableItems = items.where((item) {
+        final cgstRate = (item['cgst_rate'] as num?) ?? 0;
+        final sgstRate = (item['sgst_rate'] as num?) ?? 0;
+        final igstRate = (item['igst_rate'] as num?) ?? 0;
+        final utgstRate = (item['utgst_rate'] as num?) ?? 0;
+        return cgstRate == 0 &&
+            sgstRate == 0 &&
+            igstRate == 0 &&
+            utgstRate == 0;
+      }).toList();
 
-    return {
-      'product_name': item['product_name'],
-      'part_number': item['part_number'] ?? '',
-      'uqc_code': item['uqc_code'] ?? '',
-      'hsn_code': item['hsn_code'] ?? '',
-      'quantity': quantity,
-      'price': sellingPrice,
-      'cgst_rate': cgstRate,
-      'sgst_rate': sgstRate,
-      'igst_rate': igstRate,
-      'utgst_rate': utgstRate,
-      'cgst_amount': item['cgst_amount'],
-      'sgst_amount': item['sgst_amount'],
-      'igst_amount': item['igst_amount'],
-      'utgst_amount': item['utgst_amount'],
-      'taxable_amount': item['subtotal'],
-      'tax_amount': item['tax_amount'],
-      'total': item['total_amount'],
-    };
-  }).toList();
+      // Transform items to match expected format
+      final transformedTaxableItems = taxableItems.map((item) {
+        final quantity = (item['quantity'] as num?) ?? 0;
+        final sellingPrice = (item['selling_price'] as num?) ?? 0;
+        final cgstRate = (item['cgst_rate'] as num?) ?? 0;
+        final sgstRate = (item['sgst_rate'] as num?) ?? 0;
+        final igstRate = (item['igst_rate'] as num?) ?? 0;
+        final utgstRate = (item['utgst_rate'] as num?) ?? 0;
 
-  final transformedNonTaxableItems = nonTaxableItems.map((item) {
-    return {
-      'product_name': item['product_name'],
-      'part_number': item['part_number'] ?? '',
-      'uqc_code': item['uqc_code'] ?? '',
-      'hsn_code': item['hsn_code'] ?? '',
-      'quantity': item['quantity'],
-      'price': item['selling_price'],
-      'total': item['total_amount'],
-    };
-  }).toList();
+        return {
+          'product_name': item['product_name'],
+          'part_number': item['part_number'] ?? '',
+          'uqc_code': item['uqc_code'] ?? '',
+          'hsn_code': item['hsn_code'] ?? '',
+          'quantity': quantity,
+          'price': sellingPrice,
+          'cgst_rate': cgstRate,
+          'sgst_rate': sgstRate,
+          'igst_rate': igstRate,
+          'utgst_rate': utgstRate,
+          'cgst_amount': item['cgst_amount'],
+          'sgst_amount': item['sgst_amount'],
+          'igst_amount': item['igst_amount'],
+          'utgst_amount': item['utgst_amount'],
+          'taxable_amount': item['subtotal'],
+          'tax_amount': item['tax_amount'],
+          'total': item['total_amount'],
+        };
+      }).toList();
 
-  // Calculate totals
-  final subtotal = bill['subtotal'] as num? ?? 0;
-  final taxAmount = bill['tax_amount'] as num? ?? 0;
-  final total = bill['total_amount'] as num? ?? 0;
+      final transformedNonTaxableItems = nonTaxableItems.map((item) {
+        return {
+          'product_name': item['product_name'],
+          'part_number': item['part_number'] ?? '',
+          'uqc_code': item['uqc_code'] ?? '',
+          'hsn_code': item['hsn_code'] ?? '',
+          'quantity': item['quantity'],
+          'price': item['selling_price'],
+          'total': item['total_amount'],
+        };
+      }).toList();
 
-  // Format date as DD-MM-YYYY
-  String formatDate(String? dateStr) {
-    if (dateStr == null || dateStr.isEmpty) return 'N/A';
-    try {
-      final date = DateTime.parse(dateStr.split(' ')[0]);
-      return '${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}';
-    } catch (e) {
-      return dateStr;
-    }
-  }
+      // Calculate totals
+      final subtotal = creditNote['subtotal'] as num? ?? 0;
+      final taxAmount = creditNote['tax_amount'] as num? ?? 0;
+      final total = creditNote['total_amount'] as num? ?? 0;
 
-  return {
-    'bill': {
-      'bill_number': bill['bill_number'],
-      'bill_date': formatDate(bill['created_at']?.toString()),
-      'customer_name': bill['customer_name'],
-      'customer_legal_name': bill['customer_legal_name'],
-      'customer_gst_number': bill['customer_gst_number'],
-      'customer_phone': bill['customer_phone'],
-      'customer_email': bill['customer_email'],
-      'customer_address_line1': bill['customer_address_line1'],
-      'customer_address_line2': bill['customer_address_line2'],
-      'customer_city': bill['customer_city'],
-      'customer_state': bill['customer_state'],
-      'customer_pincode': bill['customer_pincode'],
-      'subtotal': subtotal,
-      'tax_amount': taxAmount,
-      'total': total,
-    },
-    'taxableItems': transformedTaxableItems,
-    'nonTaxableItems': transformedNonTaxableItems,
-  };
-});
+      // Format date as DD-MM-YYYY
+      String formatDate(String? dateStr) {
+        if (dateStr == null || dateStr.isEmpty) return 'N/A';
+        try {
+          final date = DateTime.parse(dateStr.split(' ')[0]);
+          return '${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}';
+        } catch (e) {
+          return dateStr;
+        }
+      }
 
-class BillDetailsScreen extends ConsumerWidget {
-  final int billId;
+      return {
+        'creditNote': {
+          'credit_note_number': creditNote['credit_note_number'],
+          'bill_number': creditNote['bill_number'],
+          'credit_note_date': formatDate(creditNote['created_at']?.toString()),
+          'reason': creditNote['reason'] ?? '',
+          'customer_name': creditNote['customer_name'],
+          'customer_legal_name': creditNote['customer_legal_name'],
+          'customer_gst_number': creditNote['customer_gst_number'],
+          'customer_phone': creditNote['customer_phone'],
+          'customer_email': creditNote['customer_email'],
+          'customer_address_line1': creditNote['customer_address_line1'],
+          'customer_address_line2': creditNote['customer_address_line2'],
+          'customer_city': creditNote['customer_city'],
+          'customer_state': creditNote['customer_state'],
+          'customer_pincode': creditNote['customer_pincode'],
+          'subtotal': subtotal,
+          'tax_amount': taxAmount,
+          'total': total,
+        },
+        'taxableItems': transformedTaxableItems,
+        'nonTaxableItems': transformedNonTaxableItems,
+      };
+    });
 
-  const BillDetailsScreen({super.key, required this.billId});
+class CreditNoteDetailsScreen extends ConsumerWidget {
+  final int creditNoteId;
+
+  const CreditNoteDetailsScreen({super.key, required this.creditNoteId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final billAsync = ref.watch(billDetailsProvider(billId));
+    final creditNoteAsync = ref.watch(creditNoteDetailsProvider(creditNoteId));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Bill Details')),
-      body: billAsync.when(
+      appBar: AppBar(title: const Text('Credit Note Details')),
+      body: creditNoteAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Error: $err')),
         data: (data) {
           if (data == null) {
-            return const Center(child: Text('Bill not found'));
+            return const Center(child: Text('Credit Note not found'));
           }
 
-          final bill = data['bill'] as Map<String, dynamic>;
+          final creditNote = data['creditNote'] as Map<String, dynamic>;
           final taxableItems =
               data['taxableItems'] as List<Map<String, dynamic>>;
           final nonTaxableItems =
@@ -146,31 +177,31 @@ class BillDetailsScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Customer Details and Bill Information side by side
+                  // Customer Details and Credit Note Information side by side
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(child: _buildCustomerDetails(bill)),
+                      Expanded(child: _buildCustomerDetails(creditNote)),
                       const SizedBox(width: 48),
-                      Expanded(child: _buildBillInfo(bill)),
+                      Expanded(child: _buildCreditNoteInfo(creditNote)),
                     ],
                   ),
                   const SizedBox(height: 32),
 
                   // Non-Taxable Items Table (if any)
                   if (nonTaxableItems.isNotEmpty) ...[
-                    _buildNonTaxableBillTable(nonTaxableItems),
+                    _buildNonTaxableCreditNoteTable(nonTaxableItems),
                     const SizedBox(height: 32),
                   ],
 
                   // Taxable Items Table (if any)
                   if (taxableItems.isNotEmpty) ...[
-                    _buildTaxableBillTable(taxableItems),
+                    _buildTaxableCreditNoteTable(taxableItems),
                     const SizedBox(height: 32),
                   ],
 
                   // Combined Totals Section
-                  _buildTotalsSection(bill, taxableItems.isNotEmpty),
+                  _buildTotalsSection(creditNote, taxableItems.isNotEmpty),
                 ],
               ),
             ),
@@ -180,17 +211,17 @@ class BillDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildCustomerDetails(Map<String, dynamic> bill) {
-    final customerName = bill['customer_name'] as String? ?? 'N/A';
-    final customerLegalName = bill['customer_legal_name'] as String?;
-    final customerGstNumber = bill['customer_gst_number'] as String?;
-    final customerPhone = bill['customer_phone'] as String?;
-    final customerEmail = bill['customer_email'] as String?;
-    final addressLine1 = bill['customer_address_line1'] as String?;
-    final addressLine2 = bill['customer_address_line2'] as String?;
-    final city = bill['customer_city'] as String?;
-    final state = bill['customer_state'] as String?;
-    final pincode = bill['customer_pincode'] as String?;
+  Widget _buildCustomerDetails(Map<String, dynamic> creditNote) {
+    final customerName = creditNote['customer_name'] as String? ?? 'N/A';
+    final customerLegalName = creditNote['customer_legal_name'] as String?;
+    final customerGstNumber = creditNote['customer_gst_number'] as String?;
+    final customerPhone = creditNote['customer_phone'] as String?;
+    final customerEmail = creditNote['customer_email'] as String?;
+    final addressLine1 = creditNote['customer_address_line1'] as String?;
+    final addressLine2 = creditNote['customer_address_line2'] as String?;
+    final city = creditNote['customer_city'] as String?;
+    final state = creditNote['customer_state'] as String?;
+    final pincode = creditNote['customer_pincode'] as String?;
 
     // Build address string
     final addressParts = <String>[];
@@ -225,20 +256,26 @@ class BillDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildBillInfo(Map<String, dynamic> bill) {
-    final billNumber = bill['bill_number'] as String? ?? 'N/A';
-    final billDate = bill['bill_date'] as String? ?? 'N/A';
+  Widget _buildCreditNoteInfo(Map<String, dynamic> creditNote) {
+    final creditNoteNumber =
+        creditNote['credit_note_number'] as String? ?? 'N/A';
+    final billNumber = creditNote['bill_number'] as String?;
+    final creditNoteDate = creditNote['credit_note_date'] as String? ?? 'N/A';
+    final reason = creditNote['reason'] as String? ?? '';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'BILL INFORMATION',
+          'CREDIT NOTE INFORMATION',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
-        _buildDetailRow('Bill Number', billNumber),
-        _buildDetailRow('Bill Date', billDate),
+        _buildDetailRow('Credit Note Number', creditNoteNumber),
+        if (billNumber != null && billNumber.isNotEmpty)
+          _buildDetailRow('Original Bill Number', billNumber),
+        _buildDetailRow('Credit Note Date', creditNoteDate),
+        if (reason.isNotEmpty) _buildDetailRow('Reason', reason),
       ],
     );
   }
@@ -267,7 +304,7 @@ class BillDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildTaxableBillTable(List<Map<String, dynamic>> items) {
+  Widget _buildTaxableCreditNoteTable(List<Map<String, dynamic>> items) {
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
@@ -338,7 +375,7 @@ class BillDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildNonTaxableBillTable(List<Map<String, dynamic>> items) {
+  Widget _buildNonTaxableCreditNoteTable(List<Map<String, dynamic>> items) {
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
@@ -391,10 +428,13 @@ class BillDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildTotalsSection(Map<String, dynamic> bill, bool hasTaxableItems) {
-    final subtotal = bill['subtotal'] as num? ?? 0;
-    final taxAmount = bill['tax_amount'] as num? ?? 0;
-    final total = bill['total'] as num? ?? 0;
+  Widget _buildTotalsSection(
+    Map<String, dynamic> creditNote,
+    bool hasTaxableItems,
+  ) {
+    final subtotal = creditNote['subtotal'] as num? ?? 0;
+    final taxAmount = creditNote['tax_amount'] as num? ?? 0;
+    final total = creditNote['total'] as num? ?? 0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

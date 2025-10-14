@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../credit_notes_screen.dart';
+import 'credit_note_details_screen.dart' as transactions;
 
 class SalesReturnsScreen extends ConsumerWidget {
   const SalesReturnsScreen({super.key});
@@ -121,7 +122,7 @@ class SalesReturnsScreen extends ConsumerWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => CreditNoteDetailsScreen(
+              builder: (context) => transactions.CreditNoteDetailsScreen(
                 creditNoteId: creditNote['id'] as int,
               ),
             ),
