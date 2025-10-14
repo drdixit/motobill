@@ -32,6 +32,28 @@ class DebitNoteRepository {
     List<Map<String, dynamic>> items,
   ) async {
     return await _db.transaction((txn) async {
+      // Validate stock availability before creating debit note
+      for (final it in items) {
+        final purchaseItemId = it['purchase_item_id'] as int;
+        final qtyToReturn = it['quantity'] as int;
+
+        // Check available stock for this purchase item
+        final stockCheck = await txn.rawQuery(
+          '''SELECT COALESCE(SUM(quantity_remaining), 0) as available
+             FROM stock_batches
+             WHERE purchase_item_id = ? AND is_deleted = 0''',
+          [purchaseItemId],
+        );
+
+        final availableStock = (stockCheck.first['available'] as num).toInt();
+
+        if (availableStock < qtyToReturn) {
+          throw Exception(
+            'Insufficient stock to return. Available: $availableStock, Requested: $qtyToReturn for "${it['product_name']}"',
+          );
+        }
+      }
+
       // generate debit note number within txn
       final now = DateTime.now();
       final day = now.day.toString().padLeft(2, '0');
@@ -207,5 +229,27 @@ class DebitNoteRepository {
 
       return debitNoteId;
     });
+  }
+
+  /// Get available stock (quantity_remaining) for each purchase item
+  Future<Map<int, int>> getAvailableStockForPurchase(int purchaseId) async {
+    final result = await _db.rawQuery(
+      '''SELECT pi.id as purchase_item_id,
+         COALESCE(SUM(sb.quantity_remaining), 0) as available
+         FROM purchase_items pi
+         LEFT JOIN stock_batches sb ON pi.id = sb.purchase_item_id AND sb.is_deleted = 0
+         WHERE pi.purchase_id = ? AND pi.is_deleted = 0
+         GROUP BY pi.id''',
+      [purchaseId],
+    );
+
+    final Map<int, int> stockMap = {};
+    for (final row in result) {
+      final purchaseItemId = row['purchase_item_id'] as int;
+      final available = (row['available'] as num).toInt();
+      stockMap[purchaseItemId] = available;
+    }
+
+    return stockMap;
   }
 }

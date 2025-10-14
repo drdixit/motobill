@@ -72,6 +72,13 @@ final returnedQuantitiesForPurchaseProvider =
       return m;
     });
 
+final availableStockForPurchaseProvider =
+    FutureProvider.family<Map<int, int>, int>((ref, purchaseId) async {
+      final db = await ref.watch(databaseProvider);
+      final repo = DebitNoteRepository(db);
+      return repo.getAvailableStockForPurchase(purchaseId);
+    });
+
 class DebitNotesScreen extends ConsumerStatefulWidget {
   const DebitNotesScreen({super.key});
 
@@ -267,13 +274,17 @@ class _DebitNotesScreenState extends ConsumerState<DebitNotesScreen>
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            IconButton(
-                              icon: const Icon(Icons.note_add_outlined),
-                              color: AppColors.primary,
-                              onPressed: () =>
-                                  _openCreateDebitNote(context, p['id'] as int),
-                              tooltip: 'Create Debit Note',
-                            ),
+                            // Don't show Create Debit Note button for auto purchases
+                            if ((p['is_auto_purchase'] as int? ?? 0) == 0)
+                              IconButton(
+                                icon: const Icon(Icons.note_add_outlined),
+                                color: AppColors.primary,
+                                onPressed: () => _openCreateDebitNote(
+                                  context,
+                                  p['id'] as int,
+                                ),
+                                tooltip: 'Create Debit Note',
+                              ),
                             IconButton(
                               icon: const Icon(Icons.receipt_long),
                               onPressed: () =>
@@ -1456,6 +1467,9 @@ class _CreateDebitNoteScreenState extends ConsumerState<CreateDebitNoteScreen> {
     final returnedAsync = ref.watch(
       returnedQuantitiesForPurchaseProvider(widget.purchaseId),
     );
+    final availableStockAsync = ref.watch(
+      availableStockForPurchaseProvider(widget.purchaseId),
+    );
 
     return Scaffold(
       appBar: AppBar(title: const Text('Create Debit Note')),
@@ -1470,84 +1484,116 @@ class _CreateDebitNoteScreenState extends ConsumerState<CreateDebitNoteScreen> {
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, st) => Center(child: Text('Error: $e')),
             data: (returnedMap) {
-              return Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: _reasonController,
-                      decoration: const InputDecoration(
-                        labelText: 'Reason for return (optional)',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Expanded(
-                      child: ListView.separated(
-                        itemCount: items.length,
-                        separatorBuilder: (_, __) => const Divider(),
-                        itemBuilder: (context, idx) {
-                          final it = items[idx];
-                          final id = it['id'] as int; // purchase_item id
-                          final boughtQty = it['quantity'] as int;
-                          final alreadyReturned = returnedMap[id] ?? 0;
-                          final remaining = boughtQty - alreadyReturned;
-                          final returnQty = _returnQuantities[id] ?? 0;
+              return availableStockAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (e, st) => Center(child: Text('Error: $e')),
+                data: (availableStockMap) {
+                  return Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      children: [
+                        TextField(
+                          controller: _reasonController,
+                          decoration: const InputDecoration(
+                            labelText: 'Reason for return (optional)',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Expanded(
+                          child: ListView.separated(
+                            itemCount: items.length,
+                            separatorBuilder: (_, __) => const Divider(),
+                            itemBuilder: (context, idx) {
+                              final it = items[idx];
+                              final id = it['id'] as int; // purchase_item id
+                              final boughtQty = it['quantity'] as int;
+                              final alreadyReturned = returnedMap[id] ?? 0;
+                              final availableStock = availableStockMap[id] ?? 0;
+                              final remaining = boughtQty - alreadyReturned;
+                              final returnQty = _returnQuantities[id] ?? 0;
 
-                          return ListTile(
-                            title: Text(it['product_name'] ?? '-'),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Bought: $boughtQty   Remaining: $remaining',
-                                ),
-                                Text(
-                                  'Price: ₹${(it['cost_price'] as num).toStringAsFixed(2)}',
-                                ),
-                              ],
-                            ),
-                            trailing: SizedBox(
-                              width: 140,
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.remove_circle_outline,
+                              // Maximum returnable is the minimum of remaining and available stock
+                              final maxReturnable = remaining < availableStock
+                                  ? remaining
+                                  : availableStock;
+
+                              return ListTile(
+                                title: Text(it['product_name'] ?? '-'),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Bought: $boughtQty   Returned: $alreadyReturned',
                                     ),
-                                    onPressed: returnQty > 0
-                                        ? () => setState(
-                                            () => _returnQuantities[id] =
-                                                returnQty - 1,
-                                          )
-                                        : null,
+                                    Text(
+                                      'In Stock: $availableStock   Max Returnable: $maxReturnable',
+                                      style: TextStyle(
+                                        color: availableStock < remaining
+                                            ? Colors.red.shade700
+                                            : Colors.green.shade700,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    if (availableStock < remaining)
+                                      Text(
+                                        '⚠ Insufficient stock for full return',
+                                        style: TextStyle(
+                                          color: Colors.red.shade700,
+                                          fontSize: 12,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                    Text(
+                                      'Price: ₹${(it['cost_price'] as num).toStringAsFixed(2)}',
+                                    ),
+                                  ],
+                                ),
+                                trailing: SizedBox(
+                                  width: 140,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.remove_circle_outline,
+                                        ),
+                                        onPressed: returnQty > 0
+                                            ? () => setState(
+                                                () => _returnQuantities[id] =
+                                                    returnQty - 1,
+                                              )
+                                            : null,
+                                      ),
+                                      Text('$returnQty'),
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.add_circle_outline,
+                                        ),
+                                        onPressed: returnQty < maxReturnable
+                                            ? () => setState(
+                                                () => _returnQuantities[id] =
+                                                    returnQty + 1,
+                                              )
+                                            : null,
+                                      ),
+                                    ],
                                   ),
-                                  Text('$returnQty'),
-                                  IconButton(
-                                    icon: const Icon(Icons.add_circle_outline),
-                                    onPressed: returnQty < remaining
-                                        ? () => setState(
-                                            () => _returnQuantities[id] =
-                                                returnQty + 1,
-                                          )
-                                        : null,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        ElevatedButton(
+                          onPressed: _returnQuantities.values.any((v) => v > 0)
+                              ? _submitDebitNote
+                              : null,
+                          child: const Text('Create Debit Note'),
+                        ),
+                      ],
                     ),
-                    ElevatedButton(
-                      onPressed: _returnQuantities.values.any((v) => v > 0)
-                          ? _submitDebitNote
-                          : null,
-                      child: const Text('Create Debit Note'),
-                    ),
-                  ],
-                ),
+                  );
+                },
               );
             },
           );

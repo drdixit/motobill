@@ -24,6 +24,7 @@ class PosRepository {
           p.selling_price,
           p.cost_price,
           p.is_taxable,
+          p.negative_allow,
           p.hsn_code_id,
           p.uqc_id,
           p.sub_category_id,
@@ -36,7 +37,8 @@ class PosRepository {
           pi.image_path,
           g.cgst as cgst_rate,
           g.sgst as sgst_rate,
-          g.igst as igst_rate
+          g.igst as igst_rate,
+          COALESCE(SUM(sb.quantity_remaining), 0) as stock
         FROM products p
         LEFT JOIN hsn_codes h ON p.hsn_code_id = h.id
         LEFT JOIN uqcs u ON p.uqc_id = u.id
@@ -49,6 +51,7 @@ class PosRepository {
           WHERE is_primary = 1 AND is_deleted = 0
         ) pi ON p.id = pi.product_id
         LEFT JOIN gst_rates g ON p.hsn_code_id = g.hsn_code_id AND g.is_deleted = 0 AND g.is_enabled = 1
+        LEFT JOIN stock_batches sb ON p.id = sb.product_id AND sb.is_deleted = 0
         WHERE p.is_deleted = 0 AND p.is_enabled = 1
       ''');
 
@@ -77,6 +80,7 @@ class PosRepository {
         args.addAll([searchTerm, searchTerm, searchTerm]);
       }
 
+      query.write(' GROUP BY p.id');
       query.write(' ORDER BY p.name ASC');
 
       final result = await _db.rawQuery(query.toString(), args);

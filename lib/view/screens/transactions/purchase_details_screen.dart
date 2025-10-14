@@ -44,6 +44,8 @@ final purchaseDetailsProvider = FutureProvider.family<Map<String, dynamic>?, int
 
     return {
       'product_name': item['product_name'],
+      'part_number': item['part_number'] ?? '',
+      'uqc_code': item['uqc_code'] ?? '',
       'hsn_code': item['hsn_code'] ?? '',
       'quantity': quantity,
       'price': costPrice,
@@ -64,6 +66,8 @@ final purchaseDetailsProvider = FutureProvider.family<Map<String, dynamic>?, int
   final transformedNonTaxableItems = nonTaxableItems.map((item) {
     return {
       'product_name': item['product_name'],
+      'part_number': item['part_number'] ?? '',
+      'uqc_code': item['uqc_code'] ?? '',
       'hsn_code': item['hsn_code'] ?? '',
       'quantity': item['quantity'],
       'price': item['cost_price'],
@@ -93,6 +97,7 @@ final purchaseDetailsProvider = FutureProvider.family<Map<String, dynamic>?, int
       'reference_number': purchase['purchase_reference_number'],
       'purchase_date': formatDate(purchase['created_at']?.toString()),
       'vendor_name': purchase['vendor_name'],
+      'vendor_legal_name': purchase['vendor_legal_name'],
       'vendor_gst': purchase['vendor_gst'],
       'vendor_phone': purchase['vendor_phone'],
       'vendor_email': purchase['vendor_email'],
@@ -142,38 +147,25 @@ class PurchaseDetailsScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Vendor Details Section
-                  _buildVendorDetails(purchase),
-                  const SizedBox(height: 24),
-
-                  // Purchase Information Section
-                  _buildPurchaseInfo(purchase),
+                  // Vendor Details and Purchase Information side by side
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: _buildVendorDetails(purchase)),
+                      const SizedBox(width: 48),
+                      Expanded(child: _buildPurchaseInfo(purchase)),
+                    ],
+                  ),
                   const SizedBox(height: 32),
 
                   // Non-Taxable Items Table (if any)
                   if (nonTaxableItems.isNotEmpty) ...[
-                    const Text(
-                      'NON-TAXABLE ITEMS',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
                     _buildNonTaxablePurchaseTable(nonTaxableItems),
                     const SizedBox(height: 32),
                   ],
 
                   // Taxable Items Table (if any)
                   if (taxableItems.isNotEmpty) ...[
-                    const Text(
-                      'TAXABLE ITEMS',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
                     _buildTaxablePurchaseTable(taxableItems),
                     const SizedBox(height: 32),
                   ],
@@ -191,6 +183,7 @@ class PurchaseDetailsScreen extends ConsumerWidget {
 
   Widget _buildVendorDetails(Map<String, dynamic> purchase) {
     final vendorName = purchase['vendor_name'] as String? ?? 'N/A';
+    final vendorLegalName = purchase['vendor_legal_name'] as String?;
     final vendorGst = purchase['vendor_gst'] as String?;
     final vendorPhone = purchase['vendor_phone'] as String?;
     final vendorEmail = purchase['vendor_email'] as String?;
@@ -220,6 +213,8 @@ class PurchaseDetailsScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 12),
         _buildDetailRow('Vendor Name', vendorName),
+        if (vendorLegalName != null && vendorLegalName.isNotEmpty)
+          _buildDetailRow('Legal Name', vendorLegalName),
         if (vendorGst != null && vendorGst.isNotEmpty)
           _buildDetailRow('GST Number', vendorGst),
         if (vendorPhone != null && vendorPhone.isNotEmpty)
@@ -281,62 +276,66 @@ class PurchaseDetailsScreen extends ConsumerWidget {
       builder: (context, constraints) {
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: constraints.maxWidth),
-            child: DataTable(
-              border: TableBorder.all(color: Colors.grey.shade300),
-              headingRowColor: MaterialStateProperty.all(Colors.grey.shade100),
-              columns: const [
-                DataColumn(label: Text('Product')),
-                DataColumn(label: Text('HSN')),
-                DataColumn(label: Text('Quantity')),
-                DataColumn(label: Text('Price'), numeric: true),
-                DataColumn(label: Text('CGST%'), numeric: true),
-                DataColumn(label: Text('SGST%'), numeric: true),
-                DataColumn(label: Text('IGST%'), numeric: true),
-                DataColumn(label: Text('UTGST%'), numeric: true),
-                DataColumn(label: Text('Taxable Amt'), numeric: true),
-                DataColumn(label: Text('Tax Amt'), numeric: true),
-                DataColumn(label: Text('Total'), numeric: true),
-              ],
-              rows: items.map((item) {
-                final productName = item['product_name'] as String? ?? 'N/A';
-                final hsnCode = item['hsn_code'] as String? ?? '';
-                final quantity = item['quantity'] as num? ?? 0;
-                final price = item['price'] as num? ?? 0;
-                final cgstRate = item['cgst_rate'] as num? ?? 0;
-                final sgstRate = item['sgst_rate'] as num? ?? 0;
-                final igstRate = item['igst_rate'] as num? ?? 0;
-                final utgstRate = item['utgst_rate'] as num? ?? 0;
-                final taxableAmount = item['taxable_amount'] as num? ?? 0;
-                final taxAmount = item['tax_amount'] as num? ?? 0;
-                final total = item['total'] as num? ?? 0;
+          child: DataTable(
+            border: TableBorder.all(color: Colors.grey.shade300),
+            headingRowColor: MaterialStateProperty.all(Colors.grey.shade100),
+            columnSpacing: 16,
+            horizontalMargin: 12,
+            columns: const [
+              DataColumn(
+                label: SizedBox(width: 30, child: Text('No.')),
+                numeric: true,
+              ),
+              DataColumn(label: Text('Product')),
+              DataColumn(label: Text('Part Number')),
+              DataColumn(label: Text('UQC')),
+              DataColumn(label: Text('HSN')),
+              DataColumn(label: Text('Quantity')),
+              DataColumn(label: Text('Rate Per Unit'), numeric: true),
+              DataColumn(label: Text('CGST%'), numeric: true),
+              DataColumn(label: Text('SGST%'), numeric: true),
+              DataColumn(label: Text('IGST%'), numeric: true),
+              DataColumn(label: Text('UTGST%'), numeric: true),
+              DataColumn(label: Text('Taxable Amt'), numeric: true),
+              DataColumn(label: Text('Tax Amt'), numeric: true),
+              DataColumn(label: Text('Total'), numeric: true),
+            ],
+            rows: items.asMap().entries.map((entry) {
+              final index = entry.key + 1;
+              final item = entry.value;
+              final productName = item['product_name'] as String? ?? 'N/A';
+              final partNumber = item['part_number'] as String? ?? '';
+              final uqcCode = item['uqc_code'] as String? ?? '';
+              final hsnCode = item['hsn_code'] as String? ?? '';
+              final quantity = item['quantity'] as num? ?? 0;
+              final price = item['price'] as num? ?? 0;
+              final cgstRate = item['cgst_rate'] as num? ?? 0;
+              final sgstRate = item['sgst_rate'] as num? ?? 0;
+              final igstRate = item['igst_rate'] as num? ?? 0;
+              final utgstRate = item['utgst_rate'] as num? ?? 0;
+              final taxableAmount = item['taxable_amount'] as num? ?? 0;
+              final taxAmount = item['tax_amount'] as num? ?? 0;
+              final total = item['total'] as num? ?? 0;
 
-                return DataRow(
-                  cells: [
-                    DataCell(Text(productName)),
-                    DataCell(Text(hsnCode)),
-                    DataCell(Text(quantity.toString())),
-                    DataCell(Text('₹${price.toStringAsFixed(2)}')),
-                    DataCell(
-                      Text(cgstRate > 0 ? cgstRate.toStringAsFixed(1) : '-'),
-                    ),
-                    DataCell(
-                      Text(sgstRate > 0 ? sgstRate.toStringAsFixed(1) : '-'),
-                    ),
-                    DataCell(
-                      Text(igstRate > 0 ? igstRate.toStringAsFixed(1) : '-'),
-                    ),
-                    DataCell(
-                      Text(utgstRate > 0 ? utgstRate.toStringAsFixed(1) : '-'),
-                    ),
-                    DataCell(Text('₹${taxableAmount.toStringAsFixed(2)}')),
-                    DataCell(Text('₹${taxAmount.toStringAsFixed(2)}')),
-                    DataCell(Text('₹${total.toStringAsFixed(2)}')),
-                  ],
-                );
-              }).toList(),
-            ),
+              return DataRow(
+                cells: [
+                  DataCell(SizedBox(width: 30, child: Text(index.toString()))),
+                  DataCell(Text(productName)),
+                  DataCell(Text(partNumber)),
+                  DataCell(Text(uqcCode)),
+                  DataCell(Text(hsnCode)),
+                  DataCell(Text(quantity.toString())),
+                  DataCell(Text('₹${price.toStringAsFixed(2)}')),
+                  DataCell(Text(cgstRate.toStringAsFixed(2))),
+                  DataCell(Text(sgstRate.toStringAsFixed(2))),
+                  DataCell(Text(igstRate.toStringAsFixed(2))),
+                  DataCell(Text(utgstRate.toStringAsFixed(2))),
+                  DataCell(Text('₹${taxableAmount.toStringAsFixed(2)}')),
+                  DataCell(Text('₹${taxAmount.toStringAsFixed(2)}')),
+                  DataCell(Text('₹${total.toStringAsFixed(2)}')),
+                ],
+              );
+            }).toList(),
           ),
         );
       },
@@ -348,36 +347,48 @@ class PurchaseDetailsScreen extends ConsumerWidget {
       builder: (context, constraints) {
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: constraints.maxWidth),
-            child: DataTable(
-              border: TableBorder.all(color: Colors.grey.shade300),
-              headingRowColor: MaterialStateProperty.all(Colors.grey.shade100),
-              columns: const [
-                DataColumn(label: Text('Product')),
-                DataColumn(label: Text('HSN')),
-                DataColumn(label: Text('Quantity')),
-                DataColumn(label: Text('Price'), numeric: true),
-                DataColumn(label: Text('Total'), numeric: true),
-              ],
-              rows: items.map((item) {
-                final productName = item['product_name'] as String? ?? 'N/A';
-                final hsnCode = item['hsn_code'] as String? ?? '';
-                final quantity = item['quantity'] as num? ?? 0;
-                final price = item['price'] as num? ?? 0;
-                final total = item['total'] as num? ?? 0;
+          child: DataTable(
+            border: TableBorder.all(color: Colors.grey.shade300),
+            headingRowColor: MaterialStateProperty.all(Colors.grey.shade100),
+            columnSpacing: 16,
+            horizontalMargin: 12,
+            columns: const [
+              DataColumn(
+                label: SizedBox(width: 30, child: Text('No.')),
+                numeric: true,
+              ),
+              DataColumn(label: Text('Product')),
+              DataColumn(label: Text('Part Number')),
+              DataColumn(label: Text('UQC')),
+              DataColumn(label: Text('HSN')),
+              DataColumn(label: Text('Quantity')),
+              DataColumn(label: Text('Rate Per Unit'), numeric: true),
+              DataColumn(label: Text('Total'), numeric: true),
+            ],
+            rows: items.asMap().entries.map((entry) {
+              final index = entry.key + 1;
+              final item = entry.value;
+              final productName = item['product_name'] as String? ?? 'N/A';
+              final partNumber = item['part_number'] as String? ?? '';
+              final uqcCode = item['uqc_code'] as String? ?? '';
+              final hsnCode = item['hsn_code'] as String? ?? '';
+              final quantity = item['quantity'] as num? ?? 0;
+              final price = item['price'] as num? ?? 0;
+              final total = item['total'] as num? ?? 0;
 
-                return DataRow(
-                  cells: [
-                    DataCell(Text(productName)),
-                    DataCell(Text(hsnCode)),
-                    DataCell(Text(quantity.toString())),
-                    DataCell(Text('₹${price.toStringAsFixed(2)}')),
-                    DataCell(Text('₹${total.toStringAsFixed(2)}')),
-                  ],
-                );
-              }).toList(),
-            ),
+              return DataRow(
+                cells: [
+                  DataCell(SizedBox(width: 30, child: Text(index.toString()))),
+                  DataCell(Text(productName)),
+                  DataCell(Text(partNumber)),
+                  DataCell(Text(uqcCode)),
+                  DataCell(Text(hsnCode)),
+                  DataCell(Text(quantity.toString())),
+                  DataCell(Text('₹${price.toStringAsFixed(2)}')),
+                  DataCell(Text('₹${total.toStringAsFixed(2)}')),
+                ],
+              );
+            }).toList(),
           ),
         );
       },
@@ -393,39 +404,34 @@ class PurchaseDetailsScreen extends ConsumerWidget {
     final total = purchase['total'] as num? ?? 0;
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            const Text(
-              'Subtotal:',
-              style: TextStyle(fontWeight: FontWeight.w500),
-            ),
-            const SizedBox(width: 16),
-            SizedBox(
+            const SizedBox(
               width: 120,
               child: Text(
-                '₹${subtotal.toStringAsFixed(2)}',
-                textAlign: TextAlign.right,
+                'Subtotal:',
+                style: TextStyle(fontWeight: FontWeight.w500),
               ),
             ),
+            const SizedBox(width: 16),
+            Text('₹${subtotal.toStringAsFixed(2)}'),
           ],
         ),
         if (hasTaxableItems && taxAmount > 0) ...[
           const SizedBox(height: 8),
           Row(
-            mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              const Text('Tax:', style: TextStyle(fontWeight: FontWeight.w500)),
-              const SizedBox(width: 16),
-              SizedBox(
+              const SizedBox(
                 width: 120,
                 child: Text(
-                  '₹${taxAmount.toStringAsFixed(2)}',
-                  textAlign: TextAlign.right,
+                  'Tax:',
+                  style: TextStyle(fontWeight: FontWeight.w500),
                 ),
               ),
+              const SizedBox(width: 16),
+              Text('₹${taxAmount.toStringAsFixed(2)}'),
             ],
           ),
         ],
@@ -435,23 +441,18 @@ class PurchaseDetailsScreen extends ConsumerWidget {
           child: SizedBox(width: 200, child: Divider()),
         ),
         Row(
-          mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            const Text(
-              'Total:',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            const SizedBox(width: 16),
-            SizedBox(
+            const SizedBox(
               width: 120,
               child: Text(
-                '₹${total.toStringAsFixed(2)}',
-                textAlign: TextAlign.right,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
+                'Total:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
+            ),
+            const SizedBox(width: 16),
+            Text(
+              '₹${total.toStringAsFixed(2)}',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
           ],
         ),

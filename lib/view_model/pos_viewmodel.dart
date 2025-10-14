@@ -554,6 +554,8 @@ class PosViewModel extends StateNotifier<PosState> {
       cgstRate: product.cgstRate,
       sgstRate: product.sgstRate,
       igstRate: product.igstRate,
+      stock: product.stock,
+      negativeAllow: product.negativeAllow,
     );
     addToCart(productWithCustomPrice);
   }
