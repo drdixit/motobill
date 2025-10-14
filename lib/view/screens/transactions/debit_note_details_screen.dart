@@ -266,7 +266,7 @@ class DebitNoteDetailsScreen extends ConsumerWidget {
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
-        _buildDetailRow('Debit Note Number', debitNoteNumber),
+        _buildDetailRow('Debit Note Number', 'DN$debitNoteNumber'),
         if (purchaseNumber != null && purchaseNumber.isNotEmpty)
           _buildDetailRow('Purchase Number', purchaseNumber),
         _buildDetailRow('Debit Note Date', debitNoteDate),

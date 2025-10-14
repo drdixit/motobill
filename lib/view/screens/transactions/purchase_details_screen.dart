@@ -80,6 +80,93 @@ final purchaseDetailsProvider = FutureProvider.family<Map<String, dynamic>?, int
   final taxAmount = purchase['tax_amount'] as num? ?? 0;
   final total = purchase['total_amount'] as num? ?? 0;
 
+  // Fetch debit notes associated with this purchase
+  final debitNotesResult = await db.rawQuery(
+    '''
+    SELECT id, debit_note_number, reason, subtotal, tax_amount, total_amount
+    FROM debit_notes
+    WHERE purchase_id = ? AND is_deleted = 0
+    ORDER BY created_at DESC
+    ''',
+    [purchaseId],
+  );
+
+  // Fetch items for each debit note
+  final debitNotesWithItems = <Map<String, dynamic>>[];
+  for (final debitNote in debitNotesResult) {
+    final debitNoteId = debitNote['id'] as int;
+    final items = await db.rawQuery(
+      '''
+      SELECT product_name, part_number, uqc_code, hsn_code, quantity,
+             cost_price, subtotal, cgst_rate, sgst_rate, igst_rate, utgst_rate,
+             cgst_amount, sgst_amount, igst_amount, utgst_amount,
+             tax_amount, total_amount
+      FROM debit_note_items
+      WHERE debit_note_id = ? AND is_deleted = 0
+      ORDER BY id
+      ''',
+      [debitNoteId],
+    );
+
+    // Separate taxable and non-taxable items
+    final taxableItems = items.where((item) {
+      final cgstRate = (item['cgst_rate'] as num?) ?? 0;
+      final sgstRate = (item['sgst_rate'] as num?) ?? 0;
+      final igstRate = (item['igst_rate'] as num?) ?? 0;
+      final utgstRate = (item['utgst_rate'] as num?) ?? 0;
+      return cgstRate > 0 || sgstRate > 0 || igstRate > 0 || utgstRate > 0;
+    }).toList();
+
+    final nonTaxableItems = items.where((item) {
+      final cgstRate = (item['cgst_rate'] as num?) ?? 0;
+      final sgstRate = (item['sgst_rate'] as num?) ?? 0;
+      final igstRate = (item['igst_rate'] as num?) ?? 0;
+      final utgstRate = (item['utgst_rate'] as num?) ?? 0;
+      return cgstRate == 0 && sgstRate == 0 && igstRate == 0 && utgstRate == 0;
+    }).toList();
+
+    // Transform items to match table format
+    final transformedTaxable = taxableItems.map((item) {
+      return {
+        'product_name': item['product_name'],
+        'part_number': item['part_number'] ?? '',
+        'uqc_code': item['uqc_code'] ?? '',
+        'hsn_code': item['hsn_code'] ?? '',
+        'quantity': item['quantity'],
+        'price': item['cost_price'],
+        'cgst_rate': item['cgst_rate'],
+        'sgst_rate': item['sgst_rate'],
+        'igst_rate': item['igst_rate'],
+        'utgst_rate': item['utgst_rate'],
+        'taxable_amount': item['subtotal'],
+        'tax_amount': item['tax_amount'],
+        'total': item['total_amount'],
+      };
+    }).toList();
+
+    final transformedNonTaxable = nonTaxableItems.map((item) {
+      return {
+        'product_name': item['product_name'],
+        'part_number': item['part_number'] ?? '',
+        'uqc_code': item['uqc_code'] ?? '',
+        'hsn_code': item['hsn_code'] ?? '',
+        'quantity': item['quantity'],
+        'price': item['cost_price'],
+        'total': item['total_amount'],
+      };
+    }).toList();
+
+    debitNotesWithItems.add({
+      'debit_note_number': debitNote['debit_note_number'],
+      'reason': debitNote['reason'],
+      'subtotal': debitNote['subtotal'],
+      'tax_amount': debitNote['tax_amount'],
+      'total': debitNote['total_amount'],
+      'taxableItems': transformedTaxable,
+      'nonTaxableItems': transformedNonTaxable,
+    });
+  }
+
   // Format date as DD-MM-YYYY
   String formatDate(String? dateStr) {
     if (dateStr == null || dateStr.isEmpty) return 'N/A';
@@ -112,6 +199,7 @@ final purchaseDetailsProvider = FutureProvider.family<Map<String, dynamic>?, int
     },
     'taxableItems': transformedTaxableItems,
     'nonTaxableItems': transformedNonTaxableItems,
+    'debitNotes': debitNotesWithItems,
   };
 });
 
@@ -139,6 +227,7 @@ class PurchaseDetailsScreen extends ConsumerWidget {
               data['taxableItems'] as List<Map<String, dynamic>>;
           final nonTaxableItems =
               data['nonTaxableItems'] as List<Map<String, dynamic>>;
+          final debitNotes = data['debitNotes'] as List<Map<String, dynamic>>;
 
           return Container(
             color: Colors.white,
@@ -172,6 +261,10 @@ class PurchaseDetailsScreen extends ConsumerWidget {
 
                   // Combined Totals Section
                   _buildTotalsSection(purchase, taxableItems.isNotEmpty),
+
+                  // Debit Notes Section (if any)
+                  if (debitNotes.isNotEmpty)
+                    ..._buildDebitNotesSection(debitNotes),
                 ],
               ),
             ),
@@ -499,5 +592,42 @@ class PurchaseDetailsScreen extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  List<Widget> _buildDebitNotesSection(List<Map<String, dynamic>> debitNotes) {
+    final widgets = <Widget>[];
+
+    for (final debitNote in debitNotes) {
+      final debitNoteNumber = debitNote['debit_note_number'] as String;
+      final taxableItems =
+          debitNote['taxableItems'] as List<Map<String, dynamic>>;
+      final nonTaxableItems =
+          debitNote['nonTaxableItems'] as List<Map<String, dynamic>>;
+
+      widgets.addAll([
+        const SizedBox(height: 32),
+        const Divider(thickness: 2),
+        const SizedBox(height: 16),
+        Text(
+          'DN$debitNoteNumber',
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 16),
+
+        // Non-Taxable Items Table (if any)
+        if (nonTaxableItems.isNotEmpty) ...[
+          _buildNonTaxablePurchaseTable(nonTaxableItems),
+          const SizedBox(height: 16),
+        ],
+
+        // Taxable Items Table (if any)
+        if (taxableItems.isNotEmpty) ...[
+          _buildTaxablePurchaseTable(taxableItems),
+          const SizedBox(height: 16),
+        ],
+      ]);
+    }
+
+    return widgets;
   }
 }
