@@ -9,6 +9,8 @@ import '../../../model/customer.dart';
 import '../../../repository/customer_repository.dart';
 import '../../../core/providers/database_provider.dart';
 import '../customer_form_dialog.dart';
+import '../../screens/transactions/sales_screen.dart';
+import '../../screens/debit_notes_screen.dart';
 
 // Custom formatter to allow only one decimal point and max 2 decimal places
 class DecimalTextInputFormatter extends TextInputFormatter {
@@ -921,50 +923,65 @@ extension on PosCart {
               const SizedBox(width: AppSizes.paddingM),
               Expanded(
                 flex: 2,
-                child: ElevatedButton(
-                  onPressed: state.selectedCustomer == null
-                      ? null
-                      : () async {
-                          final billNumber = await viewModel.checkout();
-                          if (billNumber != null && context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Bill $billNumber created successfully!',
-                                ),
-                                backgroundColor: AppColors.success,
-                              ),
-                            );
-                          } else if (state.error != null && context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(state.error!),
-                                backgroundColor: AppColors.error,
-                              ),
-                            );
-                          }
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: state.selectedCustomer == null
-                        ? AppColors.border
-                        : AppColors.primary,
-                    foregroundColor: AppColors.white,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: AppSizes.paddingM,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppSizes.radiusM),
-                    ),
-                    disabledBackgroundColor: AppColors.border,
-                    disabledForegroundColor: AppColors.textTertiary,
-                  ),
-                  child: Text(
-                    'Checkout',
-                    style: TextStyle(
-                      fontSize: AppSizes.fontM,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                child: Consumer(
+                  builder: (context, consumerRef, child) {
+                    final state = consumerRef.watch(posViewModelProvider);
+                    final viewModel = consumerRef.read(
+                      posViewModelProvider.notifier,
+                    );
+
+                    return ElevatedButton(
+                      onPressed: state.selectedCustomer == null
+                          ? null
+                          : () async {
+                              final billNumber = await viewModel.checkout();
+                              if (billNumber != null && context.mounted) {
+                                // Invalidate bills list so it refreshes in Sales screen
+                                consumerRef.invalidate(billsListProvider);
+                                // Invalidate purchases list so auto-purchases show in Debit Notes
+                                consumerRef.invalidate(purchasesProvider);
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Bill $billNumber created successfully!',
+                                    ),
+                                    backgroundColor: AppColors.success,
+                                  ),
+                                );
+                              } else if (state.error != null &&
+                                  context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(state.error!),
+                                    backgroundColor: AppColors.error,
+                                  ),
+                                );
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: state.selectedCustomer == null
+                            ? AppColors.border
+                            : AppColors.primary,
+                        foregroundColor: AppColors.white,
+                        padding: const EdgeInsets.symmetric(
+                          vertical: AppSizes.paddingM,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppSizes.radiusM),
+                        ),
+                        disabledBackgroundColor: AppColors.border,
+                        disabledForegroundColor: AppColors.textTertiary,
+                      ),
+                      child: Text(
+                        'Checkout',
+                        style: TextStyle(
+                          fontSize: AppSizes.fontM,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
             ],

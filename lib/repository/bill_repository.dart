@@ -506,11 +506,12 @@ class BillRepository {
   ) async {
     final now = DateTime.now();
 
-    // Generate auto-purchase number
-    final year = now.year.toString();
-    final month = now.month.toString().padLeft(2, '0');
+    // Generate auto-purchase number in format: AUTO-DDMMYYXXXXX
+    // Example: AUTO-14102500001 for 14 Oct 2025, first auto-purchase
     final day = now.day.toString().padLeft(2, '0');
-    final datePrefix = 'AUTO-PUR-$year$month$day';
+    final month = now.month.toString().padLeft(2, '0');
+    final year = now.year.toString().substring(2); // Last 2 digits of year
+    final datePrefix = 'AUTO-$day$month$year'; // AUTO-DDMMYY
 
     final result = await txn.rawQuery(
       '''SELECT purchase_number FROM purchases
@@ -523,15 +524,17 @@ class BillRepository {
     int sequenceNumber = 1;
     if (result.isNotEmpty) {
       final lastNumber = result.first['purchase_number'] as String;
-      final parts = lastNumber.split('-');
-      if (parts.length == 4) {
-        final lastSequence = int.tryParse(parts[3]) ?? 0;
+      // Extract the last 5 digits (sequence number)
+      // Format: AUTO-DDMMYYXXXXX (total 16 chars, last 5 are sequence)
+      if (lastNumber.length >= 16) {
+        final lastSequence = int.tryParse(lastNumber.substring(11)) ?? 0;
         sequenceNumber = lastSequence + 1;
       }
     }
 
+    // Format: AUTO-DDMMYYXXXXX (4 chars prefix + 6 chars date + 5 digits sequence)
     final purchaseNumber =
-        '$datePrefix-${sequenceNumber.toString().padLeft(3, '0')}';
+        '$datePrefix${sequenceNumber.toString().padLeft(5, '0')}';
 
     // Auto-stock vendor ID is 7
     const autoStockVendorId = 7;

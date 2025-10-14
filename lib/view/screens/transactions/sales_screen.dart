@@ -31,16 +31,6 @@ class SalesScreen extends ConsumerWidget {
             color: Colors.white,
             child: Row(
               children: [
-                Icon(Icons.point_of_sale, color: AppColors.primary, size: 28),
-                const SizedBox(width: 12),
-                Text(
-                  'Sales',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.refresh),
@@ -103,9 +93,10 @@ class SalesScreen extends ConsumerWidget {
                   );
                 }
 
-                return ListView.builder(
+                return ListView.separated(
                   padding: const EdgeInsets.all(16),
                   itemCount: bills.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final bill = bills[index];
                     return _buildBillCard(context, bill);
@@ -125,10 +116,13 @@ class SalesScreen extends ConsumerWidget {
     final totalAmount = (bill['total_amount'] as num).toDouble();
     final createdAt = DateTime.parse(bill['created_at'] as String);
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.divider),
+      ),
       child: InkWell(
         onTap: () {
           Navigator.push(
@@ -139,79 +133,61 @@ class SalesScreen extends ConsumerWidget {
             ),
           );
         },
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              // Bill Icon
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  Icons.receipt_long,
-                  color: AppColors.primary,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 16),
-              // Bill Info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      billNumber,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      customerName,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade700,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${createdAt.day}/${createdAt.month}/${createdAt.year}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Amount
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    '₹${totalAmount.toStringAsFixed(2)}',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // First line: Bill number (left) and total (right)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    billNumber,
                     style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.green.shade700,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '₹${totalAmount.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            // Second line: customer name and date
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    customerName,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textSecondary,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Text(
+                    '${createdAt.day.toString().padLeft(2, '0')}/${createdAt.month.toString().padLeft(2, '0')}/${createdAt.year}',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Icon(
-                    Icons.chevron_right,
-                    color: Colors.grey.shade400,
-                    size: 24,
-                  ),
-                ],
-              ),
-            ],
-          ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

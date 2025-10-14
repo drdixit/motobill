@@ -36,8 +36,8 @@ class BillDetailsScreen extends ConsumerWidget {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Bill Details'),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.white,
+        foregroundColor: AppColors.textPrimary,
         elevation: 0,
       ),
       body: billAsync.when(
@@ -77,7 +77,12 @@ class BillDetailsScreen extends ConsumerWidget {
               return SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Customer and Date Info (outside cards)
+                    _buildHeaderInfo(bill),
+                    const SizedBox(height: 20),
+
                     // Show Invoice (I prefix) if has taxable items
                     if (hasTaxable)
                       _buildBillSection(
@@ -108,6 +113,80 @@ class BillDetailsScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildHeaderInfo(Map<String, dynamic> bill) {
+    final customerName = bill['customer_name'] as String? ?? 'Unknown Customer';
+    final createdAt = DateTime.parse(bill['created_at'] as String);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.person_outline,
+                size: 20,
+                color: AppColors.textSecondary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Customer: ',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  customerName,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Icon(
+                Icons.calendar_today_outlined,
+                size: 20,
+                color: AppColors.textSecondary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Date: ',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              Text(
+                '${createdAt.day.toString().padLeft(2, '0')}/${createdAt.month.toString().padLeft(2, '0')}/${createdAt.year}',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBillSection(
     BuildContext context,
     Map<String, dynamic> bill,
@@ -117,8 +196,6 @@ class BillDetailsScreen extends ConsumerWidget {
     final billNumber = bill['bill_number'] as String;
     final displayNumber = isInvoice ? 'I$billNumber' : 'E$billNumber';
     final sectionTitle = isInvoice ? 'Invoice' : 'Estimate';
-    final customerName = bill['customer_name'] as String? ?? 'Unknown Customer';
-    final createdAt = DateTime.parse(bill['created_at'] as String);
 
     // Calculate totals for this section
     double subtotal = 0.0;
@@ -132,6 +209,7 @@ class BillDetailsScreen extends ConsumerWidget {
     final grandTotal = subtotal + totalTax;
 
     return Card(
+      color: Colors.white,
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
@@ -176,17 +254,6 @@ class BillDetailsScreen extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 16),
-            const Divider(),
-            const SizedBox(height: 16),
-
-            // Customer Info
-            _buildInfoRow('Customer', customerName),
-            const SizedBox(height: 8),
-            _buildInfoRow(
-              'Date',
-              '${createdAt.day.toString().padLeft(2, '0')}/${createdAt.month.toString().padLeft(2, '0')}/${createdAt.year}',
-            ),
-            const SizedBox(height: 20),
 
             // Items Table
             if (isInvoice)
@@ -235,330 +302,332 @@ class BillDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
-    return Row(
-      children: [
-        Text(
-          '$label: ',
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
-          ),
-        ),
-        Text(
-          value,
-          style: const TextStyle(fontSize: 14, color: Colors.black87),
-        ),
-      ],
-    );
-  }
-
   Widget _buildInvoiceTable(List<Map<String, dynamic>> items) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        columnSpacing: 16,
-        horizontalMargin: 8,
-        headingRowColor: WidgetStateProperty.all(Colors.grey.shade100),
-        headingRowHeight: 48,
-        dataRowMinHeight: 40,
-        dataRowMaxHeight: 56,
-        border: TableBorder.all(color: Colors.grey.shade300, width: 1),
-        columns: const [
-          DataColumn(
-            label: Text(
-              'No',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-          ),
-          DataColumn(
-            label: Text(
-              'Product Name',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-          ),
-          DataColumn(
-            label: Text(
-              'P/N',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-          ),
-          DataColumn(
-            label: Text(
-              'HSN',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-          ),
-          DataColumn(
-            label: Text(
-              'UQC',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-          ),
-          DataColumn(
-            label: Text(
-              'Qty',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            numeric: true,
-          ),
-          DataColumn(
-            label: Text(
-              'Rate Per Unit',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            numeric: true,
-          ),
-          DataColumn(
-            label: Text(
-              'Amount',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            numeric: true,
-          ),
-          DataColumn(
-            label: Text(
-              'CGST%',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            numeric: true,
-          ),
-          DataColumn(
-            label: Text(
-              'SGST%',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            numeric: true,
-          ),
-          DataColumn(
-            label: Text(
-              'IGST%',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            numeric: true,
-          ),
-          DataColumn(
-            label: Text(
-              'UTGST%',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            numeric: true,
-          ),
-          DataColumn(
-            label: Text(
-              'Tax Amt',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            numeric: true,
-          ),
-          DataColumn(
-            label: Text(
-              'Total Amount',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            numeric: true,
-          ),
-        ],
-        rows: items.asMap().entries.map((entry) {
-          final index = entry.key + 1;
-          final item = entry.value;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: DataTable(
+              columnSpacing: 16,
+              horizontalMargin: 8,
+              headingRowColor: WidgetStateProperty.all(Colors.grey.shade100),
+              headingRowHeight: 48,
+              dataRowMinHeight: 40,
+              dataRowMaxHeight: 56,
+              border: TableBorder.all(color: Colors.grey.shade300, width: 1),
+              columns: const [
+                DataColumn(
+                  label: Text(
+                    'No',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                ),
+                DataColumn(
+                  label: Text(
+                    'Product Name',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                ),
+                DataColumn(
+                  label: Text(
+                    'P/N',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                ),
+                DataColumn(
+                  label: Text(
+                    'HSN',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                ),
+                DataColumn(
+                  label: Text(
+                    'UQC',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                ),
+                DataColumn(
+                  label: Text(
+                    'Qty',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                  numeric: true,
+                ),
+                DataColumn(
+                  label: Text(
+                    'Rate Per Unit',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                  numeric: true,
+                ),
+                DataColumn(
+                  label: Text(
+                    'Amount',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                  numeric: true,
+                ),
+                DataColumn(
+                  label: Text(
+                    'CGST%',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                  numeric: true,
+                ),
+                DataColumn(
+                  label: Text(
+                    'SGST%',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                  numeric: true,
+                ),
+                DataColumn(
+                  label: Text(
+                    'IGST%',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                  numeric: true,
+                ),
+                DataColumn(
+                  label: Text(
+                    'UTGST%',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                  numeric: true,
+                ),
+                DataColumn(
+                  label: Text(
+                    'Tax Amt',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                  numeric: true,
+                ),
+                DataColumn(
+                  label: Text(
+                    'Total Amount',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                  numeric: true,
+                ),
+              ],
+              rows: items.asMap().entries.map((entry) {
+                final index = entry.key + 1;
+                final item = entry.value;
 
-          return DataRow(
-            cells: [
-              DataCell(Text('$index', style: const TextStyle(fontSize: 12))),
-              DataCell(
-                SizedBox(
-                  width: 150,
-                  child: Text(
-                    item['product_name'] as String,
-                    style: const TextStyle(fontSize: 12),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ),
-              DataCell(
-                Text(
-                  item['part_number'] as String? ?? '-',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ),
-              DataCell(
-                Text(
-                  item['hsn_code'] as String? ?? '-',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ),
-              DataCell(
-                Text(
-                  item['uqc_code'] as String? ?? '-',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ),
-              DataCell(
-                Text(
-                  '${item['quantity']}',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ),
-              DataCell(
-                Text(
-                  '₹${(item['selling_price'] as num).toStringAsFixed(2)}',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ),
-              DataCell(
-                Text(
-                  '₹${(item['subtotal'] as num).toStringAsFixed(2)}',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ),
-              DataCell(
-                Text(
-                  '${(item['cgst_rate'] as num).toStringAsFixed(2)}%',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ),
-              DataCell(
-                Text(
-                  '${(item['sgst_rate'] as num).toStringAsFixed(2)}%',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ),
-              DataCell(
-                Text(
-                  '${(item['igst_rate'] as num).toStringAsFixed(2)}%',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ),
-              DataCell(
-                Text(
-                  '${(item['utgst_rate'] as num).toStringAsFixed(2)}%',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ),
-              DataCell(
-                Text(
-                  '₹${(item['tax_amount'] as num).toStringAsFixed(2)}',
-                  style: TextStyle(fontSize: 12, color: Colors.orange.shade700),
-                ),
-              ),
-              DataCell(
-                Text(
-                  '₹${(item['total_amount'] as num).toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          );
-        }).toList(),
-      ),
+                return DataRow(
+                  cells: [
+                    DataCell(
+                      Text('$index', style: const TextStyle(fontSize: 12)),
+                    ),
+                    DataCell(
+                      SizedBox(
+                        width: 150,
+                        child: Text(
+                          item['product_name'] as String,
+                          style: const TextStyle(fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        item['part_number'] as String? ?? '-',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        item['hsn_code'] as String? ?? '-',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        item['uqc_code'] as String? ?? '-',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        '${item['quantity']}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        '₹${(item['selling_price'] as num).toStringAsFixed(2)}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        '₹${(item['subtotal'] as num).toStringAsFixed(2)}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        '${(item['cgst_rate'] as num).toStringAsFixed(2)}%',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        '${(item['sgst_rate'] as num).toStringAsFixed(2)}%',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        '${(item['igst_rate'] as num).toStringAsFixed(2)}%',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        '${(item['utgst_rate'] as num).toStringAsFixed(2)}%',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        '₹${(item['tax_amount'] as num).toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.orange.shade700,
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        '₹${(item['total_amount'] as num).toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
+        );
+      },
     );
   }
 
   Widget _buildEstimateTable(List<Map<String, dynamic>> items) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        columnSpacing: 20,
-        horizontalMargin: 8,
-        headingRowColor: WidgetStateProperty.all(Colors.grey.shade100),
-        headingRowHeight: 48,
-        dataRowMinHeight: 40,
-        dataRowMaxHeight: 56,
-        border: TableBorder.all(color: Colors.grey.shade300, width: 1),
-        columns: const [
-          DataColumn(
-            label: Text(
-              'No',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-          ),
-          DataColumn(
-            label: Text(
-              'Product Name',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-          ),
-          DataColumn(
-            label: Text(
-              'P/N',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-          ),
-          DataColumn(
-            label: Text(
-              'Qty',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            numeric: true,
-          ),
-          DataColumn(
-            label: Text(
-              'Rate Per Unit',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            numeric: true,
-          ),
-          DataColumn(
-            label: Text(
-              'Total Amount',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            numeric: true,
-          ),
-        ],
-        rows: items.asMap().entries.map((entry) {
-          final index = entry.key + 1;
-          final item = entry.value;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: DataTable(
+              columnSpacing: 20,
+              horizontalMargin: 8,
+              headingRowColor: WidgetStateProperty.all(Colors.grey.shade100),
+              headingRowHeight: 48,
+              dataRowMinHeight: 40,
+              dataRowMaxHeight: 56,
+              border: TableBorder.all(color: Colors.grey.shade300, width: 1),
+              columns: const [
+                DataColumn(
+                  label: Text(
+                    'No',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                ),
+                DataColumn(
+                  label: Text(
+                    'Product Name',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                ),
+                DataColumn(
+                  label: Text(
+                    'P/N',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                ),
+                DataColumn(
+                  label: Text(
+                    'Qty',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                  numeric: true,
+                ),
+                DataColumn(
+                  label: Text(
+                    'Rate Per Unit',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                  numeric: true,
+                ),
+                DataColumn(
+                  label: Text(
+                    'Total Amount',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                  numeric: true,
+                ),
+              ],
+              rows: items.asMap().entries.map((entry) {
+                final index = entry.key + 1;
+                final item = entry.value;
 
-          return DataRow(
-            cells: [
-              DataCell(Text('$index', style: const TextStyle(fontSize: 12))),
-              DataCell(
-                SizedBox(
-                  width: 200,
-                  child: Text(
-                    item['product_name'] as String,
-                    style: const TextStyle(fontSize: 12),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ),
-              DataCell(
-                Text(
-                  item['part_number'] as String? ?? '-',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ),
-              DataCell(
-                Text(
-                  '${item['quantity']}',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ),
-              DataCell(
-                Text(
-                  '₹${(item['selling_price'] as num).toStringAsFixed(2)}',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ),
-              DataCell(
-                Text(
-                  '₹${(item['total_amount'] as num).toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          );
-        }).toList(),
-      ),
+                return DataRow(
+                  cells: [
+                    DataCell(
+                      Text('$index', style: const TextStyle(fontSize: 12)),
+                    ),
+                    DataCell(
+                      SizedBox(
+                        width: 200,
+                        child: Text(
+                          item['product_name'] as String,
+                          style: const TextStyle(fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        item['part_number'] as String? ?? '-',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        '${item['quantity']}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        '₹${(item['selling_price'] as num).toStringAsFixed(2)}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        '₹${(item['total_amount'] as num).toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
+        );
+      },
     );
   }
 
