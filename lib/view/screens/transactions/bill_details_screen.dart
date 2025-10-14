@@ -626,6 +626,7 @@ class BillDetailsScreen extends ConsumerWidget {
 
     for (final creditNote in creditNotes) {
       final creditNoteNumber = creditNote['credit_note_number'] as String;
+      final total = (creditNote['total'] as num?) ?? 0;
       final taxableItems =
           creditNote['taxableItems'] as List<Map<String, dynamic>>;
       final nonTaxableItems =
@@ -636,7 +637,7 @@ class BillDetailsScreen extends ConsumerWidget {
         const Divider(thickness: 2),
         const SizedBox(height: 16),
         Text(
-          'CN$creditNoteNumber',
+          'CN$creditNoteNumber - ₹${total.toStringAsFixed(2)}',
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 16),
