@@ -230,7 +230,17 @@ class BillRepository {
   // Get bill by ID
   Future<Map<String, dynamic>?> getBillById(int id) async {
     final result = await _db.rawQuery(
-      '''SELECT b.*, c.name as customer_name
+      '''SELECT b.*,
+         c.name as customer_name,
+         c.legal_name as customer_legal_name,
+         c.gst_number as customer_gst_number,
+         c.phone as customer_phone,
+         c.email as customer_email,
+         c.address_line1 as customer_address_line1,
+         c.address_line2 as customer_address_line2,
+         c.city as customer_city,
+         c.state as customer_state,
+         c.pincode as customer_pincode
       FROM bills b
       LEFT JOIN customers c ON b.customer_id = c.id
       WHERE b.id = ? AND b.is_deleted = 0''',

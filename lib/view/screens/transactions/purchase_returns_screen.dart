@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../repository/debit_note_repository.dart';
-import '../debit_notes_screen.dart';
+import 'debit_note_details_screen.dart' as transactions;
 
 // Provider for debit notes list
 final debitNotesListProvider = FutureProvider<List<Map<String, dynamic>>>((
@@ -131,8 +131,9 @@ class PurchaseReturnsScreen extends ConsumerWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) =>
-                  DebitNoteDetailsScreen(debitNoteId: debitNote['id'] as int),
+              builder: (context) => transactions.DebitNoteDetailsScreen(
+                debitNoteId: debitNote['id'] as int,
+              ),
             ),
           );
         },

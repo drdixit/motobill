@@ -5,23 +5,19 @@ import '../../core/constants/app_sizes.dart';
 import '../../core/providers/database_provider.dart';
 import '../../repository/bill_repository.dart';
 
-final creditNotesProvider = FutureProvider<List<Map<String, dynamic>>>((
-  ref,
-) async {
-  final db = await ref.watch(databaseProvider);
-  final result = await db.rawQuery('''SELECT cn.*, c.name as customer_name
+final creditNotesProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+      final db = await ref.watch(databaseProvider);
+      final result = await db.rawQuery('''SELECT cn.*, c.name as customer_name
        FROM credit_notes cn
        LEFT JOIN customers c ON cn.customer_id = c.id
        WHERE cn.is_deleted = 0
        ORDER BY cn.id DESC''');
-  return result;
-});
+      return result;
+    });
 
-final creditNoteItemsProvider =
-    FutureProvider.family<List<Map<String, dynamic>>, int>((
-      ref,
-      creditNoteId,
-    ) async {
+final creditNoteItemsProvider = FutureProvider.autoDispose
+    .family<List<Map<String, dynamic>>, int>((ref, creditNoteId) async {
       final db = await ref.watch(databaseProvider);
       // Join credit_note_items with credit_notes and customers so the result
       // contains the credit note metadata (number, customer_name, created_at, reason)
@@ -39,24 +35,23 @@ final creditNoteItemsProvider =
       );
     });
 
-final creditNotesBillsProvider = FutureProvider<List<Map<String, dynamic>>>((
-  ref,
-) async {
-  final db = await ref.watch(databaseProvider);
-  final repo = BillRepository(db);
-  return repo.getAllBills();
-});
+final creditNotesBillsProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+      final db = await ref.watch(databaseProvider);
+      final repo = BillRepository(db);
+      return repo.getAllBills();
+    });
 
-final creditNotesBillItemsProvider =
-    FutureProvider.family<List<Map<String, dynamic>>, int>((ref, billId) async {
+final creditNotesBillItemsProvider = FutureProvider.autoDispose
+    .family<List<Map<String, dynamic>>, int>((ref, billId) async {
       final db = await ref.watch(databaseProvider);
       final repo = BillRepository(db);
       return repo.getBillItems(billId);
     });
 
 // Credit notes for a specific bill
-final creditNotesForBillProvider =
-    FutureProvider.family<List<Map<String, dynamic>>, int>((ref, billId) async {
+final creditNotesForBillProvider = FutureProvider.autoDispose
+    .family<List<Map<String, dynamic>>, int>((ref, billId) async {
       final db = await ref.watch(databaseProvider);
       return await db.rawQuery(
         '''SELECT * FROM credit_notes WHERE bill_id = ? AND is_deleted = 0 ORDER BY id DESC''',
@@ -65,14 +60,12 @@ final creditNotesForBillProvider =
     });
 
 // Returned quantities per bill_item_id for a bill
-final returnedQuantitiesProvider = FutureProvider.family<Map<int, int>, int>((
-  ref,
-  billId,
-) async {
-  final db = await ref.watch(databaseProvider);
-  final repo = BillRepository(db);
-  return repo.getReturnedQuantitiesForBill(billId);
-});
+final returnedQuantitiesProvider = FutureProvider.autoDispose
+    .family<Map<int, int>, int>((ref, billId) async {
+      final db = await ref.watch(databaseProvider);
+      final repo = BillRepository(db);
+      return repo.getReturnedQuantitiesForBill(billId);
+    });
 
 class CreditNotesScreen extends ConsumerStatefulWidget {
   const CreditNotesScreen({super.key});
@@ -89,6 +82,14 @@ class _CreditNotesScreenState extends ConsumerState<CreditNotesScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    // Listen to tab changes to refresh data
+    _tabController.addListener(() {
+      if (_tabController.indexIsChanging) {
+        // Refresh providers when switching tabs
+        ref.invalidate(creditNotesProvider);
+        ref.invalidate(creditNotesBillsProvider);
+      }
+    });
   }
 
   @override
@@ -1569,98 +1570,741 @@ class _CreateCreditNoteScreenState
     final returnedAsync = ref.watch(returnedQuantitiesProvider(widget.billId));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Credit Note')),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('Create Credit Note'),
+        backgroundColor: AppColors.white,
+        foregroundColor: AppColors.textPrimary,
+        elevation: 0,
+      ),
       body: itemsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) => Center(child: Text('Error: $e')),
+        error: (e, st) => Center(
+          child: Text('Error: $e', style: TextStyle(color: AppColors.error)),
+        ),
         data: (items) {
-          if (items.isEmpty)
-            return const Center(child: Text('No items to return'));
+          if (items.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.inventory_outlined,
+                    size: AppSizes.iconXL * 2,
+                    color: AppColors.textSecondary,
+                  ),
+                  const SizedBox(height: AppSizes.paddingL),
+                  Text(
+                    'No items to return',
+                    style: TextStyle(
+                      fontSize: AppSizes.fontXL,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
 
           return returnedAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, st) => Center(child: Text('Error: $e')),
+            error: (e, st) => Center(
+              child: Text(
+                'Error: $e',
+                style: TextStyle(color: AppColors.error),
+              ),
+            ),
             data: (returnedMap) {
-              return Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  children: [
-                    // Reason field
-                    TextField(
-                      controller: _reasonController,
-                      decoration: const InputDecoration(
-                        labelText: 'Reason for return (optional)',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Expanded(
-                      child: ListView.separated(
-                        itemCount: items.length,
-                        separatorBuilder: (_, __) => const Divider(),
-                        itemBuilder: (context, idx) {
-                          final it = items[idx];
-                          final id = it['id'] as int; // bill_item id
-                          final boughtQty = it['quantity'] as int;
-                          final alreadyReturned = returnedMap[id] ?? 0;
-                          final remaining = boughtQty - alreadyReturned;
+              // Calculate totals
+              double totalAmount = 0.0;
+              for (var entry in _returnQuantities.entries) {
+                final qty = entry.value;
+                if (qty > 0) {
+                  final item = items.firstWhere((it) => it['id'] == entry.key);
+                  final price = (item['selling_price'] as num).toDouble();
+                  final subtotal = price * qty;
+                  final cgst =
+                      subtotal * (item['cgst_rate'] as num).toDouble() / 100;
+                  final sgst =
+                      subtotal * (item['sgst_rate'] as num).toDouble() / 100;
+                  final igst =
+                      subtotal * (item['igst_rate'] as num).toDouble() / 100;
+                  final utgst =
+                      subtotal * (item['utgst_rate'] as num).toDouble() / 100;
+                  totalAmount += subtotal + cgst + sgst + igst + utgst;
+                }
+              }
 
-                          final returnQty = _returnQuantities[id] ?? 0;
-
-                          return ListTile(
-                            title: Text(it['product_name'] ?? '-'),
-                            subtitle: Column(
+              return Column(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(AppSizes.paddingL),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Reason field
+                          Container(
+                            padding: const EdgeInsets.all(AppSizes.paddingM),
+                            decoration: BoxDecoration(
+                              color: AppColors.white,
+                              borderRadius: BorderRadius.circular(
+                                AppSizes.radiusM,
+                              ),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Bought: $boughtQty   Remaining: $remaining',
+                                  'Return Reason',
+                                  style: TextStyle(
+                                    fontSize: AppSizes.fontM,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                  ),
                                 ),
-                                Text(
-                                  'Price: ₹${(it['selling_price'] as num).toStringAsFixed(2)}',
+                                const SizedBox(height: AppSizes.paddingS),
+                                TextField(
+                                  controller: _reasonController,
+                                  decoration: InputDecoration(
+                                    hintText:
+                                        'Enter reason for return (optional)',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(
+                                        AppSizes.radiusS,
+                                      ),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: AppSizes.paddingM,
+                                      vertical: AppSizes.paddingS,
+                                    ),
+                                  ),
+                                  maxLines: 2,
                                 ),
                               ],
                             ),
-                            trailing: SizedBox(
-                              width: 140,
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.remove_circle_outline,
+                          ),
+                          const SizedBox(height: AppSizes.paddingL),
+
+                          // Items table
+                          Container(
+                            decoration: BoxDecoration(
+                              color: AppColors.white,
+                              borderRadius: BorderRadius.circular(
+                                AppSizes.radiusM,
+                              ),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: DataTable(
+                                columnSpacing: 20,
+                                horizontalMargin: 16,
+                                headingRowColor: WidgetStateProperty.all(
+                                  Colors.grey.shade100,
+                                ),
+                                headingRowHeight: 48,
+                                dataRowMinHeight: 56,
+                                dataRowMaxHeight: 72,
+                                border: TableBorder.all(
+                                  color: Colors.grey.shade300,
+                                  width: 1,
+                                ),
+                                columns: const [
+                                  DataColumn(
+                                    label: Text(
+                                      'No.',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
                                     ),
-                                    onPressed: returnQty > 0
-                                        ? () => setState(
-                                            () => _returnQuantities[id] =
-                                                returnQty - 1,
-                                          )
-                                        : null,
                                   ),
-                                  Text('$returnQty'),
-                                  IconButton(
-                                    icon: const Icon(Icons.add_circle_outline),
-                                    onPressed: returnQty < remaining
-                                        ? () => setState(
-                                            () => _returnQuantities[id] =
-                                                returnQty + 1,
-                                          )
-                                        : null,
+                                  DataColumn(
+                                    label: Text(
+                                      'Product Name',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ),
+                                  DataColumn(
+                                    label: Text(
+                                      'Part Number',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ),
+                                  DataColumn(
+                                    label: Text(
+                                      'Price',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    numeric: true,
+                                  ),
+                                  DataColumn(
+                                    label: Text(
+                                      'CGST%',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    numeric: true,
+                                  ),
+                                  DataColumn(
+                                    label: Text(
+                                      'SGST%',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    numeric: true,
+                                  ),
+                                  DataColumn(
+                                    label: Text(
+                                      'IGST%',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    numeric: true,
+                                  ),
+                                  DataColumn(
+                                    label: Text(
+                                      'UTGST%',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    numeric: true,
+                                  ),
+                                  DataColumn(
+                                    label: Text(
+                                      'Bought',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    numeric: true,
+                                  ),
+                                  DataColumn(
+                                    label: Text(
+                                      'Returned',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    numeric: true,
+                                  ),
+                                  DataColumn(
+                                    label: Text(
+                                      'Available',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    numeric: true,
+                                  ),
+                                  DataColumn(
+                                    label: Text(
+                                      'Return Qty',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
                                   ),
                                 ],
+                                rows: items.asMap().entries.map((entry) {
+                                  final idx = entry.key + 1;
+                                  final it = entry.value;
+                                  final id = it['id'] as int;
+                                  final boughtQty = it['quantity'] as int;
+                                  final alreadyReturned = returnedMap[id] ?? 0;
+                                  final remaining = boughtQty - alreadyReturned;
+                                  final returnQty = _returnQuantities[id] ?? 0;
+
+                                  return DataRow(
+                                    color:
+                                        WidgetStateProperty.resolveWith<Color?>(
+                                          (Set<WidgetState> states) {
+                                            if (returnQty > 0) {
+                                              return AppColors.primary
+                                                  .withOpacity(0.05);
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                    cells: [
+                                      DataCell(
+                                        Text(
+                                          '$idx',
+                                          style: const TextStyle(fontSize: 13),
+                                        ),
+                                      ),
+                                      DataCell(
+                                        SizedBox(
+                                          width: 200,
+                                          child: Text(
+                                            it['product_name'] ?? '-',
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ),
+                                      DataCell(
+                                        Text(
+                                          it['part_number'] ?? '-',
+                                          style: const TextStyle(fontSize: 13),
+                                        ),
+                                      ),
+                                      DataCell(
+                                        Text(
+                                          '₹${(it['selling_price'] as num).toStringAsFixed(2)}',
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                      DataCell(
+                                        Text(
+                                          '${(it['cgst_rate'] as num).toStringAsFixed(2)}%',
+                                          style: const TextStyle(fontSize: 13),
+                                        ),
+                                      ),
+                                      DataCell(
+                                        Text(
+                                          '${(it['sgst_rate'] as num).toStringAsFixed(2)}%',
+                                          style: const TextStyle(fontSize: 13),
+                                        ),
+                                      ),
+                                      DataCell(
+                                        Text(
+                                          '${(it['igst_rate'] as num).toStringAsFixed(2)}%',
+                                          style: const TextStyle(fontSize: 13),
+                                        ),
+                                      ),
+                                      DataCell(
+                                        Text(
+                                          '${(it['utgst_rate'] as num).toStringAsFixed(2)}%',
+                                          style: const TextStyle(fontSize: 13),
+                                        ),
+                                      ),
+                                      DataCell(
+                                        Text(
+                                          '$boughtQty',
+                                          style: const TextStyle(fontSize: 13),
+                                        ),
+                                      ),
+                                      DataCell(
+                                        Text(
+                                          '$alreadyReturned',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: alreadyReturned > 0
+                                                ? Colors.orange.shade700
+                                                : AppColors.textPrimary,
+                                          ),
+                                        ),
+                                      ),
+                                      DataCell(
+                                        Text(
+                                          '$remaining',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: remaining > 0
+                                                ? Colors.green.shade700
+                                                : AppColors.error,
+                                          ),
+                                        ),
+                                      ),
+                                      DataCell(
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey.shade100,
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              IconButton(
+                                                icon: const Icon(
+                                                  Icons.remove_circle_outline,
+                                                  size: 20,
+                                                ),
+                                                color: returnQty > 0
+                                                    ? AppColors.primary
+                                                    : Colors.grey.shade400,
+                                                padding: const EdgeInsets.all(
+                                                  4,
+                                                ),
+                                                constraints:
+                                                    const BoxConstraints(
+                                                      minWidth: 32,
+                                                      minHeight: 32,
+                                                    ),
+                                                onPressed: returnQty > 0
+                                                    ? () => setState(
+                                                        () =>
+                                                            _returnQuantities[id] =
+                                                                returnQty - 1,
+                                                      )
+                                                    : null,
+                                              ),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 12,
+                                                    ),
+                                                child: Text(
+                                                  '$returnQty',
+                                                  style: TextStyle(
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: returnQty > 0
+                                                        ? AppColors.primary
+                                                        : AppColors
+                                                              .textSecondary,
+                                                  ),
+                                                ),
+                                              ),
+                                              IconButton(
+                                                icon: const Icon(
+                                                  Icons.add_circle_outline,
+                                                  size: 20,
+                                                ),
+                                                color: returnQty < remaining
+                                                    ? AppColors.primary
+                                                    : Colors.grey.shade400,
+                                                padding: const EdgeInsets.all(
+                                                  4,
+                                                ),
+                                                constraints:
+                                                    const BoxConstraints(
+                                                      minWidth: 32,
+                                                      minHeight: 32,
+                                                    ),
+                                                onPressed: returnQty < remaining
+                                                    ? () => setState(
+                                                        () =>
+                                                            _returnQuantities[id] =
+                                                                returnQty + 1,
+                                                      )
+                                                    : null,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                }).toList(),
                               ),
                             ),
-                          );
-                        },
+                          ),
+                          const SizedBox(height: AppSizes.paddingL),
+
+                          // Summary and button section
+                          Container(
+                            padding: const EdgeInsets.all(AppSizes.paddingM),
+                            decoration: BoxDecoration(
+                              color: AppColors.white,
+                              borderRadius: BorderRadius.circular(
+                                AppSizes.radiusM,
+                              ),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      Text(
+                                        'Total Amount:',
+                                        style: TextStyle(
+                                          fontSize: AppSizes.fontL,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                      ),
+                                      const SizedBox(width: AppSizes.paddingM),
+                                      Text(
+                                        '₹${totalAmount.toStringAsFixed(2)}',
+                                        style: TextStyle(
+                                          fontSize: AppSizes.fontXL,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                ElevatedButton(
+                                  onPressed:
+                                      _returnQuantities.values.any((v) => v > 0)
+                                      ? _submitCreditNote
+                                      : null,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    foregroundColor: AppColors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(
+                                        AppSizes.radiusM,
+                                      ),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: AppSizes.paddingL,
+                                      vertical: AppSizes.paddingM,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Create Credit Note',
+                                    style: TextStyle(
+                                      fontSize: AppSizes.fontM,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: AppSizes.paddingL),
+
+                          // Existing Credit Notes Section
+                          Consumer(
+                            builder: (context, ref, child) {
+                              final existingCNAsync = ref.watch(
+                                creditNotesForBillProvider(widget.billId),
+                              );
+
+                              return existingCNAsync.when(
+                                loading: () => const SizedBox.shrink(),
+                                error: (e, st) => const SizedBox.shrink(),
+                                data: (cns) {
+                                  if (cns.isEmpty)
+                                    return const SizedBox.shrink();
+
+                                  return Container(
+                                    padding: const EdgeInsets.all(
+                                      AppSizes.paddingM,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.white,
+                                      borderRadius: BorderRadius.circular(
+                                        AppSizes.radiusM,
+                                      ),
+                                      border: Border.all(
+                                        color: AppColors.border,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Existing Credit Notes for This Bill',
+                                          style: TextStyle(
+                                            fontSize: AppSizes.fontL,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                        ),
+                                        const SizedBox(
+                                          height: AppSizes.paddingM,
+                                        ),
+                                        SingleChildScrollView(
+                                          scrollDirection: Axis.horizontal,
+                                          child: DataTable(
+                                            columnSpacing: 20,
+                                            horizontalMargin: 0,
+                                            headingRowColor:
+                                                WidgetStateProperty.all(
+                                                  Colors.grey.shade100,
+                                                ),
+                                            headingRowHeight: 40,
+                                            dataRowMinHeight: 40,
+                                            dataRowMaxHeight: 56,
+                                            border: TableBorder.all(
+                                              color: Colors.grey.shade300,
+                                              width: 1,
+                                            ),
+                                            columns: const [
+                                              DataColumn(
+                                                label: Text(
+                                                  'CN Number',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                              ),
+                                              DataColumn(
+                                                label: Text(
+                                                  'Date',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                              ),
+                                              DataColumn(
+                                                label: Text(
+                                                  'Reason',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                              ),
+                                              DataColumn(
+                                                label: Text(
+                                                  'Subtotal',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                                numeric: true,
+                                              ),
+                                              DataColumn(
+                                                label: Text(
+                                                  'Tax',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                                numeric: true,
+                                              ),
+                                              DataColumn(
+                                                label: Text(
+                                                  'Total Amount',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                                numeric: true,
+                                              ),
+                                            ],
+                                            rows: cns.map((cn) {
+                                              final createdAt =
+                                                  cn['created_at'] as String? ??
+                                                  '';
+                                              DateTime? date;
+                                              if (createdAt.isNotEmpty) {
+                                                try {
+                                                  date = DateTime.parse(
+                                                    createdAt,
+                                                  );
+                                                } catch (_) {}
+                                              }
+                                              final dateStr = date != null
+                                                  ? '${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}'
+                                                  : '-';
+
+                                              return DataRow(
+                                                cells: [
+                                                  DataCell(
+                                                    Text(
+                                                      'CN${cn['credit_note_number'] ?? '-'}',
+                                                      style: const TextStyle(
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  DataCell(
+                                                    Text(
+                                                      dateStr,
+                                                      style: const TextStyle(
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  DataCell(
+                                                    SizedBox(
+                                                      width: 150,
+                                                      child: Text(
+                                                        cn['reason']
+                                                                as String? ??
+                                                            '-',
+                                                        style: const TextStyle(
+                                                          fontSize: 12,
+                                                        ),
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  DataCell(
+                                                    Text(
+                                                      '₹${(cn['subtotal'] as num).toStringAsFixed(2)}',
+                                                      style: const TextStyle(
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  DataCell(
+                                                    Text(
+                                                      '₹${(cn['tax_amount'] as num).toStringAsFixed(2)}',
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        color: Colors
+                                                            .orange
+                                                            .shade700,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  DataCell(
+                                                    Text(
+                                                      '₹${(cn['total_amount'] as num).toStringAsFixed(2)}',
+                                                      style: const TextStyle(
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              );
+                                            }).toList(),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                        ],
                       ),
                     ),
-                    ElevatedButton(
-                      onPressed: _returnQuantities.values.any((v) => v > 0)
-                          ? _submitCreditNote
-                          : null,
-                      child: const Text('Create Credit Note'),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               );
             },
           );
