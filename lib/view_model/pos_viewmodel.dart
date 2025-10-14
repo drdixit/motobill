@@ -458,6 +458,10 @@ class PosViewModel extends StateNotifier<PosState> {
     );
   }
 
+  void clearError() {
+    state = state.copyWith(clearError: true);
+  }
+
   void selectCustomer(Customer? customer) async {
     print('\n=== SELECT CUSTOMER CALLED ===');
     print(
