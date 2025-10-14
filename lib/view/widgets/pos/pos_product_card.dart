@@ -93,6 +93,35 @@ class PosProductCard extends StatelessWidget {
                 ],
               ),
             ),
+            // Stock Badge (left side of image)
+            Positioned(
+              top: 8,
+              left: 8,
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: product.negativeAllow
+                      ? Colors.lightBlue.shade300
+                      : Colors.blue.shade700,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  '${product.stock}',
+                  style: TextStyle(
+                    fontSize: AppSizes.fontS,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.white,
+                  ),
+                ),
+              ),
+            ),
             // Quantity Badge
             if (cartQuantity > 0)
               Positioned(

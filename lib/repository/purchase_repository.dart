@@ -155,6 +155,7 @@ class PurchaseRepository {
     final result = await _db.rawQuery(
       '''SELECT p.*,
          v.name as vendor_name,
+         v.legal_name as vendor_legal_name,
          v.gst_number as vendor_gst,
          v.phone as vendor_phone,
          v.email as vendor_email,

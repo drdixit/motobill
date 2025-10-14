@@ -18,6 +18,8 @@ class PosProduct {
   final double? cgstRate;
   final double? sgstRate;
   final double? igstRate;
+  final int stock;
+  final bool negativeAllow;
 
   PosProduct({
     required this.id,
@@ -39,6 +41,8 @@ class PosProduct {
     this.cgstRate,
     this.sgstRate,
     this.igstRate,
+    required this.stock,
+    required this.negativeAllow,
   });
 
   factory PosProduct.fromJson(Map<String, dynamic> json) {
@@ -68,6 +72,8 @@ class PosProduct {
       igstRate: json['igst_rate'] != null
           ? (json['igst_rate'] as num).toDouble()
           : null,
+      stock: (json['stock'] as num?)?.toInt() ?? 0,
+      negativeAllow: (json['negative_allow'] as int?) == 1,
     );
   }
 }
