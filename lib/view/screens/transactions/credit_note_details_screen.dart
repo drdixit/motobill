@@ -305,126 +305,167 @@ class CreditNoteDetailsScreen extends ConsumerWidget {
   }
 
   Widget _buildTaxableCreditNoteTable(List<Map<String, dynamic>> items) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            border: TableBorder.all(color: Colors.grey.shade300),
-            headingRowColor: MaterialStateProperty.all(Colors.grey.shade100),
-            columnSpacing: 16,
-            horizontalMargin: 12,
-            columns: const [
-              DataColumn(
-                label: SizedBox(width: 30, child: Text('No.')),
-                numeric: true,
-              ),
-              DataColumn(label: Text('Product')),
-              DataColumn(label: Text('Part Number')),
-              DataColumn(label: Text('UQC')),
-              DataColumn(label: Text('HSN')),
-              DataColumn(label: Text('Quantity')),
-              DataColumn(label: Text('Rate Per Unit'), numeric: true),
-              DataColumn(label: Text('CGST%'), numeric: true),
-              DataColumn(label: Text('SGST%'), numeric: true),
-              DataColumn(label: Text('IGST%'), numeric: true),
-              DataColumn(label: Text('UTGST%'), numeric: true),
-              DataColumn(label: Text('Taxable Amt'), numeric: true),
-              DataColumn(label: Text('Tax Amt'), numeric: true),
-              DataColumn(label: Text('Total'), numeric: true),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Table(
+        border: TableBorder.all(color: Colors.grey.shade300),
+        columnWidths: const {
+          0: FixedColumnWidth(60),
+          1: FixedColumnWidth(180),
+          2: FixedColumnWidth(120),
+          3: FixedColumnWidth(80),
+          4: FixedColumnWidth(100),
+          5: FixedColumnWidth(60),
+          6: FixedColumnWidth(120),
+          7: FixedColumnWidth(100),
+          8: FixedColumnWidth(100),
+          9: FixedColumnWidth(80),
+          10: FixedColumnWidth(80),
+          11: FixedColumnWidth(80),
+          12: FixedColumnWidth(80),
+          13: FixedColumnWidth(100),
+          14: FixedColumnWidth(100),
+        },
+        children: [
+          TableRow(
+            decoration: BoxDecoration(color: Colors.grey.shade100),
+            children: [
+              _buildTableHeader('No.'),
+              _buildTableHeader('Product Name'),
+              _buildTableHeader('Part Number'),
+              _buildTableHeader('UQC'),
+              _buildTableHeader('HSN Code'),
+              _buildTableHeader('Qty'),
+              _buildTableHeader('Rate Per Unit'),
+              _buildTableHeader('Value'),
+              _buildTableHeader('Taxable Amt'),
+              _buildTableHeader('CGST%'),
+              _buildTableHeader('SGST%'),
+              _buildTableHeader('IGST%'),
+              _buildTableHeader('UTGST%'),
+              _buildTableHeader('Tax Amt'),
+              _buildTableHeader('Total'),
             ],
-            rows: items.asMap().entries.map((entry) {
-              final index = entry.key + 1;
-              final item = entry.value;
-              final productName = item['product_name'] as String? ?? 'N/A';
-              final partNumber = item['part_number'] as String? ?? '';
-              final uqcCode = item['uqc_code'] as String? ?? '';
-              final hsnCode = item['hsn_code'] as String? ?? '';
-              final quantity = item['quantity'] as num? ?? 0;
-              final price = item['price'] as num? ?? 0;
-              final cgstRate = item['cgst_rate'] as num? ?? 0;
-              final sgstRate = item['sgst_rate'] as num? ?? 0;
-              final igstRate = item['igst_rate'] as num? ?? 0;
-              final utgstRate = item['utgst_rate'] as num? ?? 0;
-              final taxableAmount = item['taxable_amount'] as num? ?? 0;
-              final taxAmount = item['tax_amount'] as num? ?? 0;
-              final total = item['total'] as num? ?? 0;
-
-              return DataRow(
-                cells: [
-                  DataCell(SizedBox(width: 30, child: Text(index.toString()))),
-                  DataCell(Text(productName)),
-                  DataCell(Text(partNumber)),
-                  DataCell(Text(uqcCode)),
-                  DataCell(Text(hsnCode)),
-                  DataCell(Text(quantity.toString())),
-                  DataCell(Text('₹${price.toStringAsFixed(2)}')),
-                  DataCell(Text(cgstRate.toStringAsFixed(2))),
-                  DataCell(Text(sgstRate.toStringAsFixed(2))),
-                  DataCell(Text(igstRate.toStringAsFixed(2))),
-                  DataCell(Text(utgstRate.toStringAsFixed(2))),
-                  DataCell(Text('₹${taxableAmount.toStringAsFixed(2)}')),
-                  DataCell(Text('₹${taxAmount.toStringAsFixed(2)}')),
-                  DataCell(Text('₹${total.toStringAsFixed(2)}')),
-                ],
-              );
-            }).toList(),
           ),
-        );
-      },
+          ...items.asMap().entries.map((entry) {
+            final index = entry.key + 1;
+            final item = entry.value;
+            final productName = item['product_name'] as String? ?? '';
+            final partNumber = item['part_number'] as String? ?? '';
+            final uqcCode = item['uqc_code'] as String? ?? '';
+            final hsnCode = item['hsn_code'] as String? ?? '';
+            final quantity = item['quantity'] as num? ?? 0;
+            final price = item['price'] as num? ?? 0;
+            final cgstRate = item['cgst_rate'] as num? ?? 0;
+            final sgstRate = item['sgst_rate'] as num? ?? 0;
+            final igstRate = item['igst_rate'] as num? ?? 0;
+            final utgstRate = item['utgst_rate'] as num? ?? 0;
+            final taxableAmount = item['taxable_amount'] as num? ?? 0;
+            final taxAmount = item['tax_amount'] as num? ?? 0;
+            final total = item['total'] as num? ?? 0;
+
+            // Calculate Value (Qty * Rate Per Unit)
+            final value = quantity * price;
+
+            return TableRow(
+              children: [
+                _buildTableCell(index.toString()),
+                _buildTableCell(productName),
+                _buildTableCell(partNumber),
+                _buildTableCell(uqcCode),
+                _buildTableCell(hsnCode),
+                _buildTableCell(quantity.toString()),
+                _buildTableCell(price.toStringAsFixed(2)),
+                _buildTableCell(value.toStringAsFixed(2)),
+                _buildTableCell(taxableAmount.toStringAsFixed(2)),
+                _buildTableCell(cgstRate.toStringAsFixed(2)),
+                _buildTableCell(sgstRate.toStringAsFixed(2)),
+                _buildTableCell(igstRate.toStringAsFixed(2)),
+                _buildTableCell(utgstRate.toStringAsFixed(2)),
+                _buildTableCell(taxAmount.toStringAsFixed(2)),
+                _buildTableCell(total.toStringAsFixed(2)),
+              ],
+            );
+          }),
+        ],
+      ),
     );
   }
 
   Widget _buildNonTaxableCreditNoteTable(List<Map<String, dynamic>> items) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            border: TableBorder.all(color: Colors.grey.shade300),
-            headingRowColor: MaterialStateProperty.all(Colors.grey.shade100),
-            columnSpacing: 16,
-            horizontalMargin: 12,
-            columns: const [
-              DataColumn(
-                label: SizedBox(width: 30, child: Text('No.')),
-                numeric: true,
-              ),
-              DataColumn(label: Text('Product')),
-              DataColumn(label: Text('Part Number')),
-              DataColumn(label: Text('UQC')),
-              DataColumn(label: Text('HSN')),
-              DataColumn(label: Text('Quantity')),
-              DataColumn(label: Text('Rate Per Unit'), numeric: true),
-              DataColumn(label: Text('Total'), numeric: true),
-            ],
-            rows: items.asMap().entries.map((entry) {
-              final index = entry.key + 1;
-              final item = entry.value;
-              final productName = item['product_name'] as String? ?? 'N/A';
-              final partNumber = item['part_number'] as String? ?? '';
-              final uqcCode = item['uqc_code'] as String? ?? '';
-              final hsnCode = item['hsn_code'] as String? ?? '';
-              final quantity = item['quantity'] as num? ?? 0;
-              final price = item['price'] as num? ?? 0;
-              final total = item['total'] as num? ?? 0;
-
-              return DataRow(
-                cells: [
-                  DataCell(SizedBox(width: 30, child: Text(index.toString()))),
-                  DataCell(Text(productName)),
-                  DataCell(Text(partNumber)),
-                  DataCell(Text(uqcCode)),
-                  DataCell(Text(hsnCode)),
-                  DataCell(Text(quantity.toString())),
-                  DataCell(Text('₹${price.toStringAsFixed(2)}')),
-                  DataCell(Text('₹${total.toStringAsFixed(2)}')),
-                ],
-              );
-            }).toList(),
-          ),
-        );
+    return Table(
+      border: TableBorder.all(color: Colors.grey.shade300),
+      columnWidths: const {
+        0: FixedColumnWidth(60),
+        1: FixedColumnWidth(200),
+        2: FixedColumnWidth(120),
+        3: FixedColumnWidth(80),
+        4: FixedColumnWidth(100),
+        5: FixedColumnWidth(60),
+        6: FixedColumnWidth(120),
+        7: FixedColumnWidth(120),
       },
+      children: [
+        TableRow(
+          decoration: BoxDecoration(color: Colors.grey.shade100),
+          children: [
+            _buildTableHeader('No.'),
+            _buildTableHeader('Product Name'),
+            _buildTableHeader('Part Number'),
+            _buildTableHeader('UQC'),
+            _buildTableHeader('HSN Code'),
+            _buildTableHeader('Qty'),
+            _buildTableHeader('Rate Per Unit'),
+            _buildTableHeader('Total'),
+          ],
+        ),
+        ...items.asMap().entries.map((entry) {
+          final index = entry.key + 1;
+          final item = entry.value;
+          final productName = item['product_name'] as String? ?? '';
+          final partNumber = item['part_number'] as String? ?? '';
+          final uqcCode = item['uqc_code'] as String? ?? '';
+          final hsnCode = item['hsn_code'] as String? ?? '';
+          final quantity = item['quantity'] as num? ?? 0;
+          final price = item['price'] as num? ?? 0;
+          final total = item['total'] as num? ?? 0;
+
+          return TableRow(
+            children: [
+              _buildTableCell(index.toString()),
+              _buildTableCell(productName),
+              _buildTableCell(partNumber),
+              _buildTableCell(uqcCode),
+              _buildTableCell(hsnCode),
+              _buildTableCell(quantity.toString()),
+              _buildTableCell(price.toStringAsFixed(2)),
+              _buildTableCell(total.toStringAsFixed(2)),
+            ],
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildTableHeader(String text) {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Text(
+        text,
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  Widget _buildTableCell(String text) {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 12),
+        textAlign: TextAlign.center,
+      ),
     );
   }
 
