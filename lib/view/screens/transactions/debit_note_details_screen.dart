@@ -298,156 +298,145 @@ class DebitNoteDetailsScreen extends ConsumerWidget {
   }
 
   Widget _buildNonTaxableDebitNoteTable(List<Map<String, dynamic>> items) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Table(
+      border: TableBorder.all(color: Colors.grey.shade300),
+      columnWidths: const {
+        0: FixedColumnWidth(60),
+        1: FixedColumnWidth(200),
+        2: FixedColumnWidth(120),
+        3: FixedColumnWidth(80),
+        4: FixedColumnWidth(100),
+        5: FixedColumnWidth(60),
+        6: FixedColumnWidth(120),
+        7: FixedColumnWidth(120),
+      },
       children: [
-        const Text(
-          'NON-TAXABLE ITEMS',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        Table(
-          border: TableBorder.all(color: Colors.grey.shade300),
-          columnWidths: const {
-            0: FlexColumnWidth(1.5),
-            1: FlexColumnWidth(1),
-            2: FlexColumnWidth(1),
-            3: FlexColumnWidth(1),
-            4: FlexColumnWidth(0.8),
-            5: FlexColumnWidth(1),
-            6: FlexColumnWidth(1),
-            7: FlexColumnWidth(1),
-          },
+        TableRow(
+          decoration: BoxDecoration(color: Colors.grey.shade100),
           children: [
-            TableRow(
-              decoration: BoxDecoration(color: Colors.grey.shade100),
-              children: [
-                _buildTableHeader('Product Name'),
-                _buildTableHeader('Part Number'),
-                _buildTableHeader('UQC'),
-                _buildTableHeader('HSN Code'),
-                _buildTableHeader('Qty'),
-                _buildTableHeader('Price'),
-                _buildTableHeader('Taxable Amt'),
-                _buildTableHeader('Total'),
-              ],
-            ),
-            ...items.map((item) {
-              final productName = item['product_name'] as String? ?? '';
-              final partNumber = item['part_number'] as String? ?? '';
-              final uqcCode = item['uqc_code'] as String? ?? '';
-              final hsnCode = item['hsn_code'] as String? ?? '';
-              final quantity = (item['quantity'] as num?) ?? 0;
-              final price = (item['price'] as num?) ?? 0;
-              final total = (item['total'] as num?) ?? 0;
-
-              return TableRow(
-                children: [
-                  _buildTableCell(productName),
-                  _buildTableCell(partNumber),
-                  _buildTableCell(uqcCode),
-                  _buildTableCell(hsnCode),
-                  _buildTableCell(quantity.toString()),
-                  _buildTableCell('₹${price.toStringAsFixed(2)}'),
-                  _buildTableCell('₹${total.toStringAsFixed(2)}'),
-                  _buildTableCell('₹${total.toStringAsFixed(2)}'),
-                ],
-              );
-            }),
+            _buildTableHeader('No.'),
+            _buildTableHeader('Product Name'),
+            _buildTableHeader('Part Number'),
+            _buildTableHeader('UQC'),
+            _buildTableHeader('HSN Code'),
+            _buildTableHeader('Qty'),
+            _buildTableHeader('Rate Per Unit'),
+            _buildTableHeader('Total'),
           ],
         ),
+        ...items.asMap().entries.map((entry) {
+          final index = entry.key + 1;
+          final item = entry.value;
+          final productName = item['product_name'] as String? ?? '';
+          final partNumber = item['part_number'] as String? ?? '';
+          final uqcCode = item['uqc_code'] as String? ?? '';
+          final hsnCode = item['hsn_code'] as String? ?? '';
+          final quantity = item['quantity'] as num? ?? 0;
+          final price = item['price'] as num? ?? 0;
+          final total = item['total'] as num? ?? 0;
+
+          return TableRow(
+            children: [
+              _buildTableCell(index.toString()),
+              _buildTableCell(productName),
+              _buildTableCell(partNumber),
+              _buildTableCell(uqcCode),
+              _buildTableCell(hsnCode),
+              _buildTableCell(quantity.toString()),
+              _buildTableCell(price.toStringAsFixed(2)),
+              _buildTableCell(total.toStringAsFixed(2)),
+            ],
+          );
+        }),
       ],
     );
   }
 
   Widget _buildTaxableDebitNoteTable(List<Map<String, dynamic>> items) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'TAXABLE ITEMS',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Table(
-            border: TableBorder.all(color: Colors.grey.shade300),
-            columnWidths: const {
-              0: FixedColumnWidth(180),
-              1: FixedColumnWidth(120),
-              2: FixedColumnWidth(80),
-              3: FixedColumnWidth(100),
-              4: FixedColumnWidth(60),
-              5: FixedColumnWidth(100),
-              6: FixedColumnWidth(100),
-              7: FixedColumnWidth(80),
-              8: FixedColumnWidth(80),
-              9: FixedColumnWidth(80),
-              10: FixedColumnWidth(80),
-              11: FixedColumnWidth(100),
-              12: FixedColumnWidth(100),
-              13: FixedColumnWidth(100),
-            },
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Table(
+        border: TableBorder.all(color: Colors.grey.shade300),
+        columnWidths: const {
+          0: FixedColumnWidth(60),
+          1: FixedColumnWidth(180),
+          2: FixedColumnWidth(120),
+          3: FixedColumnWidth(80),
+          4: FixedColumnWidth(100),
+          5: FixedColumnWidth(60),
+          6: FixedColumnWidth(120),
+          7: FixedColumnWidth(100),
+          8: FixedColumnWidth(100),
+          9: FixedColumnWidth(80),
+          10: FixedColumnWidth(80),
+          11: FixedColumnWidth(80),
+          12: FixedColumnWidth(80),
+          13: FixedColumnWidth(100),
+          14: FixedColumnWidth(100),
+        },
+        children: [
+          TableRow(
+            decoration: BoxDecoration(color: Colors.grey.shade100),
             children: [
-              TableRow(
-                decoration: BoxDecoration(color: Colors.grey.shade100),
-                children: [
-                  _buildTableHeader('Product Name'),
-                  _buildTableHeader('Part Number'),
-                  _buildTableHeader('UQC'),
-                  _buildTableHeader('HSN Code'),
-                  _buildTableHeader('Qty'),
-                  _buildTableHeader('Price'),
-                  _buildTableHeader('Taxable Amt'),
-                  _buildTableHeader('CGST%'),
-                  _buildTableHeader('SGST%'),
-                  _buildTableHeader('IGST%'),
-                  _buildTableHeader('UTGST%'),
-                  _buildTableHeader('CGST Amt'),
-                  _buildTableHeader('SGST Amt'),
-                  _buildTableHeader('Total'),
-                ],
-              ),
-              ...items.map((item) {
-                final productName = item['product_name'] as String? ?? '';
-                final partNumber = item['part_number'] as String? ?? '';
-                final uqcCode = item['uqc_code'] as String? ?? '';
-                final hsnCode = item['hsn_code'] as String? ?? '';
-                final quantity = (item['quantity'] as num?) ?? 0;
-                final price = (item['price'] as num?) ?? 0;
-                final taxableAmount = (item['taxable_amount'] as num?) ?? 0;
-                final cgstRate = (item['cgst_rate'] as num?) ?? 0;
-                final sgstRate = (item['sgst_rate'] as num?) ?? 0;
-                final igstRate = (item['igst_rate'] as num?) ?? 0;
-                final utgstRate = (item['utgst_rate'] as num?) ?? 0;
-                final cgstAmount = (item['cgst_amount'] as num?) ?? 0;
-                final sgstAmount = (item['sgst_amount'] as num?) ?? 0;
-                final total = (item['total'] as num?) ?? 0;
-
-                return TableRow(
-                  children: [
-                    _buildTableCell(productName),
-                    _buildTableCell(partNumber),
-                    _buildTableCell(uqcCode),
-                    _buildTableCell(hsnCode),
-                    _buildTableCell(quantity.toString()),
-                    _buildTableCell('₹${price.toStringAsFixed(2)}'),
-                    _buildTableCell('₹${taxableAmount.toStringAsFixed(2)}'),
-                    _buildTableCell('${cgstRate.toStringAsFixed(2)}%'),
-                    _buildTableCell('${sgstRate.toStringAsFixed(2)}%'),
-                    _buildTableCell('${igstRate.toStringAsFixed(2)}%'),
-                    _buildTableCell('${utgstRate.toStringAsFixed(2)}%'),
-                    _buildTableCell('₹${cgstAmount.toStringAsFixed(2)}'),
-                    _buildTableCell('₹${sgstAmount.toStringAsFixed(2)}'),
-                    _buildTableCell('₹${total.toStringAsFixed(2)}'),
-                  ],
-                );
-              }),
+              _buildTableHeader('No.'),
+              _buildTableHeader('Product Name'),
+              _buildTableHeader('Part Number'),
+              _buildTableHeader('UQC'),
+              _buildTableHeader('HSN Code'),
+              _buildTableHeader('Qty'),
+              _buildTableHeader('Rate Per Unit'),
+              _buildTableHeader('Value'),
+              _buildTableHeader('Taxable Amt'),
+              _buildTableHeader('CGST%'),
+              _buildTableHeader('SGST%'),
+              _buildTableHeader('IGST%'),
+              _buildTableHeader('UTGST%'),
+              _buildTableHeader('Tax Amt'),
+              _buildTableHeader('Total'),
             ],
           ),
-        ),
-      ],
+          ...items.asMap().entries.map((entry) {
+            final index = entry.key + 1;
+            final item = entry.value;
+            final productName = item['product_name'] as String? ?? '';
+            final partNumber = item['part_number'] as String? ?? '';
+            final uqcCode = item['uqc_code'] as String? ?? '';
+            final hsnCode = item['hsn_code'] as String? ?? '';
+            final quantity = item['quantity'] as num? ?? 0;
+            final price = item['price'] as num? ?? 0;
+            final cgstRate = item['cgst_rate'] as num? ?? 0;
+            final sgstRate = item['sgst_rate'] as num? ?? 0;
+            final igstRate = item['igst_rate'] as num? ?? 0;
+            final utgstRate = item['utgst_rate'] as num? ?? 0;
+            final taxableAmount = item['taxable_amount'] as num? ?? 0;
+            final taxAmount = item['tax_amount'] as num? ?? 0;
+            final total = item['total'] as num? ?? 0;
+
+            // Calculate Value (Qty * Rate Per Unit)
+            final value = quantity * price;
+
+            return TableRow(
+              children: [
+                _buildTableCell(index.toString()),
+                _buildTableCell(productName),
+                _buildTableCell(partNumber),
+                _buildTableCell(uqcCode),
+                _buildTableCell(hsnCode),
+                _buildTableCell(quantity.toString()),
+                _buildTableCell(price.toStringAsFixed(2)),
+                _buildTableCell(value.toStringAsFixed(2)),
+                _buildTableCell(taxableAmount.toStringAsFixed(2)),
+                _buildTableCell(cgstRate.toStringAsFixed(2)),
+                _buildTableCell(sgstRate.toStringAsFixed(2)),
+                _buildTableCell(igstRate.toStringAsFixed(2)),
+                _buildTableCell(utgstRate.toStringAsFixed(2)),
+                _buildTableCell(taxAmount.toStringAsFixed(2)),
+                _buildTableCell(total.toStringAsFixed(2)),
+              ],
+            );
+          }),
+        ],
+      ),
     );
   }
 
