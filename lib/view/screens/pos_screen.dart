@@ -7,12 +7,29 @@ import '../widgets/pos/pos_filters.dart';
 import '../widgets/pos/pos_product_card.dart';
 import '../widgets/pos/pos_cart.dart';
 
-class PosScreen extends ConsumerWidget {
+class PosScreen extends ConsumerStatefulWidget {
   const PosScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PosScreen> createState() => _PosScreenState();
+}
+
+class _PosScreenState extends ConsumerState<PosScreen> {
+  String? _lastShownError;
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(posViewModelProvider);
+
+    // Show error dialog when error occurs
+    if (state.error != null && state.error != _lastShownError) {
+      _lastShownError = state.error;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showErrorDialog(context, state.error!);
+      });
+    } else if (state.error == null) {
+      _lastShownError = null;
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -26,6 +43,65 @@ class PosScreen extends ConsumerWidget {
 
           // Right: Cart
           const PosCart(),
+        ],
+      ),
+    );
+  }
+
+  void _showErrorDialog(BuildContext context, String error) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppSizes.radiusM),
+        ),
+        title: Row(
+          children: [
+            Icon(
+              Icons.error_outline,
+              color: AppColors.error,
+              size: AppSizes.iconL,
+            ),
+            const SizedBox(width: AppSizes.paddingS),
+            Text(
+              'Error',
+              style: TextStyle(
+                fontSize: AppSizes.fontXL,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          error,
+          style: TextStyle(
+            fontSize: AppSizes.fontM,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // Clear the error after dismissing dialog
+              ref.read(posViewModelProvider.notifier).clearError();
+            },
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSizes.paddingL,
+                vertical: AppSizes.paddingM,
+              ),
+            ),
+            child: Text(
+              'OK',
+              style: TextStyle(
+                fontSize: AppSizes.fontM,
+                fontWeight: FontWeight.w600,
+                color: AppColors.primary,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -84,12 +160,10 @@ class PosScreen extends ConsumerWidget {
           ),
         ),
 
-        // Products Grid or Loading/Error
+        // Products Grid or Loading
         Expanded(
           child: state.isLoading
               ? _buildLoading()
-              : state.error != null
-              ? _buildError(state.error!)
               : state.filteredProducts.isEmpty
               ? _buildEmptyState()
               : _buildProductsGrid(state, ref),
@@ -189,42 +263,6 @@ class PosScreen extends ConsumerWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildError(String error) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSizes.paddingXL),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: AppSizes.iconXL * 1.5,
-              color: AppColors.error,
-            ),
-            const SizedBox(height: AppSizes.paddingM),
-            Text(
-              'Error',
-              style: TextStyle(
-                fontSize: AppSizes.fontXL,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: AppSizes.paddingS),
-            Text(
-              error,
-              style: TextStyle(
-                fontSize: AppSizes.fontM,
-                color: AppColors.textSecondary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
       ),
     );
   }

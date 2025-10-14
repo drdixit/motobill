@@ -82,7 +82,7 @@ class BillRepository {
       );
 
       for (final it in items) {
-        // First, validate stock availability
+        // First, check stock availability
         final stockCheck = await txn.rawQuery(
           '''SELECT COALESCE(SUM(quantity_remaining), 0) as available
              FROM stock_batches
@@ -94,10 +94,38 @@ class BillRepository {
             ? (stockCheck.first['available'] as num).toInt()
             : 0;
 
+        // If insufficient stock, check negative_allow flag
         if (availableQty < it.quantity) {
-          throw Exception(
-            'Insufficient stock for ${it.productName}. Available: $availableQty, Required: ${it.quantity}',
+          // Get product's negative_allow flag
+          final productCheck = await txn.rawQuery(
+            'SELECT negative_allow FROM products WHERE id = ? AND is_deleted = 0',
+            [it.productId],
           );
+
+          final negativeAllow = productCheck.isNotEmpty
+              ? (productCheck.first['negative_allow'] as int) == 1
+              : false;
+
+          if (negativeAllow) {
+            // Product allows negative stock - create auto-purchase
+            final shortage = it.quantity - availableQty;
+            await _createAutoPurchaseForShortage(
+              txn,
+              billId,
+              it.productId,
+              it.productName,
+              it.partNumber,
+              it.hsnCode,
+              it.uqcCode,
+              it.costPrice,
+              shortage,
+            );
+          } else {
+            // Product does NOT allow negative stock - throw error
+            throw Exception(
+              'Insufficient stock for ${it.productName}. Available: $availableQty, Required: ${it.quantity}',
+            );
+          }
         }
 
         // Insert bill item
@@ -460,6 +488,111 @@ class BillRepository {
       '''UPDATE bills SET is_deleted = 1, updated_at = datetime('now')
       WHERE id = ?''',
       [id],
+    );
+  }
+
+  // Helper method to create auto-purchase for stock shortage
+  // This duplicates logic from PurchaseRepository to avoid circular dependency
+  Future<void> _createAutoPurchaseForShortage(
+    Transaction txn,
+    int sourceBillId,
+    int productId,
+    String productName,
+    String? partNumber,
+    String? hsnCode,
+    String? uqcCode,
+    double costPrice,
+    int shortage,
+  ) async {
+    final now = DateTime.now();
+
+    // Generate auto-purchase number
+    final year = now.year.toString();
+    final month = now.month.toString().padLeft(2, '0');
+    final day = now.day.toString().padLeft(2, '0');
+    final datePrefix = 'AUTO-PUR-$year$month$day';
+
+    final result = await txn.rawQuery(
+      '''SELECT purchase_number FROM purchases
+         WHERE purchase_number LIKE ?
+         AND is_deleted = 0
+         ORDER BY purchase_number DESC LIMIT 1''',
+      ['$datePrefix%'],
+    );
+
+    int sequenceNumber = 1;
+    if (result.isNotEmpty) {
+      final lastNumber = result.first['purchase_number'] as String;
+      final parts = lastNumber.split('-');
+      if (parts.length == 4) {
+        final lastSequence = int.tryParse(parts[3]) ?? 0;
+        sequenceNumber = lastSequence + 1;
+      }
+    }
+
+    final purchaseNumber =
+        '$datePrefix-${sequenceNumber.toString().padLeft(3, '0')}';
+
+    // Auto-stock vendor ID is 7
+    const autoStockVendorId = 7;
+
+    // For auto-purchases, we keep it simple: no tax breakdown
+    final subtotal = costPrice * shortage;
+    final totalAmount = subtotal;
+
+    // Insert purchase
+    final purchaseId = await txn.rawInsert(
+      '''INSERT INTO purchases
+      (purchase_number, purchase_reference_number, purchase_reference_date,
+      vendor_id, subtotal, tax_amount, total_amount, is_auto_purchase, source_bill_id,
+      created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)''',
+      [
+        purchaseNumber,
+        null,
+        null,
+        autoStockVendorId,
+        subtotal,
+        0.0,
+        totalAmount,
+        sourceBillId,
+        now.toIso8601String(),
+        now.toIso8601String(),
+      ],
+    );
+
+    // Insert purchase item
+    final purchaseItemId = await txn.rawInsert(
+      '''INSERT INTO purchase_items
+      (purchase_id, product_id, product_name, part_number, hsn_code, uqc_code,
+      cost_price, quantity, subtotal, cgst_rate, sgst_rate, igst_rate, utgst_rate,
+      cgst_amount, sgst_amount, igst_amount, utgst_amount, tax_amount, total_amount,
+      created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 0, 0, 0, 0, ?, datetime('now'), datetime('now'))''',
+      [
+        purchaseId,
+        productId,
+        productName,
+        partNumber,
+        hsnCode,
+        uqcCode,
+        costPrice,
+        shortage,
+        subtotal,
+        totalAmount,
+      ],
+    );
+
+    // Create stock batch
+    final timestamp = now.millisecondsSinceEpoch;
+    final batchNumber = 'BATCH-$purchaseId-$productId-$timestamp';
+
+    await txn.rawInsert(
+      '''INSERT INTO stock_batches
+      (product_id, purchase_item_id, batch_number, quantity_received,
+      quantity_remaining, cost_price, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))''',
+      [productId, purchaseItemId, batchNumber, shortage, shortage, costPrice],
     );
   }
 }

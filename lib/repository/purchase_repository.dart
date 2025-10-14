@@ -177,4 +177,123 @@ class PurchaseRepository {
       [id],
     );
   }
+
+  // Generate auto-purchase number in format: AUTO-PUR-YYYYMMDD-XXX
+  Future<String> generateAutoPurchaseNumber(Transaction txn) async {
+    final now = DateTime.now();
+    final year = now.year.toString();
+    final month = now.month.toString().padLeft(2, '0');
+    final day = now.day.toString().padLeft(2, '0');
+    final datePrefix = 'AUTO-PUR-$year$month$day';
+
+    // Get the last auto-purchase number for today
+    final result = await txn.rawQuery(
+      '''SELECT purchase_number FROM purchases
+         WHERE purchase_number LIKE ?
+         AND is_deleted = 0
+         ORDER BY purchase_number DESC LIMIT 1''',
+      ['$datePrefix%'],
+    );
+
+    int sequenceNumber = 1;
+
+    if (result.isNotEmpty) {
+      final lastNumber = result.first['purchase_number'] as String;
+      // Extract the last 3 digits (sequence number)
+      final parts = lastNumber.split('-');
+      if (parts.length == 4) {
+        final lastSequence = int.tryParse(parts[3]) ?? 0;
+        sequenceNumber = lastSequence + 1;
+      }
+    }
+
+    // Format: AUTO-PUR-YYYYMMDD-XXX (3 digits sequence)
+    return '$datePrefix-${sequenceNumber.toString().padLeft(3, '0')}';
+  }
+
+  // Create automatic purchase for insufficient stock (called from bill creation)
+  // This is called within a transaction context
+  Future<int> createAutoPurchaseInTransaction(
+    Transaction txn,
+    int productId,
+    String productName,
+    String? partNumber,
+    String? hsnCode,
+    String? uqcCode,
+    double costPrice,
+    int quantity,
+    int sourceBillId,
+  ) async {
+    final now = DateTime.now();
+    final purchaseNumber = await generateAutoPurchaseNumber(txn);
+
+    // Auto-stock vendor ID is 7
+    const autoStockVendorId = 7;
+
+    // For auto-purchases, we keep it simple: no tax breakdown
+    final subtotal = costPrice * quantity;
+    final totalAmount = subtotal;
+
+    // Insert purchase
+    final purchaseId = await txn.rawInsert(
+      '''INSERT INTO purchases
+      (purchase_number, purchase_reference_number, purchase_reference_date,
+      vendor_id, subtotal, tax_amount, total_amount, is_auto_purchase, source_bill_id,
+      created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)''',
+      [
+        purchaseNumber,
+        null, // No reference number
+        null, // No reference date
+        autoStockVendorId,
+        subtotal,
+        0.0, // No tax for auto-purchases
+        totalAmount,
+        sourceBillId,
+        now.toIso8601String(),
+        now.toIso8601String(),
+      ],
+    );
+
+    // Insert purchase item
+    final purchaseItemId = await txn.rawInsert(
+      '''INSERT INTO purchase_items
+      (purchase_id, product_id, product_name, part_number, hsn_code, uqc_code,
+      cost_price, quantity, subtotal, cgst_rate, sgst_rate, igst_rate, utgst_rate,
+      cgst_amount, sgst_amount, igst_amount, utgst_amount, tax_amount, total_amount,
+      created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 0, 0, 0, 0, ?, datetime('now'), datetime('now'))''',
+      [
+        purchaseId,
+        productId,
+        productName,
+        partNumber,
+        hsnCode,
+        uqcCode,
+        costPrice,
+        quantity,
+        subtotal,
+        totalAmount,
+      ],
+    );
+
+    // Create stock batch
+    final batchNumber = await _generateBatchNumber(txn, purchaseId, productId);
+    await txn.rawInsert(
+      '''INSERT INTO stock_batches
+      (product_id, purchase_item_id, batch_number, quantity_received,
+      quantity_remaining, cost_price, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))''',
+      [
+        productId,
+        purchaseItemId,
+        batchNumber,
+        quantity,
+        quantity, // Initially, remaining = received
+        costPrice,
+      ],
+    );
+
+    return purchaseId;
+  }
 }

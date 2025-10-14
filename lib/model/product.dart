@@ -9,6 +9,7 @@ class Product {
   final int subCategoryId;
   final int manufacturerId;
   final bool isTaxable;
+  final bool negativeAllow;
   final bool isEnabled;
   final bool isDeleted;
   final DateTime? createdAt;
@@ -25,6 +26,7 @@ class Product {
     required this.subCategoryId,
     required this.manufacturerId,
     this.isTaxable = false,
+    this.negativeAllow = false,
     this.isEnabled = true,
     this.isDeleted = false,
     this.createdAt,
@@ -43,6 +45,7 @@ class Product {
       subCategoryId: json['sub_category_id'] as int,
       manufacturerId: json['manufacturer_id'] as int,
       isTaxable: (json['is_taxable'] as int) == 1,
+      negativeAllow: (json['negative_allow'] as int?) == 1,
       isEnabled: (json['is_enabled'] as int) == 1,
       isDeleted: (json['is_deleted'] as int) == 1,
       createdAt: json['created_at'] != null
@@ -66,6 +69,7 @@ class Product {
       'sub_category_id': subCategoryId,
       'manufacturer_id': manufacturerId,
       'is_taxable': isTaxable ? 1 : 0,
+      'negative_allow': negativeAllow ? 1 : 0,
       'is_enabled': isEnabled ? 1 : 0,
       'is_deleted': isDeleted ? 1 : 0,
     };
@@ -82,6 +86,7 @@ class Product {
     int? subCategoryId,
     int? manufacturerId,
     bool? isTaxable,
+    bool? negativeAllow,
     bool? isEnabled,
     bool? isDeleted,
     DateTime? createdAt,
@@ -98,6 +103,7 @@ class Product {
       subCategoryId: subCategoryId ?? this.subCategoryId,
       manufacturerId: manufacturerId ?? this.manufacturerId,
       isTaxable: isTaxable ?? this.isTaxable,
+      negativeAllow: negativeAllow ?? this.negativeAllow,
       isEnabled: isEnabled ?? this.isEnabled,
       isDeleted: isDeleted ?? this.isDeleted,
       createdAt: createdAt ?? this.createdAt,

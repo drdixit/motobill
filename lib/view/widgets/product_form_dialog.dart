@@ -29,6 +29,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
   late TextEditingController _sellingPriceController;
   late bool _isEnabled;
   late bool _isTaxable;
+  late bool _negativeAllow;
   int? _selectedSubCategoryId;
   int? _selectedManufacturerId;
   int? _selectedHsnCodeId;
@@ -57,6 +58,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
     );
     _isEnabled = widget.product?.isEnabled ?? true;
     _isTaxable = widget.product?.isTaxable ?? false;
+    _negativeAllow = widget.product?.negativeAllow ?? false;
     _selectedSubCategoryId = widget.product?.subCategoryId;
     _selectedManufacturerId = widget.product?.manufacturerId;
     _selectedHsnCodeId = widget.product?.hsnCodeId;
@@ -305,6 +307,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
       subCategoryId: _selectedSubCategoryId!,
       manufacturerId: _selectedManufacturerId!,
       isTaxable: _isTaxable,
+      negativeAllow: _negativeAllow,
       isEnabled: _isEnabled,
     );
 
@@ -778,6 +781,40 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                             },
                           ),
                           const Text('Enabled'),
+                        ],
+                      ),
+                      const SizedBox(height: AppSizes.paddingM),
+                      Row(
+                        children: [
+                          Checkbox(
+                            value: _negativeAllow,
+                            onChanged: (value) {
+                              setState(() {
+                                _negativeAllow = value ?? false;
+                              });
+                            },
+                          ),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Allow Negative Stock',
+                                  style: TextStyle(
+                                    fontSize: AppSizes.fontM,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                Text(
+                                  'When enabled, bills can be created even when stock is insufficient. System will automatically create purchase records.',
+                                  style: TextStyle(
+                                    fontSize: AppSizes.fontS,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: AppSizes.paddingM),
