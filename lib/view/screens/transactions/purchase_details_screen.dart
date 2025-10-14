@@ -599,6 +599,7 @@ class PurchaseDetailsScreen extends ConsumerWidget {
 
     for (final debitNote in debitNotes) {
       final debitNoteNumber = debitNote['debit_note_number'] as String;
+      final total = (debitNote['total'] as num?) ?? 0;
       final taxableItems =
           debitNote['taxableItems'] as List<Map<String, dynamic>>;
       final nonTaxableItems =
@@ -609,7 +610,7 @@ class PurchaseDetailsScreen extends ConsumerWidget {
         const Divider(thickness: 2),
         const SizedBox(height: 16),
         Text(
-          'DN$debitNoteNumber',
+          'DN$debitNoteNumber - ₹${total.toStringAsFixed(2)}',
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 16),
