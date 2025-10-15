@@ -5,6 +5,7 @@ import '../../core/constants/app_sizes.dart';
 import '../../core/providers/database_provider.dart';
 import '../../repository/bill_repository.dart';
 import '../../view_model/pos_viewmodel.dart';
+import 'debit_notes_screen.dart';
 
 final creditNotesProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
@@ -2419,6 +2420,11 @@ class _CreateCreditNoteScreenState
       ref.invalidate(creditNotesProvider);
       // Refresh POS screen stock to reflect returned items
       ref.invalidate(posViewModelProvider);
+      // Refresh purchases provider so debit notes screen shows updated stock
+      ref.invalidate(purchasesProvider);
+      // Refresh available stock for all purchases that might be affected
+      // This ensures debit note screens show correct available stock after credit note
+      ref.invalidate(availableStockForPurchaseProvider);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Credit Note $newId created')));

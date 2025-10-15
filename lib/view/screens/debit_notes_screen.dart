@@ -1473,126 +1473,475 @@ class _CreateDebitNoteScreenState extends ConsumerState<CreateDebitNoteScreen> {
     );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Debit Note')),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('Create Debit Note'),
+        backgroundColor: AppColors.white,
+        foregroundColor: AppColors.textPrimary,
+        elevation: 0,
+      ),
       body: itemsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) => Center(child: Text('Error: $e')),
+        error: (e, st) => Center(
+          child: Text('Error: $e', style: TextStyle(color: AppColors.error)),
+        ),
         data: (items) {
-          if (items.isEmpty)
-            return const Center(child: Text('No items to return'));
+          if (items.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.inventory_outlined,
+                    size: AppSizes.iconXL * 2,
+                    color: AppColors.textSecondary,
+                  ),
+                  const SizedBox(height: AppSizes.paddingL),
+                  Text(
+                    'No items to return',
+                    style: TextStyle(
+                      fontSize: AppSizes.fontXL,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
 
           return returnedAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, st) => Center(child: Text('Error: $e')),
+            error: (e, st) => Center(
+              child: Text(
+                'Error: $e',
+                style: TextStyle(color: AppColors.error),
+              ),
+            ),
             data: (returnedMap) {
               return availableStockAsync.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, st) => Center(child: Text('Error: $e')),
+                error: (e, st) => Center(
+                  child: Text(
+                    'Error: $e',
+                    style: TextStyle(color: AppColors.error),
+                  ),
+                ),
                 data: (availableStockMap) {
-                  return Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      children: [
-                        TextField(
-                          controller: _reasonController,
-                          decoration: const InputDecoration(
-                            labelText: 'Reason for return (optional)',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Expanded(
-                          child: ListView.separated(
-                            itemCount: items.length,
-                            separatorBuilder: (_, __) => const Divider(),
-                            itemBuilder: (context, idx) {
-                              final it = items[idx];
-                              final id = it['id'] as int; // purchase_item id
-                              final boughtQty = it['quantity'] as int;
-                              final alreadyReturned = returnedMap[id] ?? 0;
-                              final availableStock = availableStockMap[id] ?? 0;
-                              final remaining = boughtQty - alreadyReturned;
-                              final returnQty = _returnQuantities[id] ?? 0;
+                  // Calculate totals
+                  double totalAmount = 0.0;
+                  for (var entry in _returnQuantities.entries) {
+                    final qty = entry.value;
+                    if (qty > 0) {
+                      final item = items.firstWhere(
+                        (it) => it['id'] == entry.key,
+                      );
+                      final price = (item['cost_price'] as num).toDouble();
+                      final subtotal = price * qty;
+                      final cgst =
+                          subtotal *
+                          (item['cgst_rate'] as num).toDouble() /
+                          100;
+                      final sgst =
+                          subtotal *
+                          (item['sgst_rate'] as num).toDouble() /
+                          100;
+                      final igst =
+                          subtotal *
+                          (item['igst_rate'] as num).toDouble() /
+                          100;
+                      final utgst =
+                          subtotal *
+                          (item['utgst_rate'] as num).toDouble() /
+                          100;
+                      totalAmount += subtotal + cgst + sgst + igst + utgst;
+                    }
+                  }
 
-                              // Maximum returnable is the minimum of remaining and available stock
-                              final maxReturnable = remaining < availableStock
-                                  ? remaining
-                                  : availableStock;
-
-                              return ListTile(
-                                title: Text(it['product_name'] ?? '-'),
-                                subtitle: Column(
+                  return Column(
+                    children: [
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(AppSizes.paddingL),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Reason field
+                              Container(
+                                padding: const EdgeInsets.all(
+                                  AppSizes.paddingM,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.white,
+                                  borderRadius: BorderRadius.circular(
+                                    AppSizes.radiusM,
+                                  ),
+                                  border: Border.all(color: AppColors.border),
+                                ),
+                                child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Bought: $boughtQty   Returned: $alreadyReturned',
-                                    ),
-                                    Text(
-                                      'In Stock: $availableStock   Max Returnable: $maxReturnable',
+                                      'Return Reason',
                                       style: TextStyle(
-                                        color: availableStock < remaining
-                                            ? Colors.red.shade700
-                                            : Colors.green.shade700,
-                                        fontWeight: FontWeight.w500,
+                                        fontSize: AppSizes.fontM,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textPrimary,
                                       ),
                                     ),
-                                    if (availableStock < remaining)
-                                      Text(
-                                        '⚠ Insufficient stock for full return',
-                                        style: TextStyle(
-                                          color: Colors.red.shade700,
-                                          fontSize: 12,
-                                          fontStyle: FontStyle.italic,
+                                    const SizedBox(height: AppSizes.paddingS),
+                                    TextField(
+                                      controller: _reasonController,
+                                      decoration: InputDecoration(
+                                        hintText:
+                                            'Enter reason for return (optional)',
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            AppSizes.radiusS,
+                                          ),
                                         ),
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              horizontal: AppSizes.paddingM,
+                                              vertical: AppSizes.paddingS,
+                                            ),
                                       ),
-                                    Text(
-                                      'Price: ₹${(it['cost_price'] as num).toStringAsFixed(2)}',
+                                      maxLines: 2,
                                     ),
                                   ],
                                 ),
-                                trailing: SizedBox(
-                                  width: 140,
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    children: [
-                                      IconButton(
-                                        icon: const Icon(
-                                          Icons.remove_circle_outline,
+                              ),
+                              const SizedBox(height: AppSizes.paddingL),
+
+                              // Items table
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: AppColors.white,
+                                  borderRadius: BorderRadius.circular(
+                                    AppSizes.radiusM,
+                                  ),
+                                  border: Border.all(color: AppColors.border),
+                                ),
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: DataTable(
+                                    columnSpacing: 20,
+                                    horizontalMargin: 16,
+                                    headingRowColor: WidgetStateProperty.all(
+                                      Colors.grey.shade100,
+                                    ),
+                                    headingRowHeight: 48,
+                                    dataRowMinHeight: 56,
+                                    dataRowMaxHeight: 72,
+                                    border: TableBorder.all(
+                                      color: Colors.grey.shade300,
+                                      width: 1,
+                                    ),
+                                    columns: const [
+                                      DataColumn(
+                                        label: Text(
+                                          'No.',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                          ),
                                         ),
-                                        onPressed: returnQty > 0
-                                            ? () => setState(
-                                                () => _returnQuantities[id] =
-                                                    returnQty - 1,
-                                              )
-                                            : null,
                                       ),
-                                      Text('$returnQty'),
-                                      IconButton(
-                                        icon: const Icon(
-                                          Icons.add_circle_outline,
+                                      DataColumn(
+                                        label: Text(
+                                          'Product Name',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                          ),
                                         ),
-                                        onPressed: returnQty < maxReturnable
-                                            ? () => setState(
-                                                () => _returnQuantities[id] =
-                                                    returnQty + 1,
-                                              )
-                                            : null,
+                                      ),
+                                      DataColumn(
+                                        label: Text(
+                                          'Part Number',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ),
+                                      DataColumn(
+                                        label: Text(
+                                          'Price',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        numeric: true,
+                                      ),
+                                      DataColumn(
+                                        label: Text(
+                                          'CGST%',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        numeric: true,
+                                      ),
+                                      DataColumn(
+                                        label: Text(
+                                          'SGST%',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        numeric: true,
+                                      ),
+                                      DataColumn(
+                                        label: Text(
+                                          'IGST%',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        numeric: true,
+                                      ),
+                                      DataColumn(
+                                        label: Text(
+                                          'Purchased',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        numeric: true,
+                                      ),
+                                      DataColumn(
+                                        label: Text(
+                                          'Returned',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        numeric: true,
+                                      ),
+                                      DataColumn(
+                                        label: Text(
+                                          'Available Stock',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        numeric: true,
+                                      ),
+                                      DataColumn(
+                                        label: Text(
+                                          'Return Qty',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                          ),
+                                        ),
                                       ),
                                     ],
+                                    rows: items.asMap().entries.map((entry) {
+                                      final idx = entry.key;
+                                      final it = entry.value;
+                                      final id = it['id'] as int;
+                                      final boughtQty = it['quantity'] as int;
+                                      final alreadyReturned =
+                                          returnedMap[id] ?? 0;
+                                      final availableStock =
+                                          availableStockMap[id] ?? 0;
+                                      final remaining =
+                                          boughtQty - alreadyReturned;
+                                      final returnQty =
+                                          _returnQuantities[id] ?? 0;
+
+                                      // Maximum returnable is minimum of remaining and available stock
+                                      final maxReturnable =
+                                          remaining < availableStock
+                                          ? remaining
+                                          : availableStock;
+
+                                      return DataRow(
+                                        cells: [
+                                          DataCell(Text('${idx + 1}')),
+                                          DataCell(
+                                            SizedBox(
+                                              width: 200,
+                                              child: Text(
+                                                it['product_name'] ?? '-',
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ),
+                                          DataCell(
+                                            Text(it['part_number'] ?? '-'),
+                                          ),
+                                          DataCell(
+                                            Text(
+                                              '₹${(it['cost_price'] as num).toStringAsFixed(2)}',
+                                            ),
+                                          ),
+                                          DataCell(
+                                            Text(
+                                              '${(it['cgst_rate'] as num).toStringAsFixed(2)}%',
+                                            ),
+                                          ),
+                                          DataCell(
+                                            Text(
+                                              '${(it['sgst_rate'] as num).toStringAsFixed(2)}%',
+                                            ),
+                                          ),
+                                          DataCell(
+                                            Text(
+                                              '${(it['igst_rate'] as num).toStringAsFixed(2)}%',
+                                            ),
+                                          ),
+                                          DataCell(Text('$boughtQty')),
+                                          DataCell(
+                                            Text(
+                                              '$alreadyReturned',
+                                              style: TextStyle(
+                                                color: alreadyReturned > 0
+                                                    ? Colors.orange
+                                                    : null,
+                                              ),
+                                            ),
+                                          ),
+                                          DataCell(
+                                            Text(
+                                              '$availableStock',
+                                              style: TextStyle(
+                                                color:
+                                                    availableStock < remaining
+                                                    ? Colors.red.shade700
+                                                    : Colors.green.shade700,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ),
+                                          DataCell(
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                IconButton(
+                                                  icon: const Icon(
+                                                    Icons.remove_circle_outline,
+                                                    size: 20,
+                                                  ),
+                                                  onPressed: returnQty > 0
+                                                      ? () => setState(
+                                                          () =>
+                                                              _returnQuantities[id] =
+                                                                  returnQty - 1,
+                                                        )
+                                                      : null,
+                                                ),
+                                                SizedBox(
+                                                  width: 40,
+                                                  child: Text(
+                                                    '$returnQty',
+                                                    textAlign: TextAlign.center,
+                                                    style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      fontSize: 16,
+                                                      color: returnQty > 0
+                                                          ? AppColors.primary
+                                                          : null,
+                                                    ),
+                                                  ),
+                                                ),
+                                                IconButton(
+                                                  icon: const Icon(
+                                                    Icons.add_circle_outline,
+                                                    size: 20,
+                                                  ),
+                                                  onPressed:
+                                                      returnQty < maxReturnable
+                                                      ? () => setState(
+                                                          () =>
+                                                              _returnQuantities[id] =
+                                                                  returnQty + 1,
+                                                        )
+                                                      : null,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    }).toList(),
                                   ),
                                 ),
-                              );
-                            },
+                              ),
+                            ],
                           ),
                         ),
-                        ElevatedButton(
-                          onPressed: _returnQuantities.values.any((v) => v > 0)
-                              ? _submitDebitNote
-                              : null,
-                          child: const Text('Create Debit Note'),
+                      ),
+
+                      // Bottom bar with total and save button
+                      Container(
+                        padding: const EdgeInsets.all(AppSizes.paddingL),
+                        decoration: BoxDecoration(
+                          color: AppColors.white,
+                          border: Border(
+                            top: BorderSide(color: AppColors.border),
+                          ),
                         ),
-                      ],
-                    ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'Total Return Amount',
+                                    style: TextStyle(
+                                      fontSize: AppSizes.fontM,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '₹${totalAmount.toStringAsFixed(2)}',
+                                    style: TextStyle(
+                                      fontSize: AppSizes.fontXXL,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            ElevatedButton.icon(
+                              onPressed:
+                                  _returnQuantities.values.any((v) => v > 0)
+                                  ? _submitDebitNote
+                                  : null,
+                              icon: const Icon(Icons.save),
+                              label: const Text('Create Debit Note'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: AppColors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSizes.paddingXL,
+                                  vertical: AppSizes.paddingL,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    AppSizes.radiusS,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   );
                 },
               );
