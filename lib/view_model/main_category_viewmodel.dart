@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../model/main_category.dart';
 import '../repository/main_category_repository.dart';
 import '../core/providers/database_provider.dart';
+import 'pos_viewmodel.dart';
 
 // State class
 class MainCategoryState {
@@ -31,8 +32,9 @@ class MainCategoryState {
 // ViewModel
 class MainCategoryViewModel extends StateNotifier<MainCategoryState> {
   final MainCategoryRepository? _repository;
+  final Ref? _ref;
 
-  MainCategoryViewModel(this._repository)
+  MainCategoryViewModel(this._repository, [this._ref])
     : super(MainCategoryState(isLoading: true)) {
     // Load categories immediately if repository is available
     if (_repository != null) {
@@ -43,6 +45,7 @@ class MainCategoryViewModel extends StateNotifier<MainCategoryState> {
   // Factory for loading state
   MainCategoryViewModel._loading()
     : _repository = null,
+      _ref = null,
       super(MainCategoryState(isLoading: true));
 
   Future<void> loadCategories() async {
@@ -61,6 +64,7 @@ class MainCategoryViewModel extends StateNotifier<MainCategoryState> {
     try {
       await _repository.createMainCategory(category);
       await loadCategories();
+      _ref?.invalidate(posViewModelProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -71,6 +75,7 @@ class MainCategoryViewModel extends StateNotifier<MainCategoryState> {
     try {
       await _repository.updateMainCategory(category);
       await loadCategories();
+      _ref?.invalidate(posViewModelProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -81,6 +86,7 @@ class MainCategoryViewModel extends StateNotifier<MainCategoryState> {
     try {
       await _repository.softDeleteMainCategory(id);
       await loadCategories();
+      _ref?.invalidate(posViewModelProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -91,6 +97,7 @@ class MainCategoryViewModel extends StateNotifier<MainCategoryState> {
     try {
       await _repository.toggleMainCategoryEnabled(id, isEnabled);
       await loadCategories();
+      _ref?.invalidate(posViewModelProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -126,7 +133,7 @@ final mainCategoryProvider =
       final repositoryAsync = ref.watch(mainCategoryRepositoryProvider);
 
       return repositoryAsync.when(
-        data: (repository) => MainCategoryViewModel(repository),
+        data: (repository) => MainCategoryViewModel(repository, ref),
         loading: () => MainCategoryViewModel._loading(),
         error: (error, stack) => MainCategoryViewModel._loading(),
       );

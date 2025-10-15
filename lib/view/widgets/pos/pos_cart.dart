@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../view_model/pos_viewmodel.dart';
@@ -923,6 +924,57 @@ extension on PosCart {
               ),
               const SizedBox(width: AppSizes.paddingM),
               Expanded(
+                child: Consumer(
+                  builder: (context, consumerRef, child) {
+                    final state = consumerRef.watch(posViewModelProvider);
+
+                    return OutlinedButton.icon(
+                      onPressed:
+                          state.cartItems.isEmpty ||
+                              state.selectedCustomer == null ||
+                              (state.selectedCustomer?.phone == null ||
+                                  state.selectedCustomer!.phone!.isEmpty)
+                          ? null
+                          : () => _sendWhatsAppMessage(context, state),
+                      icon: Icon(Icons.phone, size: AppSizes.iconS),
+                      label: Text(
+                        'WhatsApp',
+                        style: TextStyle(
+                          fontSize: AppSizes.fontM,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: AppSizes.paddingM,
+                        ),
+                        side: BorderSide(
+                          color:
+                              state.cartItems.isEmpty ||
+                                  state.selectedCustomer == null ||
+                                  (state.selectedCustomer?.phone == null ||
+                                      state.selectedCustomer!.phone!.isEmpty)
+                              ? AppColors.border
+                              : Colors.green,
+                        ),
+                        foregroundColor:
+                            state.cartItems.isEmpty ||
+                                state.selectedCustomer == null ||
+                                (state.selectedCustomer?.phone == null ||
+                                    state.selectedCustomer!.phone!.isEmpty)
+                            ? AppColors.textTertiary
+                            : Colors.green,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppSizes.radiusM),
+                        ),
+                        disabledForegroundColor: AppColors.textTertiary,
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: AppSizes.paddingM),
+              Expanded(
                 flex: 2,
                 child: Consumer(
                   builder: (context, consumerRef, child) {
@@ -1023,5 +1075,117 @@ extension on PosCart {
         ],
       ),
     );
+  }
+
+  Future<void> _sendWhatsAppMessage(
+    BuildContext context,
+    PosState state,
+  ) async {
+    // Validate cart and customer
+    if (state.cartItems.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Cart is empty'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    if (state.selectedCustomer == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please select a customer'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final customerPhone = state.selectedCustomer?.phone;
+    if (customerPhone == null || customerPhone.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Customer does not have a phone number'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    // Build WhatsApp message
+    final customerName = state.selectedCustomer?.name ?? 'Customer';
+
+    final StringBuffer message = StringBuffer();
+    message.writeln('Hello $customerName,');
+    message.writeln('');
+    message.writeln('Thank you for shopping with us!');
+    message.writeln('');
+    message.writeln('📋 *Cart Details:*');
+    message.writeln('―――――――――――――');
+
+    // Add cart items
+    for (final item in state.cartItems) {
+      final productName = item.productName;
+      final quantity = item.quantity;
+      final price = item.sellingPrice;
+      final total = item.totalAmount;
+
+      message.writeln('');
+      message.writeln('*$productName*');
+      message.writeln('Qty: $quantity × ₹${price.toStringAsFixed(2)}');
+      message.writeln('Amount: ₹${total.toStringAsFixed(2)}');
+    }
+
+    message.writeln('');
+    message.writeln('―――――――――――――');
+    message.writeln('*Subtotal:* ₹${state.subtotal.toStringAsFixed(2)}');
+    message.writeln('*Tax:* ₹${state.taxAmount.toStringAsFixed(2)}');
+    message.writeln('*Total Amount:* ₹${state.totalAmount.toStringAsFixed(2)}');
+    message.writeln('');
+    message.writeln('Please visit us again! 🙏');
+
+    // Clean phone number (remove spaces, dashes, etc.)
+    String cleanPhone = customerPhone.replaceAll(RegExp(r'[^0-9+]'), '');
+
+    // If phone doesn't start with country code, add India code
+    if (!cleanPhone.startsWith('+')) {
+      if (cleanPhone.startsWith('91')) {
+        cleanPhone = '+$cleanPhone';
+      } else {
+        cleanPhone = '+91$cleanPhone';
+      }
+    }
+
+    // URL encode the message
+    final encodedMessage = Uri.encodeComponent(message.toString());
+
+    // Create WhatsApp URL
+    final whatsappUrl = 'https://wa.me/$cleanPhone?text=$encodedMessage';
+
+    try {
+      final uri = Uri.parse(whatsappUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Could not open WhatsApp'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 }

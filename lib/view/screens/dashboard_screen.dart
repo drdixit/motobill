@@ -186,7 +186,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                                   child: _buildStatCard(
                                     title: 'Total Sales',
                                     value: '₹${totalSales.toStringAsFixed(2)}',
-                                    icon: Icons.attach_money,
+                                    icon: Icons.currency_rupee,
                                     color: Colors.green,
                                   ),
                                 ),
