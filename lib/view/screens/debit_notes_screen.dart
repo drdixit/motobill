@@ -5,6 +5,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
 import '../../repository/purchase_repository.dart';
 import '../../repository/debit_note_repository.dart';
+import '../../view_model/pos_viewmodel.dart';
 
 final debitNotesProvider = FutureProvider<List<Map<String, dynamic>>>((
   ref,
@@ -1685,7 +1686,16 @@ class _CreateDebitNoteScreenState extends ConsumerState<CreateDebitNoteScreen> {
 
     try {
       final newId = await repo.createDebitNote(debitNoteData, debitItems);
+
+      // Invalidate providers to refresh data across the app
       ref.invalidate(debitNotesProvider);
+      ref.invalidate(purchasesProvider);
+      ref.invalidate(posViewModelProvider);
+      ref.invalidate(purchaseItemsProvider(widget.purchaseId));
+      ref.invalidate(returnedQuantitiesForPurchaseProvider(widget.purchaseId));
+      ref.invalidate(availableStockForPurchaseProvider(widget.purchaseId));
+      ref.invalidate(debitNotesForPurchaseProvider(widget.purchaseId));
+
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Debit Note $newId created')));

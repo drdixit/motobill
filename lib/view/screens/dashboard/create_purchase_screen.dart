@@ -8,6 +8,7 @@ import '../../../repository/purchase_repository.dart';
 import '../../../repository/vendor_repository.dart';
 import '../../../repository/gst_rate_repository.dart';
 import '../../../view_model/pos_viewmodel.dart';
+import '../debit_notes_screen.dart';
 
 // Providers
 final purchaseRepositoryProvider = FutureProvider<PurchaseRepository>((
@@ -314,6 +315,8 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
       if (mounted) {
         // Invalidate POS provider to refresh product stock
         ref.invalidate(posViewModelProvider);
+        // Invalidate purchases provider to refresh in Debit Notes screen
+        ref.invalidate(purchasesProvider);
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
