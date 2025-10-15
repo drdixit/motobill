@@ -936,7 +936,7 @@ extension on PosCart {
                                   state.selectedCustomer!.phone!.isEmpty)
                           ? null
                           : () => _sendWhatsAppMessage(context, state),
-                      icon: Icon(Icons.phone, size: AppSizes.iconS),
+                      icon: Icon(Icons.message, size: AppSizes.iconS),
                       label: Text(
                         'WhatsApp',
                         style: TextStyle(
@@ -955,7 +955,7 @@ extension on PosCart {
                                   (state.selectedCustomer?.phone == null ||
                                       state.selectedCustomer!.phone!.isEmpty)
                               ? AppColors.border
-                              : Colors.green,
+                              : const Color(0xFF25D366),
                         ),
                         foregroundColor:
                             state.cartItems.isEmpty ||
@@ -963,7 +963,7 @@ extension on PosCart {
                                 (state.selectedCustomer?.phone == null ||
                                     state.selectedCustomer!.phone!.isEmpty)
                             ? AppColors.textTertiary
-                            : Colors.green,
+                            : const Color(0xFF25D366),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(AppSizes.radiusM),
                         ),
@@ -1119,31 +1119,26 @@ extension on PosCart {
     final StringBuffer message = StringBuffer();
     message.writeln('Hello $customerName,');
     message.writeln('');
-    message.writeln('Thank you for shopping with us!');
-    message.writeln('');
-    message.writeln('📋 *Cart Details:*');
-    message.writeln('―――――――――――――');
 
     // Add cart items
     for (final item in state.cartItems) {
       final productName = item.productName;
       final quantity = item.quantity;
-      final price = item.sellingPrice;
+      final priceWithTax =
+          (item.sellingPrice + (item.taxAmount / item.quantity));
       final total = item.totalAmount;
 
-      message.writeln('');
       message.writeln('*$productName*');
-      message.writeln('Qty: $quantity × ₹${price.toStringAsFixed(2)}');
-      message.writeln('Amount: ₹${total.toStringAsFixed(2)}');
+      message.writeln(
+        '*Qty:* $quantity × ₹${priceWithTax.toStringAsFixed(2)} = *₹${total.toStringAsFixed(2)}*',
+      );
+      message.writeln('');
     }
 
-    message.writeln('');
     message.writeln('―――――――――――――');
     message.writeln('*Subtotal:* ₹${state.subtotal.toStringAsFixed(2)}');
     message.writeln('*Tax:* ₹${state.taxAmount.toStringAsFixed(2)}');
     message.writeln('*Total Amount:* ₹${state.totalAmount.toStringAsFixed(2)}');
-    message.writeln('');
-    message.writeln('Please visit us again! 🙏');
 
     // Clean phone number (remove spaces, dashes, etc.)
     String cleanPhone = customerPhone.replaceAll(RegExp(r'[^0-9+]'), '');
