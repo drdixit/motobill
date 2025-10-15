@@ -7,6 +7,7 @@ import '../../../model/purchase.dart';
 import '../../../repository/purchase_repository.dart';
 import '../../../repository/vendor_repository.dart';
 import '../../../repository/gst_rate_repository.dart';
+import '../../../view_model/pos_viewmodel.dart';
 
 // Providers
 final purchaseRepositoryProvider = FutureProvider<PurchaseRepository>((
@@ -311,6 +312,9 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
       await repository.createPurchase(purchase, items);
 
       if (mounted) {
+        // Invalidate POS provider to refresh product stock
+        ref.invalidate(posViewModelProvider);
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Purchase $purchaseNumber created successfully!'),

@@ -9,6 +9,7 @@ import '../../../model/customer.dart';
 import '../../../repository/customer_repository.dart';
 import '../../../core/providers/database_provider.dart';
 import '../customer_form_dialog.dart';
+import '../bill_print_dialog.dart';
 import '../../screens/transactions/sales_screen.dart';
 import '../../screens/debit_notes_screen.dart';
 
@@ -941,13 +942,12 @@ extension on PosCart {
                                 // Invalidate purchases list so auto-purchases show in Debit Notes
                                 consumerRef.invalidate(purchasesProvider);
 
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'Bill $billNumber created successfully!',
-                                    ),
-                                    backgroundColor: AppColors.success,
-                                  ),
+                                // Show print dialog
+                                showDialog(
+                                  context: context,
+                                  barrierDismissible: false,
+                                  builder: (context) =>
+                                      BillPrintDialog(billNumber: billNumber),
                                 );
                               } else if (state.error != null &&
                                   context.mounted) {

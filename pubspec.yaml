@@ -40,6 +40,8 @@ dependencies:
   path: ^1.9.0
   file_picker: ^8.1.6
   uuid: ^4.5.1
+  printing: ^5.13.4
+  pdf: ^3.11.1
 
 dev_dependencies:
   flutter_test:
