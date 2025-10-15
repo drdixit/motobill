@@ -995,6 +995,10 @@ extension on PosCart {
                                 consumerRef.invalidate(purchasesProvider);
                                 // Invalidate POS viewmodel to refresh stock after bill creation
                                 consumerRef.invalidate(posViewModelProvider);
+                                // Invalidate available stock for debit notes to show updated stock
+                                consumerRef.invalidate(
+                                  availableStockForPurchaseProvider,
+                                );
 
                                 // Show print dialog
                                 showDialog(
