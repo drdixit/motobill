@@ -12,19 +12,19 @@ import 'debit_notes_screen.dart';
 final salesStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   final db = await ref.watch(databaseProvider);
 
-  // Get total sales amount
+  // Get total sales amount (lifetime)
   final salesResult = await db.rawQuery(
     'SELECT SUM(total_amount) as total FROM bills WHERE is_deleted = 0',
   );
   final totalSales = (salesResult.first['total'] as num?) ?? 0;
 
-  // Get total bills count
+  // Get total bills count (lifetime)
   final billsResult = await db.rawQuery(
     'SELECT COUNT(*) as count FROM bills WHERE is_deleted = 0',
   );
   final totalBills = (billsResult.first['count'] as int?) ?? 0;
 
-  // Get total refunds (credit notes)
+  // Get total refunds (credit notes) (lifetime)
   final refundsResult = await db.rawQuery(
     'SELECT SUM(total_amount) as total FROM credit_notes WHERE is_deleted = 0',
   );
