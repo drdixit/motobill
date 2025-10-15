@@ -169,8 +169,72 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Action Buttons and Statistics Cards
+              // Main Row: Pie Chart (left) and Stats + Graph (right)
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Left side - Statistics Cards and Graph
+                      Expanded(
+                        child: Column(
+                          children: [
+                            // Statistics Cards (horizontal on top)
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildStatCard(
+                                    title: 'Total Sales',
+                                    value: '₹${totalSales.toStringAsFixed(2)}',
+                                    icon: Icons.attach_money,
+                                    color: Colors.green,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: _buildStatCard(
+                                    title: 'Total Bills',
+                                    value: totalBills.toString(),
+                                    icon: Icons.receipt_long,
+                                    color: Colors.blue,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: _buildStatCard(
+                                    title: 'Total Refunds',
+                                    value:
+                                        '₹${totalRefunds.toStringAsFixed(2)}',
+                                    icon: Icons.assignment_return,
+                                    color: Colors.orange,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 24),
+                            // Sales Overview Graph (below stats)
+                            _buildSalesOverviewGraph(dailySales),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 24),
+                      // Right side - Pie Chart
+                      SizedBox(
+                        width: 350,
+                        child: _buildTaxablePieChart(
+                          taxableAmount.toDouble(),
+                          nonTaxableAmount.toDouble(),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 32),
+
+              // Action Buttons
               Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   _buildActionButton(
                     context: context,
@@ -199,53 +263,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                       );
                     },
                   ),
-                  const SizedBox(width: 24),
-                  // Statistics Cards (horizontal)
-                  Expanded(
-                    child: _buildStatCard(
-                      title: 'Total Sales',
-                      value: '₹${totalSales.toStringAsFixed(2)}',
-                      icon: Icons.attach_money,
-                      color: Colors.green,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildStatCard(
-                      title: 'Total Bills',
-                      value: totalBills.toString(),
-                      icon: Icons.receipt_long,
-                      color: Colors.blue,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildStatCard(
-                      title: 'Total Refunds',
-                      value: '₹${totalRefunds.toStringAsFixed(2)}',
-                      icon: Icons.assignment_return,
-                      color: Colors.orange,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
-
-              // Pie Chart and Sales Overview Graph
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Pie Chart on left
-                  SizedBox(
-                    width: 350,
-                    child: _buildTaxablePieChart(
-                      taxableAmount.toDouble(),
-                      nonTaxableAmount.toDouble(),
-                    ),
-                  ),
-                  const SizedBox(width: 24),
-                  // Sales Overview Graph on right
-                  Expanded(child: _buildSalesOverviewGraph(dailySales)),
                 ],
               ),
             ],
@@ -460,12 +477,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               color: Colors.black87,
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
           // Pie Chart
           Center(
             child: SizedBox(
-              width: 200,
-              height: 200,
+              width: 280,
+              height: 280,
               child: CustomPaint(
                 painter: _PieChartPainter(
                   taxableAmount: taxableAmount,
@@ -474,22 +491,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               ),
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
           // Legend
           Column(
             children: [
               _buildLegendItem(
                 color: Colors.blue,
-                label: 'Taxable',
-                amount: taxableAmount,
-                percentage: taxablePercentage,
+                label:
+                    '₹${taxableAmount.toStringAsFixed(2)} (${taxablePercentage.toStringAsFixed(1)}%)',
               ),
               const SizedBox(height: 12),
               _buildLegendItem(
                 color: Colors.orange,
-                label: 'Non-Taxable',
-                amount: nonTaxableAmount,
-                percentage: nonTaxablePercentage,
+                label:
+                    '₹${nonTaxableAmount.toStringAsFixed(2)} (${nonTaxablePercentage.toStringAsFixed(1)}%)',
               ),
             ],
           ),
@@ -498,12 +513,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     );
   }
 
-  Widget _buildLegendItem({
-    required Color color,
-    required String label,
-    required double amount,
-    required double percentage,
-  }) {
+  Widget _buildLegendItem({required Color color, required String label}) {
     return Row(
       children: [
         Container(
@@ -515,23 +525,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           ),
         ),
         const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-              ),
-              Text(
-                '₹${amount.toStringAsFixed(2)} (${percentage.toStringAsFixed(1)}%)',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-              ),
-            ],
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
           ),
         ),
       ],
