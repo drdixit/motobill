@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/providers/database_provider.dart';
 import '../model/customer.dart';
 import '../repository/customer_repository.dart';
+import 'pos_viewmodel.dart';
 
 /// State for customer list
 class CustomerState {
@@ -31,8 +32,10 @@ class CustomerState {
 /// ViewModel for customer operations
 class CustomerViewModel extends StateNotifier<CustomerState> {
   final CustomerRepository? _repository;
+  final Ref? _ref;
 
-  CustomerViewModel(this._repository) : super(CustomerState(isLoading: true)) {
+  CustomerViewModel(this._repository, [this._ref])
+    : super(CustomerState(isLoading: true)) {
     // Load customers immediately if repository is available
     if (_repository != null) {
       loadCustomers();
@@ -42,6 +45,7 @@ class CustomerViewModel extends StateNotifier<CustomerState> {
   // Factory for loading state
   CustomerViewModel._loading()
     : _repository = null,
+      _ref = null,
       super(CustomerState(isLoading: true));
 
   /// Load all customers
@@ -62,6 +66,8 @@ class CustomerViewModel extends StateNotifier<CustomerState> {
     try {
       await _repository.createCustomer(customer);
       await loadCustomers(); // Refresh list
+      // Invalidate POS to refresh customer list in POS screen
+      _ref?.invalidate(posViewModelProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -73,6 +79,8 @@ class CustomerViewModel extends StateNotifier<CustomerState> {
     try {
       await _repository.updateCustomer(customer);
       await loadCustomers(); // Refresh list
+      // Invalidate POS to refresh customer data in POS screen
+      _ref?.invalidate(posViewModelProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -84,6 +92,8 @@ class CustomerViewModel extends StateNotifier<CustomerState> {
     try {
       await _repository.softDeleteCustomer(id);
       await loadCustomers(); // Refresh list
+      // Invalidate POS to refresh customer list in POS screen
+      _ref?.invalidate(posViewModelProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -95,6 +105,8 @@ class CustomerViewModel extends StateNotifier<CustomerState> {
     try {
       await _repository.toggleCustomerEnabled(id, isEnabled);
       await loadCustomers(); // Refresh list - THIS WILL UPDATE THE UI IMMEDIATELY
+      // Invalidate POS to refresh customer list in POS screen
+      _ref?.invalidate(posViewModelProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -132,7 +144,7 @@ final customerProvider =
       final repositoryAsync = ref.watch(customerRepositoryProvider);
 
       return repositoryAsync.when(
-        data: (repository) => CustomerViewModel(repository),
+        data: (repository) => CustomerViewModel(repository, ref),
         loading: () => CustomerViewModel._loading(),
         error: (error, stack) => CustomerViewModel._loading(),
       );

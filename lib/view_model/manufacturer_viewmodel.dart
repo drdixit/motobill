@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/providers/database_provider.dart';
 import '../model/manufacturer.dart';
 import '../repository/manufacturer_repository.dart';
+import 'pos_viewmodel.dart';
 
 // Manufacturer State
 class ManufacturerState {
@@ -31,8 +32,9 @@ class ManufacturerState {
 // Manufacturer ViewModel
 class ManufacturerViewModel extends StateNotifier<ManufacturerState> {
   final ManufacturerRepository? _repository;
+  final Ref? _ref;
 
-  ManufacturerViewModel(this._repository)
+  ManufacturerViewModel(this._repository, [this._ref])
     : super(ManufacturerState(isLoading: true)) {
     if (_repository != null) {
       loadManufacturers();
@@ -41,6 +43,7 @@ class ManufacturerViewModel extends StateNotifier<ManufacturerState> {
 
   ManufacturerViewModel._loading()
     : _repository = null,
+      _ref = null,
       super(ManufacturerState(isLoading: true));
 
   Future<void> loadManufacturers() async {
@@ -59,6 +62,7 @@ class ManufacturerViewModel extends StateNotifier<ManufacturerState> {
     try {
       await _repository.createManufacturer(manufacturer);
       await loadManufacturers();
+      _ref?.invalidate(posViewModelProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
       rethrow;
@@ -70,6 +74,7 @@ class ManufacturerViewModel extends StateNotifier<ManufacturerState> {
     try {
       await _repository.updateManufacturer(manufacturer);
       await loadManufacturers();
+      _ref?.invalidate(posViewModelProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
       rethrow;
@@ -81,6 +86,7 @@ class ManufacturerViewModel extends StateNotifier<ManufacturerState> {
     try {
       await _repository.softDeleteManufacturer(id);
       await loadManufacturers();
+      _ref?.invalidate(posViewModelProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -91,6 +97,7 @@ class ManufacturerViewModel extends StateNotifier<ManufacturerState> {
     try {
       await _repository.toggleManufacturerEnabled(id, isEnabled);
       await loadManufacturers();
+      _ref?.invalidate(posViewModelProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -126,7 +133,7 @@ final manufacturerProvider =
       final repositoryAsync = ref.watch(manufacturerRepositoryProvider);
 
       return repositoryAsync.when(
-        data: (repository) => ManufacturerViewModel(repository),
+        data: (repository) => ManufacturerViewModel(repository, ref),
         loading: () => ManufacturerViewModel._loading(),
         error: (error, stack) => ManufacturerViewModel._loading(),
       );

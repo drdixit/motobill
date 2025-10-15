@@ -4,6 +4,7 @@ import '../model/sub_category.dart';
 import '../model/main_category.dart';
 import '../repository/sub_category_repository.dart';
 import '../repository/main_category_repository.dart';
+import 'pos_viewmodel.dart';
 
 // Sub Category State
 class SubCategoryState {
@@ -33,8 +34,9 @@ class SubCategoryState {
 // Sub Category ViewModel
 class SubCategoryViewModel extends StateNotifier<SubCategoryState> {
   final SubCategoryRepository? _repository;
+  final Ref? _ref;
 
-  SubCategoryViewModel(this._repository)
+  SubCategoryViewModel(this._repository, [this._ref])
     : super(SubCategoryState(isLoading: true)) {
     if (_repository != null) {
       loadSubCategories();
@@ -43,6 +45,7 @@ class SubCategoryViewModel extends StateNotifier<SubCategoryState> {
 
   SubCategoryViewModel._loading()
     : _repository = null,
+      _ref = null,
       super(SubCategoryState(isLoading: true));
 
   Future<void> loadSubCategories() async {
@@ -61,6 +64,7 @@ class SubCategoryViewModel extends StateNotifier<SubCategoryState> {
     try {
       await _repository.createSubCategory(subCategory);
       await loadSubCategories();
+      _ref?.invalidate(posViewModelProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
       rethrow;
@@ -72,6 +76,7 @@ class SubCategoryViewModel extends StateNotifier<SubCategoryState> {
     try {
       await _repository.updateSubCategory(subCategory);
       await loadSubCategories();
+      _ref?.invalidate(posViewModelProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
       rethrow;
@@ -83,6 +88,7 @@ class SubCategoryViewModel extends StateNotifier<SubCategoryState> {
     try {
       await _repository.softDeleteSubCategory(id);
       await loadSubCategories();
+      _ref?.invalidate(posViewModelProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -93,6 +99,7 @@ class SubCategoryViewModel extends StateNotifier<SubCategoryState> {
     try {
       await _repository.toggleSubCategoryEnabled(id, isEnabled);
       await loadSubCategories();
+      _ref?.invalidate(posViewModelProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -130,7 +137,7 @@ final subCategoryProvider =
       final repositoryAsync = ref.watch(subCategoryRepositoryProvider);
 
       return repositoryAsync.when(
-        data: (repository) => SubCategoryViewModel(repository),
+        data: (repository) => SubCategoryViewModel(repository, ref),
         loading: () => SubCategoryViewModel._loading(),
         error: (error, stack) => SubCategoryViewModel._loading(),
       );

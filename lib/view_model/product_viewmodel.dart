@@ -6,6 +6,7 @@ import '../model/manufacturer.dart';
 import '../repository/product_repository.dart';
 import '../repository/sub_category_repository.dart';
 import '../repository/manufacturer_repository.dart';
+import 'pos_viewmodel.dart';
 
 // Product State
 class ProductState {
@@ -31,8 +32,10 @@ class ProductState {
 // Product ViewModel
 class ProductViewModel extends StateNotifier<ProductState> {
   final ProductRepository? _repository;
+  final Ref? _ref;
 
-  ProductViewModel(this._repository) : super(ProductState(isLoading: true)) {
+  ProductViewModel(this._repository, [this._ref])
+    : super(ProductState(isLoading: true)) {
     if (_repository != null) {
       loadProducts();
     }
@@ -40,6 +43,7 @@ class ProductViewModel extends StateNotifier<ProductState> {
 
   ProductViewModel._loading()
     : _repository = null,
+      _ref = null,
       super(ProductState(isLoading: true));
 
   Future<void> loadProducts() async {
@@ -58,6 +62,7 @@ class ProductViewModel extends StateNotifier<ProductState> {
     try {
       final id = await _repository.insertProduct(product);
       await loadProducts();
+      _ref?.invalidate(posViewModelProvider);
       return id;
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -70,6 +75,7 @@ class ProductViewModel extends StateNotifier<ProductState> {
     try {
       await _repository.updateProduct(product);
       await loadProducts();
+      _ref?.invalidate(posViewModelProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
       rethrow;
@@ -81,6 +87,7 @@ class ProductViewModel extends StateNotifier<ProductState> {
     try {
       await _repository.deleteProduct(id);
       await loadProducts();
+      _ref?.invalidate(posViewModelProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
       rethrow;
@@ -92,6 +99,7 @@ class ProductViewModel extends StateNotifier<ProductState> {
     try {
       await _repository.toggleProductStatus(id, isEnabled);
       await loadProducts();
+      _ref?.invalidate(posViewModelProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
       rethrow;
@@ -209,7 +217,7 @@ final productViewModelProvider =
       final repositoryAsync = ref.watch(productRepositoryProvider);
 
       return repositoryAsync.when(
-        data: (repository) => ProductViewModel(repository),
+        data: (repository) => ProductViewModel(repository, ref),
         loading: () => ProductViewModel._loading(),
         error: (error, stack) => ProductViewModel._loading(),
       );
