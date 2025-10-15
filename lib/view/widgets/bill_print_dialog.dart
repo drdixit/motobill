@@ -163,7 +163,7 @@ class _BillPrintDialogState extends ConsumerState<BillPrintDialog> {
                   child: pw.Text(
                     'Item',
                     style: pw.TextStyle(
-                      fontSize: 10,
+                      fontSize: 8,
                       fontWeight: pw.FontWeight.bold,
                     ),
                   ),
@@ -173,7 +173,7 @@ class _BillPrintDialogState extends ConsumerState<BillPrintDialog> {
                   child: pw.Text(
                     'Qty',
                     style: pw.TextStyle(
-                      fontSize: 10,
+                      fontSize: 8,
                       fontWeight: pw.FontWeight.bold,
                     ),
                     textAlign: pw.TextAlign.right,
@@ -184,7 +184,7 @@ class _BillPrintDialogState extends ConsumerState<BillPrintDialog> {
                   child: pw.Text(
                     'Rate',
                     style: pw.TextStyle(
-                      fontSize: 10,
+                      fontSize: 8,
                       fontWeight: pw.FontWeight.bold,
                     ),
                     textAlign: pw.TextAlign.right,
@@ -195,7 +195,7 @@ class _BillPrintDialogState extends ConsumerState<BillPrintDialog> {
                   child: pw.Text(
                     'Amount',
                     style: pw.TextStyle(
-                      fontSize: 10,
+                      fontSize: 8,
                       fontWeight: pw.FontWeight.bold,
                     ),
                     textAlign: pw.TextAlign.right,
@@ -222,14 +222,14 @@ class _BillPrintDialogState extends ConsumerState<BillPrintDialog> {
                         flex: 3,
                         child: pw.Text(
                           item['product_name'] ?? 'Product',
-                          style: const pw.TextStyle(fontSize: 10),
+                          style: const pw.TextStyle(fontSize: 8),
                         ),
                       ),
                       pw.SizedBox(
                         width: 25,
                         child: pw.Text(
                           '$quantity',
-                          style: const pw.TextStyle(fontSize: 10),
+                          style: const pw.TextStyle(fontSize: 8),
                           textAlign: pw.TextAlign.right,
                         ),
                       ),
@@ -237,7 +237,7 @@ class _BillPrintDialogState extends ConsumerState<BillPrintDialog> {
                         width: 40,
                         child: pw.Text(
                           rateWithTax.toStringAsFixed(2),
-                          style: const pw.TextStyle(fontSize: 10),
+                          style: const pw.TextStyle(fontSize: 8),
                           textAlign: pw.TextAlign.right,
                         ),
                       ),
@@ -245,7 +245,7 @@ class _BillPrintDialogState extends ConsumerState<BillPrintDialog> {
                         width: 50,
                         child: pw.Text(
                           itemTotal.toStringAsFixed(2),
-                          style: const pw.TextStyle(fontSize: 10),
+                          style: const pw.TextStyle(fontSize: 8),
                           textAlign: pw.TextAlign.right,
                         ),
                       ),

@@ -4,6 +4,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
 import '../../core/providers/database_provider.dart';
 import '../../repository/bill_repository.dart';
+import '../../view_model/pos_viewmodel.dart';
 
 final creditNotesProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
@@ -2416,6 +2417,8 @@ class _CreateCreditNoteScreenState
       final newId = await repo.createCreditNote(creditNoteData, creditItems);
       // Refresh the credit notes provider so Existing tab shows the new credit note immediately
       ref.invalidate(creditNotesProvider);
+      // Refresh POS screen stock to reflect returned items
+      ref.invalidate(posViewModelProvider);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Credit Note $newId created')));
