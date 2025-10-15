@@ -941,6 +941,8 @@ extension on PosCart {
                                 consumerRef.invalidate(billsListProvider);
                                 // Invalidate purchases list so auto-purchases show in Debit Notes
                                 consumerRef.invalidate(purchasesProvider);
+                                // Invalidate POS viewmodel to refresh stock after bill creation
+                                consumerRef.invalidate(posViewModelProvider);
 
                                 // Show print dialog
                                 showDialog(
