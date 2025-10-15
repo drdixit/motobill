@@ -180,7 +180,7 @@ class _BillPrintDialogState extends ConsumerState<BillPrintDialog> {
                   ),
                 ),
                 pw.SizedBox(
-                  width: 35,
+                  width: 40,
                   child: pw.Text(
                     'Rate',
                     style: pw.TextStyle(
@@ -234,7 +234,7 @@ class _BillPrintDialogState extends ConsumerState<BillPrintDialog> {
                         ),
                       ),
                       pw.SizedBox(
-                        width: 35,
+                        width: 40,
                         child: pw.Text(
                           rateWithTax.toStringAsFixed(2),
                           style: const pw.TextStyle(fontSize: 10),
