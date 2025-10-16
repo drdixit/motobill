@@ -14,6 +14,7 @@ import '../customer_form_dialog.dart';
 import '../bill_print_dialog.dart';
 import '../../screens/transactions/sales_screen.dart';
 import '../../screens/debit_notes_screen.dart';
+import '../../screens/dashboard/create_bill_screen.dart';
 
 // Custom formatter to allow only one decimal point and max 2 decimal places
 class DecimalTextInputFormatter extends TextInputFormatter {
@@ -425,8 +426,9 @@ class PosCart extends ConsumerWidget {
             );
             // Refresh customer list and auto-select the new customer in POS
             await viewModel.refreshCustomersAndSelect(customerId);
-            // Invalidate customer provider to refresh Masters > Customers screen
+            // Invalidate customer providers to refresh Masters > Customers and Create Bill screens
             ref.invalidate(customerProvider);
+            ref.invalidate(customerListForBillProvider);
           } catch (e) {
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(

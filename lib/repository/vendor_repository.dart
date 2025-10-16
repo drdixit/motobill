@@ -6,7 +6,18 @@ class VendorRepository {
 
   VendorRepository(this._db);
 
+  /// Get all active and enabled vendors (not deleted and enabled)
+  /// Used for Create Purchase screen where only enabled vendors should be selectable
   Future<List<Vendor>> getAllVendors() async {
+    final result = await _db.rawQuery(
+      'SELECT * FROM vendors WHERE is_deleted = 0 AND is_enabled = 1 ORDER BY name ASC',
+    );
+    return result.map((json) => Vendor.fromJson(json)).toList();
+  }
+
+  /// Get all vendors including disabled ones (not deleted)
+  /// Used for Masters screen to show all vendors regardless of enabled status
+  Future<List<Vendor>> getAllVendorsIncludingDisabled() async {
     final result = await _db.rawQuery(
       'SELECT * FROM vendors WHERE is_deleted = 0 ORDER BY name ASC',
     );
