@@ -441,8 +441,18 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                                         ),
                                       );
                                     }
+                                    // Validate that selected value exists in list
+                                    final validValue =
+                                        _selectedSubCategoryId != null &&
+                                            subCategories.any(
+                                              (sc) =>
+                                                  sc.id ==
+                                                  _selectedSubCategoryId,
+                                            )
+                                        ? _selectedSubCategoryId
+                                        : null;
                                     return DropdownButtonFormField<int>(
-                                      value: _selectedSubCategoryId,
+                                      value: validValue,
                                       isExpanded: true,
                                       decoration: InputDecoration(
                                         border: OutlineInputBorder(
@@ -501,8 +511,18 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                                         ),
                                       );
                                     }
+                                    // Validate that selected value exists in list
+                                    final validValue =
+                                        _selectedManufacturerId != null &&
+                                            manufacturers.any(
+                                              (m) =>
+                                                  m.id ==
+                                                  _selectedManufacturerId,
+                                            )
+                                        ? _selectedManufacturerId
+                                        : null;
                                     return DropdownButtonFormField<int>(
-                                      value: _selectedManufacturerId,
+                                      value: validValue,
                                       isExpanded: true,
                                       decoration: InputDecoration(
                                         border: OutlineInputBorder(
@@ -565,8 +585,17 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                                         ),
                                       );
                                     }
+                                    // Validate that selected value exists in list
+                                    final validValue =
+                                        _selectedHsnCodeId != null &&
+                                            hsnCodes.any(
+                                              (hsn) =>
+                                                  hsn.id == _selectedHsnCodeId,
+                                            )
+                                        ? _selectedHsnCodeId
+                                        : null;
                                     return DropdownButtonFormField<int>(
-                                      value: _selectedHsnCodeId,
+                                      value: validValue,
                                       isExpanded: true,
                                       decoration: InputDecoration(
                                         border: OutlineInputBorder(
@@ -625,8 +654,16 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                                         ),
                                       );
                                     }
+                                    // Validate that selected value exists in list
+                                    final validValue =
+                                        _selectedUqcId != null &&
+                                            uqcs.any(
+                                              (uqc) => uqc.id == _selectedUqcId,
+                                            )
+                                        ? _selectedUqcId
+                                        : null;
                                     return DropdownButtonFormField<int>(
-                                      value: _selectedUqcId,
+                                      value: validValue,
                                       isExpanded: true,
                                       decoration: InputDecoration(
                                         border: OutlineInputBorder(

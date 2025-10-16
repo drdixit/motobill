@@ -30,7 +30,7 @@ class _GstRateFormDialogState extends ConsumerState<GstRateFormDialog> {
   late TextEditingController _utgstController;
   int? _selectedHsnCodeId;
   DateTime? _effectiveFrom;
-  DateTime? _effectiveTo;
+  // _effectiveTo removed - GST rates are always effective (no end date)
   late bool _isEnabled;
 
   @override
@@ -49,8 +49,11 @@ class _GstRateFormDialogState extends ConsumerState<GstRateFormDialog> {
       text: widget.gstRate?.utgst.toString() ?? '0.0',
     );
     _selectedHsnCodeId = widget.gstRate?.hsnCodeId ?? widget.initialHsnCodeId;
-    _effectiveFrom = widget.gstRate?.effectiveFrom ?? DateTime.now();
-    _effectiveTo = widget.gstRate?.effectiveTo;
+    // Effective from must be in the past, default to yesterday
+    _effectiveFrom =
+        widget.gstRate?.effectiveFrom ??
+        DateTime.now().subtract(const Duration(days: 1));
+    // Effective to is always null - GST rates are always effective (no need to store it)
     _isEnabled = widget.gstRate?.isEnabled ?? true;
   }
 
@@ -63,7 +66,7 @@ class _GstRateFormDialogState extends ConsumerState<GstRateFormDialog> {
     super.dispose();
   }
 
-  void _handleSave() {
+  void _handleSave() async {
     if (_formKey.currentState!.validate()) {
       if (_selectedHsnCodeId == null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -75,6 +78,27 @@ class _GstRateFormDialogState extends ConsumerState<GstRateFormDialog> {
         return;
       }
 
+      // Check for duplicate HSN code (only when creating new GST rate)
+      if (widget.gstRate == null) {
+        final existingGstRate = await ref
+            .read(gstRateRepositoryProvider.future)
+            .then((repo) => repo.getGstRateByHsnCodeId(_selectedHsnCodeId!));
+
+        if (existingGstRate != null) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'GST rate already exists for this HSN Code. Please edit the existing rate instead.',
+              ),
+              backgroundColor: AppColors.error,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+          return;
+        }
+      }
+
       final gstRate = GstRate(
         id: widget.gstRate?.id,
         hsnCodeId: _selectedHsnCodeId!,
@@ -83,29 +107,24 @@ class _GstRateFormDialogState extends ConsumerState<GstRateFormDialog> {
         igst: double.parse(_igstController.text),
         utgst: double.parse(_utgstController.text),
         effectiveFrom: _effectiveFrom!,
-        effectiveTo: _effectiveTo,
+        effectiveTo: null, // Always null - GST rates are always effective
         isEnabled: _isEnabled,
       );
       widget.onSave(gstRate);
     }
   }
 
-  Future<void> _selectDate(BuildContext context, bool isFrom) async {
+  Future<void> _selectDate(BuildContext context) async {
+    final yesterday = DateTime.now().subtract(const Duration(days: 1));
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: isFrom
-          ? _effectiveFrom ?? DateTime.now()
-          : _effectiveTo ?? DateTime.now(),
+      initialDate: _effectiveFrom ?? yesterday,
       firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
+      lastDate: yesterday, // Cannot select today or future dates
     );
     if (picked != null) {
       setState(() {
-        if (isFrom) {
-          _effectiveFrom = picked;
-        } else {
-          _effectiveTo = picked;
-        }
+        _effectiveFrom = picked;
       });
     }
   }
@@ -151,30 +170,107 @@ class _GstRateFormDialogState extends ConsumerState<GstRateFormDialog> {
                         style: TextStyle(color: AppColors.error),
                       );
                     }
-                    return DropdownButtonFormField<int>(
-                      value: _selectedHsnCodeId,
-                      isExpanded: true,
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(AppSizes.radiusS),
-                        ),
+
+                    // Use FutureBuilder to filter HSN codes asynchronously when creating new
+                    if (widget.gstRate == null) {
+                      return FutureBuilder<List<int>>(
+                        future: ref
+                            .read(gstRateRepositoryProvider.future)
+                            .then((repo) => repo.getHsnCodeIdsWithGstRates()),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const CircularProgressIndicator();
+                          }
+
+                          if (snapshot.hasError) {
+                            return Text(
+                              'Error: ${snapshot.error}',
+                              style: const TextStyle(color: AppColors.error),
+                            );
+                          }
+
+                          final hsnCodesWithGstRates = snapshot.data ?? [];
+                          final availableHsnCodes = hsnCodes
+                              .where(
+                                (hsn) => !hsnCodesWithGstRates.contains(hsn.id),
+                              )
+                              .toList();
+
+                          if (availableHsnCodes.isEmpty) {
+                            return const Text(
+                              'All HSN codes already have GST rates',
+                              style: TextStyle(color: AppColors.error),
+                            );
+                          }
+
+                          // Validate that selected value exists in list
+                          final validHsnCodeId =
+                              _selectedHsnCodeId != null &&
+                                  availableHsnCodes.any(
+                                    (hsn) => hsn.id == _selectedHsnCodeId,
+                                  )
+                              ? _selectedHsnCodeId
+                              : null;
+
+                          return DropdownButtonFormField<int>(
+                            value: validHsnCodeId,
+                            isExpanded: true,
+                            decoration: InputDecoration(
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppSizes.radiusS,
+                                ),
+                              ),
+                            ),
+                            hint: const Text('Select HSN Code'),
+                            items: availableHsnCodes.map((hsn) {
+                              return DropdownMenuItem<int>(
+                                value: hsn.id,
+                                child: Text(
+                                  '${hsn.code} - ${hsn.description ?? ''}',
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedHsnCodeId = value;
+                              });
+                            },
+                          );
+                        },
+                      );
+                    }
+
+                    // When editing, show selected HSN code but disable dropdown
+                    final selectedHsnCode = hsnCodes.firstWhere(
+                      (hsn) => hsn.id == _selectedHsnCodeId,
+                      orElse: () => hsnCodes.first,
+                    );
+
+                    return Container(
+                      padding: const EdgeInsets.all(AppSizes.paddingM),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppColors.divider),
+                        borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                        color: Colors.grey[100],
                       ),
-                      hint: const Text('Select HSN Code'),
-                      items: hsnCodes.map((hsn) {
-                        return DropdownMenuItem<int>(
-                          value: hsn.id,
-                          child: Text(
-                            '${hsn.code} - ${hsn.description ?? ''}',
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${selectedHsnCode.code} - ${selectedHsnCode.description ?? ''}',
+                              style: const TextStyle(
+                                fontSize: AppSizes.fontM,
+                                color: Colors.black87,
+                              ),
+                            ),
                           ),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedHsnCodeId = value;
-                        });
-                      },
+                          const Icon(Icons.lock, size: 20, color: Colors.grey),
+                        ],
+                      ),
                     );
                   },
                   loading: () => const CircularProgressIndicator(),
@@ -310,105 +406,70 @@ class _GstRateFormDialogState extends ConsumerState<GstRateFormDialog> {
                             RegExp(r'^\d+\.?\d{0,2}'),
                           ),
                         ],
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return null; // UTGST is optional
+                          }
+                          final rate = double.tryParse(value);
+                          if (rate == null || rate < 0 || rate > 100) {
+                            return 'Enter valid rate (0-100)';
+                          }
+                          return null;
+                        },
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: AppSizes.paddingM),
-                // Dates
-                Row(
+                // Effective From Date (past dates only)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Effective From *',
-                            style: TextStyle(fontSize: AppSizes.fontM),
-                          ),
-                          const SizedBox(height: AppSizes.paddingS),
-                          InkWell(
-                            onTap: () => _selectDate(context, true),
-                            child: Container(
-                              padding: const EdgeInsets.all(AppSizes.paddingM),
-                              decoration: BoxDecoration(
-                                border: Border.all(color: AppColors.divider),
-                                borderRadius: BorderRadius.circular(
-                                  AppSizes.radiusS,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    _effectiveFrom != null
-                                        ? '${_effectiveFrom!.day}/${_effectiveFrom!.month}/${_effectiveFrom!.year}'
-                                        : 'Select date',
-                                  ),
-                                  const Icon(Icons.calendar_today, size: 20),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                    const Text(
+                      'Effective From * (Must be a past date)',
+                      style: TextStyle(fontSize: AppSizes.fontM),
                     ),
-                    const SizedBox(width: AppSizes.paddingM),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Effective To',
-                            style: TextStyle(fontSize: AppSizes.fontM),
-                          ),
-                          const SizedBox(height: AppSizes.paddingS),
-                          InkWell(
-                            onTap: () => _selectDate(context, false),
-                            child: Container(
-                              padding: const EdgeInsets.all(AppSizes.paddingM),
-                              decoration: BoxDecoration(
-                                border: Border.all(color: AppColors.divider),
-                                borderRadius: BorderRadius.circular(
-                                  AppSizes.radiusS,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    _effectiveTo != null
-                                        ? '${_effectiveTo!.day}/${_effectiveTo!.month}/${_effectiveTo!.year}'
-                                        : 'Select date',
-                                  ),
-                                  const Icon(Icons.calendar_today, size: 20),
-                                ],
-                              ),
+                    const SizedBox(height: AppSizes.paddingS),
+                    InkWell(
+                      onTap: () => _selectDate(context),
+                      child: Container(
+                        padding: const EdgeInsets.all(AppSizes.paddingM),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: AppColors.divider),
+                          borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              _effectiveFrom != null
+                                  ? '${_effectiveFrom!.day}/${_effectiveFrom!.month}/${_effectiveFrom!.year}'
+                                  : 'Select date',
                             ),
-                          ),
-                        ],
+                            const Icon(Icons.calendar_today, size: 20),
+                          ],
+                        ),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: AppSizes.paddingM),
-                Row(
-                  children: [
-                    Switch(
-                      value: _isEnabled,
-                      onChanged: (value) {
-                        setState(() {
-                          _isEnabled = value;
-                        });
-                      },
-                      activeColor: AppColors.primary,
-                    ),
-                    const SizedBox(width: AppSizes.paddingS),
-                    const Text('Enabled'),
-                  ],
-                ),
+                // Enabled switch - Commented out: GST Rates are always enabled
+                // Row(
+                //   children: [
+                //     Switch(
+                //       value: _isEnabled,
+                //       onChanged: (value) {
+                //         setState(() {
+                //           _isEnabled = value;
+                //         });
+                //       },
+                //       activeColor: AppColors.primary,
+                //     ),
+                //     const SizedBox(width: AppSizes.paddingS),
+                //     const Text('Enabled'),
+                //   ],
+                // ),
                 const SizedBox(height: AppSizes.paddingL),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,

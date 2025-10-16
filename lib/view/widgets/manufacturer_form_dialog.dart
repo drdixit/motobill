@@ -262,28 +262,28 @@ class _ManufacturerFormDialogState extends State<ManufacturerFormDialog> {
                         ],
                       ),
                       const SizedBox(height: AppSizes.paddingM),
-                      // Enabled checkbox
-                      Row(
-                        children: [
-                          Checkbox(
-                            value: _isEnabled,
-                            onChanged: (value) {
-                              setState(() {
-                                _isEnabled = value ?? true;
-                              });
-                            },
-                            activeColor: AppColors.primary,
-                          ),
-                          Text(
-                            'Enabled',
-                            style: TextStyle(
-                              fontSize: AppSizes.fontM,
-                              color: AppColors.textPrimary,
-                              fontFamily: 'Roboto',
-                            ),
-                          ),
-                        ],
-                      ),
+                      // Enabled checkbox - Commented out: Manufacturers are always enabled
+                      // Row(
+                      //   children: [
+                      //     Checkbox(
+                      //       value: _isEnabled,
+                      //       onChanged: (value) {
+                      //         setState(() {
+                      //           _isEnabled = value ?? true;
+                      //         });
+                      //       },
+                      //       activeColor: AppColors.primary,
+                      //     ),
+                      //     Text(
+                      //       'Enabled',
+                      //       style: TextStyle(
+                      //         fontSize: AppSizes.fontM,
+                      //         color: AppColors.textPrimary,
+                      //         fontFamily: 'Roboto',
+                      //       ),
+                      //     ),
+                      //   ],
+                      // ),
                     ],
                   ),
                 ),

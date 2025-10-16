@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
 import '../../model/hsn_code.dart';
+import '../../view_model/hsn_code_viewmodel.dart';
 
-class HsnCodeFormDialog extends StatefulWidget {
+class HsnCodeFormDialog extends ConsumerStatefulWidget {
   final HsnCode? hsnCode;
   final Function(HsnCode) onSave;
 
   const HsnCodeFormDialog({super.key, this.hsnCode, required this.onSave});
 
   @override
-  State<HsnCodeFormDialog> createState() => _HsnCodeFormDialogState();
+  ConsumerState<HsnCodeFormDialog> createState() => _HsnCodeFormDialogState();
 }
 
-class _HsnCodeFormDialogState extends State<HsnCodeFormDialog> {
+class _HsnCodeFormDialogState extends ConsumerState<HsnCodeFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _codeController;
   late TextEditingController _descriptionController;
@@ -36,11 +38,50 @@ class _HsnCodeFormDialogState extends State<HsnCodeFormDialog> {
     super.dispose();
   }
 
-  void _handleSave() {
+  void _handleSave() async {
     if (_formKey.currentState!.validate()) {
+      final code = _codeController.text.trim();
+
+      // Check for duplicate HSN code (both when creating and updating)
+      final existingHsnCode = await ref
+          .read(hsnCodeRepositoryProvider.future)
+          .then((repo) => repo.getHsnCodeByCode(code));
+
+      if (existingHsnCode != null) {
+        // If updating, check if the existing code belongs to a different record
+        if (widget.hsnCode != null &&
+            existingHsnCode.id != widget.hsnCode!.id) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'HSN Code "$code" already exists. Please use a different code.',
+              ),
+              backgroundColor: AppColors.error,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          return;
+        }
+        // If creating new, any existing code is a duplicate
+        else if (widget.hsnCode == null) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'HSN Code "$code" already exists. Please use a different code.',
+              ),
+              backgroundColor: AppColors.error,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          return;
+        }
+      }
+
       final hsnCode = HsnCode(
         id: widget.hsnCode?.id,
-        code: _codeController.text.trim(),
+        code: code,
         description: _descriptionController.text.trim().isEmpty
             ? null
             : _descriptionController.text.trim(),
@@ -102,21 +143,22 @@ class _HsnCodeFormDialogState extends State<HsnCodeFormDialog> {
                 maxLines: 3,
               ),
               const SizedBox(height: AppSizes.paddingM),
-              Row(
-                children: [
-                  Switch(
-                    value: _isEnabled,
-                    onChanged: (value) {
-                      setState(() {
-                        _isEnabled = value;
-                      });
-                    },
-                    activeColor: AppColors.primary,
-                  ),
-                  const SizedBox(width: AppSizes.paddingS),
-                  const Text('Enabled'),
-                ],
-              ),
+              // Enabled switch - Commented out: HSN Codes are always enabled
+              // Row(
+              //   children: [
+              //     Switch(
+              //       value: _isEnabled,
+              //       onChanged: (value) {
+              //         setState(() {
+              //           _isEnabled = value;
+              //         });
+              //       },
+              //       activeColor: AppColors.primary,
+              //     ),
+              //     const SizedBox(width: AppSizes.paddingS),
+              //     const Text('Enabled'),
+              //   ],
+              // ),
               const SizedBox(height: AppSizes.paddingL),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,

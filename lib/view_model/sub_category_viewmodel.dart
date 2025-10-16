@@ -5,6 +5,7 @@ import '../model/main_category.dart';
 import '../repository/sub_category_repository.dart';
 import '../repository/main_category_repository.dart';
 import 'pos_viewmodel.dart';
+import 'product_viewmodel.dart';
 
 // Sub Category State
 class SubCategoryState {
@@ -65,6 +66,7 @@ class SubCategoryViewModel extends StateNotifier<SubCategoryState> {
       await _repository.createSubCategory(subCategory);
       await loadSubCategories();
       _ref?.invalidate(posViewModelProvider);
+      _ref?.invalidate(subCategoriesForProductProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
       rethrow;
@@ -77,6 +79,7 @@ class SubCategoryViewModel extends StateNotifier<SubCategoryState> {
       await _repository.updateSubCategory(subCategory);
       await loadSubCategories();
       _ref?.invalidate(posViewModelProvider);
+      _ref?.invalidate(subCategoriesForProductProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
       rethrow;
@@ -89,6 +92,7 @@ class SubCategoryViewModel extends StateNotifier<SubCategoryState> {
       await _repository.softDeleteSubCategory(id);
       await loadSubCategories();
       _ref?.invalidate(posViewModelProvider);
+      _ref?.invalidate(subCategoriesForProductProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -100,6 +104,8 @@ class SubCategoryViewModel extends StateNotifier<SubCategoryState> {
       await _repository.toggleSubCategoryEnabled(id, isEnabled);
       await loadSubCategories();
       _ref?.invalidate(posViewModelProvider);
+      // Invalidate product form providers to reflect changes immediately
+      _ref?.invalidate(subCategoriesForProductProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }

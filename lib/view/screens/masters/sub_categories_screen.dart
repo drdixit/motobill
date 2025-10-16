@@ -196,18 +196,18 @@ class SubCategoriesScreen extends ConsumerWidget {
                     _showSubCategoryDialog(context, ref, subCategory),
                 tooltip: 'Edit',
               ),
-              // Toggle button
-              IconButton(
-                icon: Icon(
-                  subCategory.isEnabled ? Icons.toggle_on : Icons.toggle_off,
-                  size: 36,
-                ),
-                color: subCategory.isEnabled
-                    ? AppColors.success
-                    : AppColors.textSecondary,
-                onPressed: () => _toggleSubCategory(ref, subCategory),
-                tooltip: subCategory.isEnabled ? 'Disable' : 'Enable',
-              ),
+              // Toggle button - Commented out: Sub Categories are always enabled
+              // IconButton(
+              //   icon: Icon(
+              //     subCategory.isEnabled ? Icons.toggle_on : Icons.toggle_off,
+              //     size: 36,
+              //   ),
+              //   color: subCategory.isEnabled
+              //       ? AppColors.success
+              //       : AppColors.textSecondary,
+              //   onPressed: () => _toggleSubCategory(ref, subCategory),
+              //   tooltip: subCategory.isEnabled ? 'Disable' : 'Enable',
+              // ),
               // Delete button - Hidden
               // IconButton(
               //   icon: Icon(Icons.delete, size: 20),
@@ -294,11 +294,12 @@ class SubCategoriesScreen extends ConsumerWidget {
     );
   }
 
-  void _toggleSubCategory(WidgetRef ref, SubCategory subCategory) {
-    ref
-        .read(subCategoryProvider.notifier)
-        .toggleSubCategoryEnabled(subCategory.id!, !subCategory.isEnabled);
-  }
+  // Toggle functionality - Commented out: Sub Categories are always enabled
+  // void _toggleSubCategory(WidgetRef ref, SubCategory subCategory) {
+  //   ref
+  //       .read(subCategoryProvider.notifier)
+  //       .toggleSubCategoryEnabled(subCategory.id!, !subCategory.isEnabled);
+  // }
 
   // Delete functionality - Hidden
   // void _deleteSubCategory(

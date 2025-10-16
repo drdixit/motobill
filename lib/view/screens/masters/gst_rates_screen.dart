@@ -182,18 +182,18 @@ class GstRatesScreen extends ConsumerWidget {
                 onPressed: () => _showGstRateDialog(context, ref, gstRate),
                 tooltip: 'Edit',
               ),
-              // Toggle button
-              IconButton(
-                icon: Icon(
-                  gstRate.isEnabled ? Icons.toggle_on : Icons.toggle_off,
-                  size: 36,
-                ),
-                color: gstRate.isEnabled
-                    ? AppColors.success
-                    : AppColors.textSecondary,
-                onPressed: () => _toggleGstRate(ref, gstRate),
-                tooltip: gstRate.isEnabled ? 'Disable' : 'Enable',
-              ),
+              // Toggle button - Commented out: GST Rates are always enabled
+              // IconButton(
+              //   icon: Icon(
+              //     gstRate.isEnabled ? Icons.toggle_on : Icons.toggle_off,
+              //     size: 36,
+              //   ),
+              //   color: gstRate.isEnabled
+              //       ? AppColors.success
+              //       : AppColors.textSecondary,
+              //   onPressed: () => _toggleGstRate(ref, gstRate),
+              //   tooltip: gstRate.isEnabled ? 'Disable' : 'Enable',
+              // ),
               // Delete button - Hidden
               // IconButton(
               //   icon: const Icon(Icons.delete, size: 20),
@@ -271,11 +271,12 @@ class GstRatesScreen extends ConsumerWidget {
     );
   }
 
-  void _toggleGstRate(WidgetRef ref, GstRate gstRate) {
-    ref
-        .read(gstRateViewModelProvider.notifier)
-        .toggleGstRateStatus(gstRate.id!, !gstRate.isEnabled);
-  }
+  // Toggle functionality - Commented out: GST Rates are always enabled
+  // void _toggleGstRate(WidgetRef ref, GstRate gstRate) {
+  //   ref
+  //       .read(gstRateViewModelProvider.notifier)
+  //       .toggleGstRateStatus(gstRate.id!, !gstRate.isEnabled);
+  // }
 
   // Delete functionality - Hidden
   // void _deleteGstRate(

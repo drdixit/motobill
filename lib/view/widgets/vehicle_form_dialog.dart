@@ -291,10 +291,19 @@ class _VehicleFormDialogState extends ConsumerState<VehicleFormDialog> {
                             );
                           }
 
+                          // Validate that selected value exists in filtered list
+                          final validManufacturerId =
+                              _selectedManufacturerId != null &&
+                                  enabledManufacturers.any(
+                                    (m) => m.id == _selectedManufacturerId,
+                                  )
+                              ? _selectedManufacturerId
+                              : null;
+
                           return _buildDropdownField(
                             label: 'Manufacturer *',
                             hint: 'Select Manufacturer',
-                            value: _selectedManufacturerId,
+                            value: validManufacturerId,
                             items: enabledManufacturers.map((manufacturer) {
                               return DropdownMenuItem<int>(
                                 value: manufacturer.id,
@@ -443,28 +452,28 @@ class _VehicleFormDialogState extends ConsumerState<VehicleFormDialog> {
                         ],
                       ),
                       const SizedBox(height: AppSizes.paddingM),
-                      // Enabled checkbox
-                      Row(
-                        children: [
-                          Checkbox(
-                            value: _isEnabled,
-                            onChanged: (value) {
-                              setState(() {
-                                _isEnabled = value ?? true;
-                              });
-                            },
-                            activeColor: AppColors.primary,
-                          ),
-                          Text(
-                            'Enabled',
-                            style: TextStyle(
-                              fontSize: AppSizes.fontM,
-                              color: AppColors.textPrimary,
-                              fontFamily: 'Roboto',
-                            ),
-                          ),
-                        ],
-                      ),
+                      // Enabled checkbox - Commented out: Vehicles are always enabled
+                      // Row(
+                      //   children: [
+                      //     Checkbox(
+                      //       value: _isEnabled,
+                      //       onChanged: (value) {
+                      //         setState(() {
+                      //           _isEnabled = value ?? true;
+                      //         });
+                      //       },
+                      //       activeColor: AppColors.primary,
+                      //     ),
+                      //     Text(
+                      //       'Enabled',
+                      //       style: TextStyle(
+                      //         fontSize: AppSizes.fontM,
+                      //         color: AppColors.textPrimary,
+                      //         fontFamily: 'Roboto',
+                      //       ),
+                      //     ),
+                      //   ],
+                      // ),
                     ],
                   ),
                 ),

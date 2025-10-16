@@ -161,18 +161,18 @@ class HsnCodesScreen extends ConsumerWidget {
                 onPressed: () => _showHsnCodeDialog(context, ref, hsnCode),
                 tooltip: 'Edit',
               ),
-              // Toggle button
-              IconButton(
-                icon: Icon(
-                  hsnCode.isEnabled ? Icons.toggle_on : Icons.toggle_off,
-                  size: 36,
-                ),
-                color: hsnCode.isEnabled
-                    ? AppColors.success
-                    : AppColors.textSecondary,
-                onPressed: () => _toggleHsnCode(ref, hsnCode),
-                tooltip: hsnCode.isEnabled ? 'Disable' : 'Enable',
-              ),
+              // Toggle button - Commented out: HSN Codes are always enabled
+              // IconButton(
+              //   icon: Icon(
+              //     hsnCode.isEnabled ? Icons.toggle_on : Icons.toggle_off,
+              //     size: 36,
+              //   ),
+              //   color: hsnCode.isEnabled
+              //       ? AppColors.success
+              //       : AppColors.textSecondary,
+              //   onPressed: () => _toggleHsnCode(ref, hsnCode),
+              //   tooltip: hsnCode.isEnabled ? 'Disable' : 'Enable',
+              // ),
               // Delete button - Hidden
               // IconButton(
               //   icon: const Icon(Icons.delete, size: 20),
@@ -225,11 +225,12 @@ class HsnCodesScreen extends ConsumerWidget {
     );
   }
 
-  void _toggleHsnCode(WidgetRef ref, HsnCode hsnCode) {
-    ref
-        .read(hsnCodeViewModelProvider.notifier)
-        .toggleHsnCodeStatus(hsnCode.id!, !hsnCode.isEnabled);
-  }
+  // Toggle functionality - Commented out: HSN Codes are always enabled
+  // void _toggleHsnCode(WidgetRef ref, HsnCode hsnCode) {
+  //   ref
+  //       .read(hsnCodeViewModelProvider.notifier)
+  //       .toggleHsnCodeStatus(hsnCode.id!, !hsnCode.isEnabled);
+  // }
 
   // Delete functionality - Hidden
   // void _deleteHsnCode(BuildContext context, WidgetRef ref, HsnCode hsnCode) {
