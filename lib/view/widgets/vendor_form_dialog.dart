@@ -84,7 +84,7 @@ class _VendorFormDialogState extends State<VendorFormDialog> {
             : _emailController.text.trim(),
         gstNumber: _gstNumberController.text.trim().isEmpty
             ? null
-            : _gstNumberController.text.trim(),
+            : _gstNumberController.text.trim().toUpperCase(),
         addressLine1: _addressLine1Controller.text.trim().isEmpty
             ? null
             : _addressLine1Controller.text.trim(),
@@ -104,6 +104,49 @@ class _VendorFormDialogState extends State<VendorFormDialog> {
       );
       widget.onSave(vendor);
     }
+  }
+
+  String? _validateGstNumber(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      // GST is optional, so empty is valid
+      return null;
+    }
+
+    final gst = value.trim().toUpperCase();
+
+    // GST must be exactly 15 characters
+    if (gst.length != 15) {
+      return 'GST number must be 15 characters';
+    }
+
+    // Validate GST format: ##AAAAA####A#A#
+    // First 2 characters: digits (state code)
+    if (!RegExp(r'^\d{2}').hasMatch(gst)) {
+      return 'Invalid GST: First 2 characters must be digits (state code)';
+    }
+
+    // Next 10 characters: PAN format (5 letters + 4 digits + 1 letter)
+    final pan = gst.substring(2, 12);
+    if (!RegExp(r'^[A-Z]{5}\d{4}[A-Z]$').hasMatch(pan)) {
+      return 'Invalid GST: Characters 3-12 must be valid PAN format';
+    }
+
+    // 13th character: entity number (1-9, A-Z)
+    if (!RegExp(r'^[1-9A-Z]$').hasMatch(gst[12])) {
+      return 'Invalid GST: 13th character must be 1-9 or A-Z';
+    }
+
+    // 14th character: must be 'Z'
+    if (gst[13] != 'Z') {
+      return 'Invalid GST: 14th character must be Z';
+    }
+
+    // 15th character: check digit (alphanumeric)
+    if (!RegExp(r'^[0-9A-Z]$').hasMatch(gst[14])) {
+      return 'Invalid GST: 15th character must be alphanumeric';
+    }
+
+    return null;
   }
 
   @override
@@ -183,6 +226,7 @@ class _VendorFormDialogState extends State<VendorFormDialog> {
                         controller: _gstNumberController,
                         label: 'GST Number',
                         hint: 'GST Number',
+                        validator: _validateGstNumber,
                       ),
                       const SizedBox(height: AppSizes.paddingM),
                       _buildTextField(
