@@ -156,18 +156,18 @@ class ManufacturersScreen extends ConsumerWidget {
                     _showManufacturerDialog(context, ref, manufacturer),
                 tooltip: 'Edit',
               ),
-              // Toggle button
-              IconButton(
-                icon: Icon(
-                  manufacturer.isEnabled ? Icons.toggle_on : Icons.toggle_off,
-                  size: 36,
-                ),
-                color: manufacturer.isEnabled
-                    ? AppColors.success
-                    : AppColors.textSecondary,
-                onPressed: () => _toggleManufacturer(ref, manufacturer),
-                tooltip: manufacturer.isEnabled ? 'Disable' : 'Enable',
-              ),
+              // Toggle button - Commented out: Manufacturers are always enabled
+              // IconButton(
+              //   icon: Icon(
+              //     manufacturer.isEnabled ? Icons.toggle_on : Icons.toggle_off,
+              //     size: 36,
+              //   ),
+              //   color: manufacturer.isEnabled
+              //       ? AppColors.success
+              //       : AppColors.textSecondary,
+              //   onPressed: () => _toggleManufacturer(ref, manufacturer),
+              //   tooltip: manufacturer.isEnabled ? 'Disable' : 'Enable',
+              // ),
               // Delete button - Hidden
               // IconButton(
               //   icon: Icon(Icons.delete, size: 20),
@@ -255,11 +255,12 @@ class ManufacturersScreen extends ConsumerWidget {
     );
   }
 
-  void _toggleManufacturer(WidgetRef ref, Manufacturer manufacturer) {
-    ref
-        .read(manufacturerProvider.notifier)
-        .toggleManufacturerEnabled(manufacturer.id!, !manufacturer.isEnabled);
-  }
+  // Toggle functionality - Commented out: Manufacturers are always enabled
+  // void _toggleManufacturer(WidgetRef ref, Manufacturer manufacturer) {
+  //   ref
+  //       .read(manufacturerProvider.notifier)
+  //       .toggleManufacturerEnabled(manufacturer.id!, !manufacturer.isEnabled);
+  // }
 
   // Delete functionality - Hidden
   // void _deleteManufacturer(

@@ -32,6 +32,20 @@ class HsnCodeRepository {
     }
   }
 
+  // Check if HSN code already exists (case-insensitive)
+  Future<HsnCode?> getHsnCodeByCode(String code) async {
+    try {
+      final result = await _db.rawQuery(
+        'SELECT * FROM hsn_codes WHERE LOWER(code) = LOWER(?) AND is_deleted = 0 LIMIT 1',
+        [code.trim()],
+      );
+      if (result.isEmpty) return null;
+      return HsnCode.fromJson(result.first);
+    } catch (e) {
+      throw Exception('Failed to check HSN code: $e');
+    }
+  }
+
   Future<int> insertHsnCode(HsnCode hsnCode) async {
     try {
       final id = await _db.rawInsert(

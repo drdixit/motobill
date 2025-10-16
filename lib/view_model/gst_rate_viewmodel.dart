@@ -27,13 +27,15 @@ class GstRateState {
 
 class GstRateViewModel extends StateNotifier<GstRateState> {
   final GstRateRepository? _repository;
+  final Ref? _ref;
 
-  GstRateViewModel(this._repository) : super(GstRateState()) {
+  GstRateViewModel(this._repository, [this._ref]) : super(GstRateState()) {
     loadGstRates();
   }
 
   GstRateViewModel._loading()
     : _repository = null,
+      _ref = null,
       super(GstRateState(isLoading: true));
 
   Future<void> loadGstRates() async {
@@ -52,6 +54,7 @@ class GstRateViewModel extends StateNotifier<GstRateState> {
     try {
       final id = await _repository.insertGstRate(gstRate);
       await loadGstRates();
+      _ref?.invalidate(hsnCodesForGstProvider);
       return id;
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -64,6 +67,7 @@ class GstRateViewModel extends StateNotifier<GstRateState> {
     try {
       await _repository.updateGstRate(gstRate);
       await loadGstRates();
+      _ref?.invalidate(hsnCodesForGstProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
       rethrow;
@@ -75,6 +79,7 @@ class GstRateViewModel extends StateNotifier<GstRateState> {
     try {
       await _repository.deleteGstRate(id);
       await loadGstRates();
+      _ref?.invalidate(hsnCodesForGstProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
       rethrow;
@@ -86,6 +91,7 @@ class GstRateViewModel extends StateNotifier<GstRateState> {
     try {
       await _repository.toggleGstRateStatus(id, isEnabled);
       await loadGstRates();
+      _ref?.invalidate(hsnCodesForGstProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
       rethrow;
@@ -121,7 +127,7 @@ final gstRateViewModelProvider =
       final repositoryAsync = ref.watch(gstRateRepositoryProvider);
 
       return repositoryAsync.when(
-        data: (repository) => GstRateViewModel(repository),
+        data: (repository) => GstRateViewModel(repository, ref),
         loading: () => GstRateViewModel._loading(),
         error: (error, stack) => GstRateViewModel._loading(),
       );

@@ -3,6 +3,8 @@ import '../core/providers/database_provider.dart';
 import '../model/manufacturer.dart';
 import '../repository/manufacturer_repository.dart';
 import 'pos_viewmodel.dart';
+import 'product_viewmodel.dart';
+import 'vehicle_viewmodel.dart';
 
 // Manufacturer State
 class ManufacturerState {
@@ -63,6 +65,8 @@ class ManufacturerViewModel extends StateNotifier<ManufacturerState> {
       await _repository.createManufacturer(manufacturer);
       await loadManufacturers();
       _ref?.invalidate(posViewModelProvider);
+      _ref?.invalidate(manufacturersForProductProvider);
+      _ref?.invalidate(manufacturersListProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
       rethrow;
@@ -75,6 +79,8 @@ class ManufacturerViewModel extends StateNotifier<ManufacturerState> {
       await _repository.updateManufacturer(manufacturer);
       await loadManufacturers();
       _ref?.invalidate(posViewModelProvider);
+      _ref?.invalidate(manufacturersForProductProvider);
+      _ref?.invalidate(manufacturersListProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
       rethrow;
@@ -87,6 +93,8 @@ class ManufacturerViewModel extends StateNotifier<ManufacturerState> {
       await _repository.softDeleteManufacturer(id);
       await loadManufacturers();
       _ref?.invalidate(posViewModelProvider);
+      _ref?.invalidate(manufacturersForProductProvider);
+      _ref?.invalidate(manufacturersListProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -98,6 +106,9 @@ class ManufacturerViewModel extends StateNotifier<ManufacturerState> {
       await _repository.toggleManufacturerEnabled(id, isEnabled);
       await loadManufacturers();
       _ref?.invalidate(posViewModelProvider);
+      // Invalidate product and vehicle form providers to reflect changes immediately
+      _ref?.invalidate(manufacturersForProductProvider);
+      _ref?.invalidate(manufacturersListProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }

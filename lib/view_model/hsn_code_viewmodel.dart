@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/providers/database_provider.dart';
 import '../model/hsn_code.dart';
 import '../repository/hsn_code_repository.dart';
+import 'product_viewmodel.dart';
+import 'gst_rate_viewmodel.dart';
 
 class HsnCodeState {
   final List<HsnCode> hsnCodes;
@@ -25,13 +27,15 @@ class HsnCodeState {
 
 class HsnCodeViewModel extends StateNotifier<HsnCodeState> {
   final HsnCodeRepository? _repository;
+  final Ref? _ref;
 
-  HsnCodeViewModel(this._repository) : super(HsnCodeState()) {
+  HsnCodeViewModel(this._repository, [this._ref]) : super(HsnCodeState()) {
     loadHsnCodes();
   }
 
   HsnCodeViewModel._loading()
     : _repository = null,
+      _ref = null,
       super(HsnCodeState(isLoading: true));
 
   Future<void> loadHsnCodes() async {
@@ -50,6 +54,9 @@ class HsnCodeViewModel extends StateNotifier<HsnCodeState> {
     try {
       final id = await _repository.insertHsnCode(hsnCode);
       await loadHsnCodes();
+      _ref?.invalidate(hsnCodesListProvider);
+      _ref?.invalidate(hsnCodesForGstProvider);
+      _ref?.invalidate(gstRateViewModelProvider);
       return id;
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -62,6 +69,9 @@ class HsnCodeViewModel extends StateNotifier<HsnCodeState> {
     try {
       await _repository.updateHsnCode(hsnCode);
       await loadHsnCodes();
+      _ref?.invalidate(hsnCodesListProvider);
+      _ref?.invalidate(hsnCodesForGstProvider);
+      _ref?.invalidate(gstRateViewModelProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
       rethrow;
@@ -73,6 +83,9 @@ class HsnCodeViewModel extends StateNotifier<HsnCodeState> {
     try {
       await _repository.deleteHsnCode(id);
       await loadHsnCodes();
+      _ref?.invalidate(hsnCodesListProvider);
+      _ref?.invalidate(hsnCodesForGstProvider);
+      _ref?.invalidate(gstRateViewModelProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
       rethrow;
@@ -84,6 +97,10 @@ class HsnCodeViewModel extends StateNotifier<HsnCodeState> {
     try {
       await _repository.toggleHsnCodeStatus(id, isEnabled);
       await loadHsnCodes();
+      // Invalidate product form and GST providers to reflect changes immediately
+      _ref?.invalidate(hsnCodesListProvider);
+      _ref?.invalidate(hsnCodesForGstProvider);
+      _ref?.invalidate(gstRateViewModelProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
       rethrow;
@@ -105,7 +122,7 @@ final hsnCodeViewModelProvider =
       final repositoryAsync = ref.watch(hsnCodeRepositoryProvider);
 
       return repositoryAsync.when(
-        data: (repository) => HsnCodeViewModel(repository),
+        data: (repository) => HsnCodeViewModel(repository, ref),
         loading: () => HsnCodeViewModel._loading(),
         error: (error, stack) => HsnCodeViewModel._loading(),
       );

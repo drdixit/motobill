@@ -37,6 +37,32 @@ class GstRateRepository {
     }
   }
 
+  // Check if GST rate exists for a specific HSN code
+  Future<GstRate?> getGstRateByHsnCodeId(int hsnCodeId) async {
+    try {
+      final result = await _db.rawQuery(
+        'SELECT * FROM gst_rates WHERE hsn_code_id = ? AND is_deleted = 0 LIMIT 1',
+        [hsnCodeId],
+      );
+      if (result.isEmpty) return null;
+      return GstRate.fromJson(result.first);
+    } catch (e) {
+      throw Exception('Failed to check GST rate: $e');
+    }
+  }
+
+  // Get all HSN code IDs that already have GST rates
+  Future<List<int>> getHsnCodeIdsWithGstRates() async {
+    try {
+      final result = await _db.rawQuery(
+        'SELECT DISTINCT hsn_code_id FROM gst_rates WHERE is_deleted = 0',
+      );
+      return result.map((row) => row['hsn_code_id'] as int).toList();
+    } catch (e) {
+      throw Exception('Failed to get HSN codes with GST rates: $e');
+    }
+  }
+
   Future<int> insertGstRate(GstRate gstRate) async {
     try {
       final id = await _db.rawInsert(

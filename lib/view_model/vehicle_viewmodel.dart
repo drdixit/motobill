@@ -31,8 +31,10 @@ class VehicleState {
 // Vehicle ViewModel
 class VehicleViewModel extends StateNotifier<VehicleState> {
   final VehicleRepository? _repository;
+  final Ref? _ref;
 
-  VehicleViewModel(this._repository) : super(VehicleState(isLoading: true)) {
+  VehicleViewModel(this._repository, [this._ref])
+    : super(VehicleState(isLoading: true)) {
     if (_repository != null) {
       loadVehicles();
     }
@@ -40,6 +42,7 @@ class VehicleViewModel extends StateNotifier<VehicleState> {
 
   VehicleViewModel._loading()
     : _repository = null,
+      _ref = null,
       super(VehicleState(isLoading: true));
 
   Future<void> loadVehicles() async {
@@ -58,6 +61,7 @@ class VehicleViewModel extends StateNotifier<VehicleState> {
     try {
       await _repository.createVehicle(vehicle);
       await loadVehicles();
+      _ref?.invalidate(manufacturersListProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
       rethrow;
@@ -69,6 +73,7 @@ class VehicleViewModel extends StateNotifier<VehicleState> {
     try {
       await _repository.updateVehicle(vehicle);
       await loadVehicles();
+      _ref?.invalidate(manufacturersListProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
       rethrow;
@@ -80,6 +85,7 @@ class VehicleViewModel extends StateNotifier<VehicleState> {
     try {
       await _repository.softDeleteVehicle(id);
       await loadVehicles();
+      _ref?.invalidate(manufacturersListProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -90,6 +96,7 @@ class VehicleViewModel extends StateNotifier<VehicleState> {
     try {
       await _repository.toggleVehicleEnabled(id, isEnabled);
       await loadVehicles();
+      _ref?.invalidate(manufacturersListProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -133,7 +140,8 @@ final manufacturersListProvider = FutureProvider<List<Manufacturer>>((
   final repository = await ref.watch(
     manufacturerRepositoryForVehicleProvider.future,
   );
-  return await repository.getAllManufacturers();
+  final manufacturers = await repository.getAllManufacturers();
+  return manufacturers.where((m) => m.isEnabled && !m.isDeleted).toList();
 });
 
 // Vehicle Types List Provider (for dropdown)
@@ -155,7 +163,7 @@ final vehicleProvider = StateNotifierProvider<VehicleViewModel, VehicleState>((
   final repositoryAsync = ref.watch(vehicleRepositoryProvider);
 
   return repositoryAsync.when(
-    data: (repository) => VehicleViewModel(repository),
+    data: (repository) => VehicleViewModel(repository, ref),
     loading: () => VehicleViewModel._loading(),
     error: (error, stack) => VehicleViewModel._loading(),
   );

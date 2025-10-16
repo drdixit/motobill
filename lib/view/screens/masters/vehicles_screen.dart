@@ -194,18 +194,18 @@ class VehiclesScreen extends ConsumerWidget {
                 onPressed: () => _showVehicleDialog(context, ref, vehicle),
                 tooltip: 'Edit',
               ),
-              // Toggle button
-              IconButton(
-                icon: Icon(
-                  vehicle.isEnabled ? Icons.toggle_on : Icons.toggle_off,
-                  size: 36,
-                ),
-                color: vehicle.isEnabled
-                    ? AppColors.success
-                    : AppColors.textSecondary,
-                onPressed: () => _toggleVehicle(ref, vehicle),
-                tooltip: vehicle.isEnabled ? 'Disable' : 'Enable',
-              ),
+              // Toggle button - Commented out: Vehicles are always enabled
+              // IconButton(
+              //   icon: Icon(
+              //     vehicle.isEnabled ? Icons.toggle_on : Icons.toggle_off,
+              //     size: 36,
+              //   ),
+              //   color: vehicle.isEnabled
+              //       ? AppColors.success
+              //       : AppColors.textSecondary,
+              //   onPressed: () => _toggleVehicle(ref, vehicle),
+              //   tooltip: vehicle.isEnabled ? 'Disable' : 'Enable',
+              // ),
               // Delete button - Hidden
               // IconButton(
               //   icon: Icon(Icons.delete, size: 20),
@@ -288,11 +288,12 @@ class VehiclesScreen extends ConsumerWidget {
     );
   }
 
-  void _toggleVehicle(WidgetRef ref, Vehicle vehicle) {
-    ref
-        .read(vehicleProvider.notifier)
-        .toggleVehicleEnabled(vehicle.id!, !vehicle.isEnabled);
-  }
+  // Toggle functionality - Commented out: Vehicles are always enabled
+  // void _toggleVehicle(WidgetRef ref, Vehicle vehicle) {
+  //   ref
+  //       .read(vehicleProvider.notifier)
+  //       .toggleVehicleEnabled(vehicle.id!, !vehicle.isEnabled);
+  // }
 
   // Delete functionality - Hidden
   // void _deleteVehicle(BuildContext context, WidgetRef ref, Vehicle vehicle) {

@@ -223,7 +223,7 @@ class ProductRepository {
     try {
       final result = await _db.rawQuery('''
         SELECT * FROM hsn_codes
-        WHERE is_deleted = 0
+        WHERE is_deleted = 0 AND is_enabled = 1
         ORDER BY code
       ''');
       return result.map((json) => HsnCode.fromJson(json)).toList();
@@ -236,7 +236,7 @@ class ProductRepository {
     try {
       final result = await _db.rawQuery('''
         SELECT * FROM uqcs
-        WHERE is_deleted = 0
+        WHERE is_deleted = 0 AND is_enabled = 1
         ORDER BY code
       ''');
       return result.map((json) => Uqc.fromJson(json)).toList();

@@ -154,18 +154,18 @@ class MainCategoriesScreen extends ConsumerWidget {
                 onPressed: () => _showCategoryDialog(context, ref, category),
                 tooltip: 'Edit',
               ),
-              // Toggle button
-              IconButton(
-                icon: Icon(
-                  category.isEnabled ? Icons.toggle_on : Icons.toggle_off,
-                  size: 36,
-                ),
-                color: category.isEnabled
-                    ? AppColors.success
-                    : AppColors.textSecondary,
-                onPressed: () => _toggleCategory(ref, category),
-                tooltip: category.isEnabled ? 'Disable' : 'Enable',
-              ),
+              // Toggle button - Commented out: Main Categories are always enabled
+              // IconButton(
+              //   icon: Icon(
+              //     category.isEnabled ? Icons.toggle_on : Icons.toggle_off,
+              //     size: 36,
+              //   ),
+              //   color: category.isEnabled
+              //       ? AppColors.success
+              //       : AppColors.textSecondary,
+              //   onPressed: () => _toggleCategory(ref, category),
+              //   tooltip: category.isEnabled ? 'Disable' : 'Enable',
+              // ),
               // Delete button - Hidden
               // IconButton(
               //   icon: Icon(Icons.delete, size: 20),
@@ -248,11 +248,12 @@ class MainCategoriesScreen extends ConsumerWidget {
     );
   }
 
-  void _toggleCategory(WidgetRef ref, MainCategory category) {
-    ref
-        .read(mainCategoryProvider.notifier)
-        .toggleCategoryEnabled(category.id!, !category.isEnabled);
-  }
+  // Toggle functionality - Commented out: Main Categories are always enabled
+  // void _toggleCategory(WidgetRef ref, MainCategory category) {
+  //   ref
+  //       .read(mainCategoryProvider.notifier)
+  //       .toggleCategoryEnabled(category.id!, !category.isEnabled);
+  // }
 
   // Delete functionality - Hidden
   // void _deleteCategory(
