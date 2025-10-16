@@ -83,11 +83,30 @@ final salesStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   ''');
 
   // Get top 5 selling products (last 7 days)
+  // Net quantity = Sold quantity - Returned quantity via credit notes
   final topProducts = await db.rawQuery('''
     SELECT
       p.name as product_name,
-      SUM(bi.quantity) as total_quantity,
-      SUM(bi.total_amount) as total_amount
+      COALESCE(SUM(bi.quantity), 0) - COALESCE(
+        (SELECT SUM(cni.quantity)
+         FROM credit_note_items cni
+         INNER JOIN credit_notes cn ON cni.credit_note_id = cn.id
+         WHERE cni.product_id = bi.product_id
+           AND cni.is_deleted = 0
+           AND cn.is_deleted = 0
+           AND date(cn.created_at) >= date('now', '-7 days')
+        ), 0
+      ) as total_quantity,
+      COALESCE(SUM(bi.total_amount), 0) - COALESCE(
+        (SELECT SUM(cni.total_amount)
+         FROM credit_note_items cni
+         INNER JOIN credit_notes cn ON cni.credit_note_id = cn.id
+         WHERE cni.product_id = bi.product_id
+           AND cni.is_deleted = 0
+           AND cn.is_deleted = 0
+           AND date(cn.created_at) >= date('now', '-7 days')
+        ), 0
+      ) as total_amount
     FROM bill_items bi
     INNER JOIN bills b ON bi.bill_id = b.id
     INNER JOIN products p ON bi.product_id = p.id
@@ -96,6 +115,7 @@ final salesStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
       AND p.is_deleted = 0
       AND date(b.created_at) >= date('now', '-7 days')
     GROUP BY bi.product_id, p.name
+    HAVING total_quantity > 0
     ORDER BY total_quantity DESC
     LIMIT 5
   ''');
