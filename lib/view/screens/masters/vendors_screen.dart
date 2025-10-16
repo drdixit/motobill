@@ -78,14 +78,35 @@ class VendorsScreen extends ConsumerWidget {
                       ),
                     ),
                   )
-                : ListView.separated(
-                    padding: const EdgeInsets.all(AppSizes.paddingL),
-                    itemCount: vendorState.vendors.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(height: AppSizes.paddingM),
-                    itemBuilder: (context, index) {
-                      final vendor = vendorState.vendors[index];
-                      return _buildVendorCard(context, ref, vendor);
+                : Builder(
+                    builder: (context) {
+                      // Filter out AUTO-STOCK-ADJUSTMENT vendor (id: 7)
+                      final filteredVendors = vendorState.vendors
+                          .where((vendor) => vendor.id != 7)
+                          .toList();
+
+                      if (filteredVendors.isEmpty) {
+                        return Center(
+                          child: Text(
+                            'No vendors found',
+                            style: TextStyle(
+                              fontSize: AppSizes.fontL,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        );
+                      }
+
+                      return ListView.separated(
+                        padding: const EdgeInsets.all(AppSizes.paddingL),
+                        itemCount: filteredVendors.length,
+                        separatorBuilder: (context, index) =>
+                            const SizedBox(height: AppSizes.paddingM),
+                        itemBuilder: (context, index) {
+                          final vendor = filteredVendors[index];
+                          return _buildVendorCard(context, ref, vendor);
+                        },
+                      );
                     },
                   ),
           ),
