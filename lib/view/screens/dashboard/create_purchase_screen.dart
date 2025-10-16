@@ -4,10 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../model/purchase.dart';
+import '../../../model/vendor.dart';
 import '../../../repository/purchase_repository.dart';
 import '../../../repository/vendor_repository.dart';
 import '../../../repository/gst_rate_repository.dart';
 import '../../../view_model/pos_viewmodel.dart';
+import '../../widgets/vendor_form_dialog.dart';
 import '../debit_notes_screen.dart';
 
 // Providers
@@ -18,13 +20,11 @@ final purchaseRepositoryProvider = FutureProvider<PurchaseRepository>((
   return PurchaseRepository(db);
 });
 
-final vendorListForPurchaseProvider =
-    FutureProvider<List<Map<String, dynamic>>>((ref) async {
-      final db = await ref.watch(databaseProvider);
-      final repository = VendorRepository(db);
-      final vendors = await repository.getAllVendors();
-      return vendors.map((v) => v.toJson()).toList();
-    });
+final vendorListForPurchaseProvider = FutureProvider<List<Vendor>>((ref) async {
+  final db = await ref.watch(databaseProvider);
+  final repository = VendorRepository(db);
+  return await repository.getAllVendors();
+});
 
 final productListForPurchaseProvider =
     FutureProvider<List<Map<String, dynamic>>>((ref) async {
@@ -69,7 +69,7 @@ class CreatePurchaseScreen extends ConsumerStatefulWidget {
 class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  int? _selectedVendorId;
+  Vendor? _selectedVendor;
   String? _purchaseReferenceNumber;
   DateTime? _purchaseReferenceDate;
 
@@ -83,7 +83,6 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
 
   List<Map<String, dynamic>> _products = [];
   List<Map<String, dynamic>> _gstRates = [];
-  List<Map<String, dynamic>> _vendors = [];
   String? _companyGstNumber;
   bool _isInterState = false;
   bool _dataInitialized = false;
@@ -214,25 +213,15 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
     });
   }
 
-  void _checkInterStateAndUpdateRows(int? vendorId) {
-    if (vendorId == null ||
+  void _checkInterStateAndUpdateRows(Vendor? vendor) {
+    if (vendor == null ||
         _companyGstNumber == null ||
         _companyGstNumber!.length < 2) {
       _isInterState = false;
       return;
     }
 
-    final vendor = _vendors.firstWhere(
-      (v) => v['id'] == vendorId,
-      orElse: () => <String, dynamic>{},
-    );
-
-    if (vendor.isEmpty) {
-      _isInterState = false;
-      return;
-    }
-
-    final vendorGstNumber = vendor['gst_number'] as String?;
+    final vendorGstNumber = vendor.gstNumber;
 
     // Edge cases: vendor has no GST number, assume inter-state for safety
     if (vendorGstNumber == null ||
@@ -277,6 +266,16 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
       return;
     }
 
+    if (_selectedVendor == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a vendor'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     final validRows = _rows.where((row) => row.isValid()).toList();
 
     if (validRows.isEmpty) {
@@ -301,7 +300,7 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
         purchaseNumber: purchaseNumber,
         purchaseReferenceNumber: _purchaseReferenceNumber,
         purchaseReferenceDate: _purchaseReferenceDate,
-        vendorId: _selectedVendorId!,
+        vendorId: _selectedVendor!.id!,
         subtotal: _subtotal,
         taxAmount: _totalTax,
         totalAmount: _grandTotal,
@@ -400,7 +399,6 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
                 if (!_dataInitialized) {
                   _products = products;
                   _gstRates = gstRates;
-                  _vendors = vendors;
                   _companyGstNumber = company?['gst_number'] as String?;
                   _dataInitialized = true;
                   WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -411,7 +409,6 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
                 } else {
                   _products = products;
                   _gstRates = gstRates;
-                  _vendors = vendors;
                   _companyGstNumber = company?['gst_number'] as String?;
                   for (var row in _rows) {
                     row.updateData(_products, _gstRates);
@@ -426,7 +423,7 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
     );
   }
 
-  Widget _buildForm(List<Map<String, dynamic>> vendors) {
+  Widget _buildForm(List<Vendor> vendors) {
     return Form(
       key: _formKey,
       child: Column(
@@ -452,7 +449,91 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
     );
   }
 
-  Widget _buildHeader(List<Map<String, dynamic>> vendors) {
+  /// Fuzzy search helper
+  bool _fuzzyMatch(String searchText, String targetText) {
+    if (searchText.isEmpty) return true;
+    if (targetText.isEmpty) return false;
+
+    final search = searchText.toLowerCase();
+    final target = targetText.toLowerCase();
+
+    int searchIndex = 0;
+    int targetIndex = 0;
+
+    while (searchIndex < search.length && targetIndex < target.length) {
+      if (search[searchIndex] == target[targetIndex]) {
+        searchIndex++;
+      }
+      targetIndex++;
+    }
+
+    return searchIndex == search.length;
+  }
+
+  /// Search vendor across multiple fields
+  bool _matchesVendor(Vendor vendor, String query) {
+    if (query.isEmpty) return true;
+
+    if (_fuzzyMatch(query, vendor.name)) return true;
+    if (vendor.legalName != null && _fuzzyMatch(query, vendor.legalName!)) {
+      return true;
+    }
+    if (vendor.gstNumber != null && _fuzzyMatch(query, vendor.gstNumber!)) {
+      return true;
+    }
+    if (vendor.phone != null && _fuzzyMatch(query, vendor.phone!)) {
+      return true;
+    }
+    if (vendor.email != null && _fuzzyMatch(query, vendor.email!)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  void _showAddVendorDialog() async {
+    final db = await ref.read(databaseProvider);
+    final vendorRepository = VendorRepository(db);
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => VendorFormDialog(
+        vendor: null,
+        onSave: (newVendor) async {
+          Navigator.of(context).pop();
+          try {
+            final vendorId = await vendorRepository.createVendor(newVendor);
+            // Refresh vendor list
+            ref.invalidate(vendorListForPurchaseProvider);
+            // Wait for refresh
+            await Future.delayed(const Duration(milliseconds: 100));
+            // Auto-select the new vendor
+            final vendors = await ref.read(
+              vendorListForPurchaseProvider.future,
+            );
+            final vendor = vendors.firstWhere((v) => v.id == vendorId);
+            setState(() {
+              _selectedVendor = vendor;
+              _checkInterStateAndUpdateRows(vendor);
+            });
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Failed to create vendor: $e'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildHeader(List<Vendor> vendors) {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.all(16),
@@ -460,38 +541,152 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
         children: [
           Expanded(
             flex: 2,
-            child: DropdownButtonFormField<int>(
-              value: _selectedVendorId,
-              decoration: InputDecoration(
-                labelText: 'Vendor *',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 16,
-                ),
-                filled: true,
-                fillColor: Colors.grey.shade50,
-              ),
-              isExpanded: true,
-              items: vendors.map((vendor) {
-                return DropdownMenuItem<int>(
-                  value: vendor['id'] as int,
-                  child: Text(
-                    vendor['name'] as String,
-                    overflow: TextOverflow.ellipsis,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Autocomplete<Vendor>(
+                    key: ValueKey(_selectedVendor?.id),
+                    optionsBuilder: (TextEditingValue textEditingValue) {
+                      if (textEditingValue.text.isEmpty) {
+                        return vendors;
+                      }
+                      return vendors.where((vendor) {
+                        return _matchesVendor(vendor, textEditingValue.text);
+                      });
+                    },
+                    displayStringForOption: (Vendor vendor) => vendor.name,
+                    onSelected: (Vendor vendor) {
+                      setState(() {
+                        _selectedVendor = vendor;
+                        _checkInterStateAndUpdateRows(vendor);
+                      });
+                    },
+                    initialValue: _selectedVendor != null
+                        ? TextEditingValue(text: _selectedVendor!.name)
+                        : null,
+                    fieldViewBuilder:
+                        (
+                          BuildContext context,
+                          TextEditingController textController,
+                          FocusNode focusNode,
+                          VoidCallback onFieldSubmitted,
+                        ) {
+                          return TextField(
+                            controller: textController,
+                            focusNode: focusNode,
+                            decoration: InputDecoration(
+                              labelText: 'Vendor *',
+                              hintText: 'Type to search vendors...',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 16,
+                              ),
+                              filled: true,
+                              fillColor: Colors.grey.shade50,
+                              errorText:
+                                  _selectedVendor == null &&
+                                      textController.text.isNotEmpty
+                                  ? 'Please select a vendor from the list'
+                                  : null,
+                            ),
+                            onSubmitted: (value) => onFieldSubmitted(),
+                          );
+                        },
+                    optionsViewBuilder:
+                        (
+                          BuildContext context,
+                          AutocompleteOnSelected<Vendor> onSelected,
+                          Iterable<Vendor> options,
+                        ) {
+                          return Align(
+                            alignment: Alignment.topLeft,
+                            child: Material(
+                              elevation: 4.0,
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxHeight: 300,
+                                  maxWidth: 400,
+                                ),
+                                child: ListView.builder(
+                                  padding: EdgeInsets.zero,
+                                  shrinkWrap: true,
+                                  itemCount: options.length,
+                                  itemBuilder:
+                                      (BuildContext context, int index) {
+                                        final Vendor vendor = options.elementAt(
+                                          index,
+                                        );
+                                        return InkWell(
+                                          onTap: () => onSelected(vendor),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 12,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              border: Border(
+                                                bottom: BorderSide(
+                                                  color: Colors.grey.shade200,
+                                                ),
+                                              ),
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  vendor.name,
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 14,
+                                                  ),
+                                                ),
+                                                if (vendor.gstNumber !=
+                                                    null) ...[
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    'GST: ${vendor.gstNumber}',
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      color:
+                                                          Colors.grey.shade600,
+                                                    ),
+                                                  ),
+                                                ],
+                                                if (vendor.phone != null) ...[
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    vendor.phone!,
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      color:
+                                                          Colors.grey.shade600,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                   ),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  _selectedVendorId = value;
-                  _checkInterStateAndUpdateRows(value);
-                });
-              },
-              validator: (value) =>
-                  value == null ? 'Please select a vendor' : null,
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.add_circle_outline),
+                  color: AppColors.primary,
+                  onPressed: _showAddVendorDialog,
+                  tooltip: 'Add New Vendor',
+                ),
+              ],
             ),
           ),
           const SizedBox(width: 16),
