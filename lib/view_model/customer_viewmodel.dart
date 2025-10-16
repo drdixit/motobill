@@ -48,12 +48,12 @@ class CustomerViewModel extends StateNotifier<CustomerState> {
       _ref = null,
       super(CustomerState(isLoading: true));
 
-  /// Load all customers
+  /// Load all customers (including disabled ones for Masters screen)
   Future<void> loadCustomers() async {
     if (_repository == null) return;
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final customers = await _repository.getAllCustomers();
+      final customers = await _repository.getAllCustomersIncludingDisabled();
       state = state.copyWith(customers: customers, isLoading: false);
     } catch (e) {
       state = state.copyWith(error: e.toString(), isLoading: false);

@@ -8,8 +8,22 @@ class CustomerRepository {
 
   CustomerRepository(this._db);
 
-  /// Get all active customers (not deleted)
+  /// Get all active and enabled customers (not deleted and enabled)
+  /// Used for POS and Create Bill screens where only enabled customers should be selectable
   Future<List<Customer>> getAllCustomers() async {
+    try {
+      final result = await _db.rawQuery(
+        'SELECT * FROM customers WHERE is_deleted = 0 AND is_enabled = 1 ORDER BY name ASC',
+      );
+      return result.map((json) => Customer.fromJson(json)).toList();
+    } catch (e) {
+      throw Exception('Failed to fetch customers: $e');
+    }
+  }
+
+  /// Get all customers including disabled ones (not deleted)
+  /// Used for Masters screen to show all customers regardless of enabled status
+  Future<List<Customer>> getAllCustomersIncludingDisabled() async {
     try {
       final result = await _db.rawQuery(
         'SELECT * FROM customers WHERE is_deleted = 0 ORDER BY name ASC',
