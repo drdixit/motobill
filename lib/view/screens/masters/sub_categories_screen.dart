@@ -208,13 +208,13 @@ class SubCategoriesScreen extends ConsumerWidget {
                 onPressed: () => _toggleSubCategory(ref, subCategory),
                 tooltip: subCategory.isEnabled ? 'Disable' : 'Enable',
               ),
-              // Delete button
-              IconButton(
-                icon: Icon(Icons.delete, size: 20),
-                color: AppColors.error,
-                onPressed: () => _deleteSubCategory(context, ref, subCategory),
-                tooltip: 'Delete',
-              ),
+              // Delete button - Hidden
+              // IconButton(
+              //   icon: Icon(Icons.delete, size: 20),
+              //   color: AppColors.error,
+              //   onPressed: () => _deleteSubCategory(context, ref, subCategory),
+              //   tooltip: 'Delete',
+              // ),
             ],
           ),
         ],
@@ -300,33 +300,34 @@ class SubCategoriesScreen extends ConsumerWidget {
         .toggleSubCategoryEnabled(subCategory.id!, !subCategory.isEnabled);
   }
 
-  void _deleteSubCategory(
-    BuildContext context,
-    WidgetRef ref,
-    SubCategory subCategory,
-  ) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Sub Category'),
-        content: Text('Are you sure you want to delete ${subCategory.name}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              ref
-                  .read(subCategoryProvider.notifier)
-                  .deleteSubCategory(subCategory.id!);
-              Navigator.of(context).pop();
-            },
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
+  // Delete functionality - Hidden
+  // void _deleteSubCategory(
+  //   BuildContext context,
+  //   WidgetRef ref,
+  //   SubCategory subCategory,
+  // ) {
+  //   showDialog(
+  //     context: context,
+  //     builder: (context) => AlertDialog(
+  //       title: const Text('Delete Sub Category'),
+  //       content: Text('Are you sure you want to delete ${subCategory.name}?'),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () => Navigator.of(context).pop(),
+  //           child: const Text('Cancel'),
+  //         ),
+  //         TextButton(
+  //           onPressed: () {
+  //             ref
+  //                 .read(subCategoryProvider.notifier)
+  //                 .deleteSubCategory(subCategory.id!);
+  //             Navigator.of(context).pop();
+  //           },
+  //           style: TextButton.styleFrom(foregroundColor: AppColors.error),
+  //           child: const Text('Delete'),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 }

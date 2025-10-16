@@ -221,13 +221,13 @@ class CustomersScreen extends ConsumerWidget {
                 onPressed: () => _toggleCustomer(ref, customer),
                 tooltip: customer.isEnabled ? 'Disable' : 'Enable',
               ),
-              // Delete button
-              IconButton(
-                icon: Icon(Icons.delete, size: 20),
-                color: AppColors.error,
-                onPressed: () => _deleteCustomer(context, ref, customer),
-                tooltip: 'Delete',
-              ),
+              // Delete button - Hidden
+              // IconButton(
+              //   icon: Icon(Icons.delete, size: 20),
+              //   color: AppColors.error,
+              //   onPressed: () => _deleteCustomer(context, ref, customer),
+              //   tooltip: 'Delete',
+              // ),
             ],
           ),
         ],
@@ -263,44 +263,45 @@ class CustomersScreen extends ConsumerWidget {
     viewModel.toggleCustomerEnabled(customer.id!, !customer.isEnabled);
   }
 
-  void _deleteCustomer(BuildContext context, WidgetRef ref, Customer customer) {
-    final viewModel = ref.read(customerProvider.notifier);
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          'Delete Customer',
-          style: TextStyle(fontWeight: FontWeight.w600, fontFamily: 'Roboto'),
-        ),
-        content: Text(
-          'Are you sure you want to delete "${customer.legalName ?? customer.name}"? This action cannot be undone.',
-          style: TextStyle(fontFamily: 'Roboto'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(
-              'Cancel',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontFamily: 'Roboto',
-              ),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.of(context).pop();
-              await viewModel.deleteCustomer(customer.id!);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-              foregroundColor: AppColors.white,
-            ),
-            child: Text('Delete', style: TextStyle(fontFamily: 'Roboto')),
-          ),
-        ],
-      ),
-    );
-  }
+  // Delete functionality - Hidden
+  // void _deleteCustomer(BuildContext context, WidgetRef ref, Customer customer) {
+  //   final viewModel = ref.read(customerProvider.notifier);
+  //
+  //   showDialog(
+  //     context: context,
+  //     builder: (context) => AlertDialog(
+  //       title: Text(
+  //         'Delete Customer',
+  //         style: TextStyle(fontWeight: FontWeight.w600, fontFamily: 'Roboto'),
+  //       ),
+  //       content: Text(
+  //         'Are you sure you want to delete "${customer.legalName ?? customer.name}"? This action cannot be undone.',
+  //         style: TextStyle(fontFamily: 'Roboto'),
+  //       ),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () => Navigator.of(context).pop(),
+  //           child: Text(
+  //             'Cancel',
+  //             style: TextStyle(
+  //               color: AppColors.textSecondary,
+  //               fontFamily: 'Roboto',
+  //             ),
+  //           ),
+  //         ),
+  //         ElevatedButton(
+  //           onPressed: () async {
+  //             Navigator.of(context).pop();
+  //             await viewModel.deleteCustomer(customer.id!);
+  //           },
+  //           style: ElevatedButton.styleFrom(
+  //             backgroundColor: AppColors.error,
+  //             foregroundColor: AppColors.white,
+  //           ),
+  //           child: Text('Delete', style: TextStyle(fontFamily: 'Roboto')),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 }

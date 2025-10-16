@@ -201,13 +201,13 @@ class VendorsScreen extends ConsumerWidget {
                 onPressed: () => _toggleVendor(ref, vendor),
                 tooltip: vendor.isEnabled ? 'Disable' : 'Enable',
               ),
-              // Delete button
-              IconButton(
-                icon: Icon(Icons.delete, size: 20),
-                color: AppColors.error,
-                onPressed: () => _deleteVendor(context, ref, vendor),
-                tooltip: 'Delete',
-              ),
+              // Delete button - Hidden
+              // IconButton(
+              //   icon: Icon(Icons.delete, size: 20),
+              //   color: AppColors.error,
+              //   onPressed: () => _deleteVendor(context, ref, vendor),
+              //   tooltip: 'Delete',
+              // ),
             ],
           ),
         ],
@@ -238,27 +238,28 @@ class VendorsScreen extends ConsumerWidget {
         .toggleVendorEnabled(vendor.id!, !vendor.isEnabled);
   }
 
-  void _deleteVendor(BuildContext context, WidgetRef ref, Vendor vendor) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Vendor'),
-        content: Text('Are you sure you want to delete ${vendor.name}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              ref.read(vendorProvider.notifier).deleteVendor(vendor.id!);
-              Navigator.of(context).pop();
-            },
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
+  // Delete functionality - Hidden
+  // void _deleteVendor(BuildContext context, WidgetRef ref, Vendor vendor) {
+  //   showDialog(
+  //     context: context,
+  //     builder: (context) => AlertDialog(
+  //       title: const Text('Delete Vendor'),
+  //       content: Text('Are you sure you want to delete ${vendor.name}?'),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () => Navigator.of(context).pop(),
+  //           child: const Text('Cancel'),
+  //         ),
+  //         TextButton(
+  //           onPressed: () {
+  //             ref.read(vendorProvider.notifier).deleteVendor(vendor.id!);
+  //             Navigator.of(context).pop();
+  //           },
+  //           style: TextButton.styleFrom(foregroundColor: AppColors.error),
+  //           child: const Text('Delete'),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 }

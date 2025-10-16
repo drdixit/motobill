@@ -126,29 +126,16 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        product.name,
-                        style: TextStyle(
-                          fontSize: AppSizes.fontL,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                          fontFamily: 'Roboto',
-                        ),
-                      ),
-                    ),
-                    if (product.partNumber != null)
-                      Text(
-                        product.partNumber!,
-                        style: TextStyle(
-                          fontSize: AppSizes.fontM,
-                          color: AppColors.textSecondary,
-                          fontFamily: 'Roboto',
-                        ),
-                      ),
-                  ],
+                Text(
+                  product.partNumber != null
+                      ? '${product.name} (${product.partNumber})'
+                      : product.name,
+                  style: TextStyle(
+                    fontSize: AppSizes.fontL,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                    fontFamily: 'Roboto',
+                  ),
                 ),
                 const SizedBox(height: AppSizes.paddingXS),
                 Row(
@@ -207,12 +194,13 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                 onPressed: () => _toggleProduct(ref, product),
                 tooltip: product.isEnabled ? 'Disable' : 'Enable',
               ),
-              IconButton(
-                icon: const Icon(Icons.delete, size: 20),
-                color: AppColors.error,
-                onPressed: () => _deleteProduct(context, ref, product),
-                tooltip: 'Delete',
-              ),
+              // Delete button - Hidden
+              // IconButton(
+              //   icon: const Icon(Icons.delete, size: 20),
+              //   color: AppColors.error,
+              //   onPressed: () => _deleteProduct(context, ref, product),
+              //   tooltip: 'Delete',
+              // ),
             ],
           ),
         ],
@@ -387,29 +375,30 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
         .toggleProductStatus(product.id!, !product.isEnabled);
   }
 
-  void _deleteProduct(BuildContext context, WidgetRef ref, Product product) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Product'),
-        content: Text('Are you sure you want to delete ${product.name}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              ref
-                  .read(productViewModelProvider.notifier)
-                  .deleteProduct(product.id!);
-              Navigator.of(context).pop();
-            },
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
+  // Delete functionality - Hidden
+  // void _deleteProduct(BuildContext context, WidgetRef ref, Product product) {
+  //   showDialog(
+  //     context: context,
+  //     builder: (context) => AlertDialog(
+  //       title: const Text('Delete Product'),
+  //       content: Text('Are you sure you want to delete ${product.name}?'),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () => Navigator.of(context).pop(),
+  //           child: const Text('Cancel'),
+  //         ),
+  //         TextButton(
+  //           onPressed: () {
+  //             ref
+  //                 .read(productViewModelProvider.notifier)
+  //                 .deleteProduct(product.id!);
+  //             Navigator.of(context).pop();
+  //           },
+  //           style: TextButton.styleFrom(foregroundColor: AppColors.error),
+  //           child: const Text('Delete'),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 }

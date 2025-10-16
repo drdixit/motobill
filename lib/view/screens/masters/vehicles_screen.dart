@@ -206,13 +206,13 @@ class VehiclesScreen extends ConsumerWidget {
                 onPressed: () => _toggleVehicle(ref, vehicle),
                 tooltip: vehicle.isEnabled ? 'Disable' : 'Enable',
               ),
-              // Delete button
-              IconButton(
-                icon: Icon(Icons.delete, size: 20),
-                color: AppColors.error,
-                onPressed: () => _deleteVehicle(context, ref, vehicle),
-                tooltip: 'Delete',
-              ),
+              // Delete button - Hidden
+              // IconButton(
+              //   icon: Icon(Icons.delete, size: 20),
+              //   color: AppColors.error,
+              //   onPressed: () => _deleteVehicle(context, ref, vehicle),
+              //   tooltip: 'Delete',
+              // ),
             ],
           ),
         ],
@@ -294,27 +294,28 @@ class VehiclesScreen extends ConsumerWidget {
         .toggleVehicleEnabled(vehicle.id!, !vehicle.isEnabled);
   }
 
-  void _deleteVehicle(BuildContext context, WidgetRef ref, Vehicle vehicle) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Vehicle'),
-        content: Text('Are you sure you want to delete ${vehicle.name}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              ref.read(vehicleProvider.notifier).deleteVehicle(vehicle.id!);
-              Navigator.of(context).pop();
-            },
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
+  // Delete functionality - Hidden
+  // void _deleteVehicle(BuildContext context, WidgetRef ref, Vehicle vehicle) {
+  //   showDialog(
+  //     context: context,
+  //     builder: (context) => AlertDialog(
+  //       title: const Text('Delete Vehicle'),
+  //       content: Text('Are you sure you want to delete ${vehicle.name}?'),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () => Navigator.of(context).pop(),
+  //           child: const Text('Cancel'),
+  //         ),
+  //         TextButton(
+  //           onPressed: () {
+  //             ref.read(vehicleProvider.notifier).deleteVehicle(vehicle.id!);
+  //             Navigator.of(context).pop();
+  //           },
+  //           style: TextButton.styleFrom(foregroundColor: AppColors.error),
+  //           child: const Text('Delete'),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 }

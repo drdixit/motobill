@@ -194,13 +194,13 @@ class GstRatesScreen extends ConsumerWidget {
                 onPressed: () => _toggleGstRate(ref, gstRate),
                 tooltip: gstRate.isEnabled ? 'Disable' : 'Enable',
               ),
-              // Delete button
-              IconButton(
-                icon: const Icon(Icons.delete, size: 20),
-                color: AppColors.error,
-                onPressed: () => _deleteGstRate(context, ref, gstRate, hsnCode),
-                tooltip: 'Delete',
-              ),
+              // Delete button - Hidden
+              // IconButton(
+              //   icon: const Icon(Icons.delete, size: 20),
+              //   color: AppColors.error,
+              //   onPressed: () => _deleteGstRate(context, ref, gstRate, hsnCode),
+              //   tooltip: 'Delete',
+              // ),
             ],
           ),
         ],
@@ -277,36 +277,37 @@ class GstRatesScreen extends ConsumerWidget {
         .toggleGstRateStatus(gstRate.id!, !gstRate.isEnabled);
   }
 
-  void _deleteGstRate(
-    BuildContext context,
-    WidgetRef ref,
-    GstRate gstRate,
-    String? hsnCode,
-  ) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete GST Rate'),
-        content: Text(
-          'Are you sure you want to delete GST rate for ${hsnCode ?? 'this HSN code'}?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              ref
-                  .read(gstRateViewModelProvider.notifier)
-                  .deleteGstRate(gstRate.id!);
-              Navigator.of(context).pop();
-            },
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
+  // Delete functionality - Hidden
+  // void _deleteGstRate(
+  //   BuildContext context,
+  //   WidgetRef ref,
+  //   GstRate gstRate,
+  //   String? hsnCode,
+  // ) {
+  //   showDialog(
+  //     context: context,
+  //     builder: (context) => AlertDialog(
+  //       title: const Text('Delete GST Rate'),
+  //       content: Text(
+  //         'Are you sure you want to delete GST rate for ${hsnCode ?? 'this HSN code'}?',
+  //       ),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () => Navigator.of(context).pop(),
+  //           child: const Text('Cancel'),
+  //         ),
+  //         TextButton(
+  //           onPressed: () {
+  //             ref
+  //                 .read(gstRateViewModelProvider.notifier)
+  //                 .deleteGstRate(gstRate.id!);
+  //             Navigator.of(context).pop();
+  //           },
+  //           style: TextButton.styleFrom(foregroundColor: AppColors.error),
+  //           child: const Text('Delete'),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 }
