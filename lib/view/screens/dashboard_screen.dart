@@ -220,40 +220,145 @@ final purchaseStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   final totalReturns = (returnsResult.first['total'] as num?) ?? 0;
 
   // Get daily purchases for the last 7 days
+  // Net purchases per day = Purchases - ALL debit notes associated with those purchases
+  // (not just debit notes from last 7 days, but all debit notes for purchases from last 7 days)
   final dailyPurchases = await db.rawQuery('''
     SELECT
-      date(created_at) as day,
-      SUM(total_amount) as total
-    FROM purchases
-    WHERE is_deleted = 0
-      AND date(created_at) >= date('now', '-7 days')
-    GROUP BY day
+      date(p.created_at) as day,
+      SUM(p.total_amount) - COALESCE(
+        SUM((SELECT SUM(dn.total_amount)
+             FROM debit_notes dn
+             WHERE dn.purchase_id = p.id AND dn.is_deleted = 0)), 0
+      ) as total
+    FROM purchases p
+    WHERE p.is_deleted = 0
+      AND date(p.created_at) >= date('now', '-7 days')
+    GROUP BY date(p.created_at)
     ORDER BY day ASC
   ''');
 
   // Get taxable vs non-taxable purchases for last 7 days
+  // Net purchases = Purchases - ALL debit notes associated with those purchases
+  // (not just debit notes from last 7 days, but all debit notes for purchases from last 7 days)
   final taxablePurchases = await db.rawQuery('''
-    SELECT SUM(pi.total_amount) as total
-    FROM purchase_items pi
-    INNER JOIN purchases p ON pi.purchase_id = p.id
-    WHERE pi.is_deleted = 0
-      AND p.is_deleted = 0
-      AND date(p.created_at) >= date('now', '-7 days')
-      AND pi.tax_amount > 0
+    SELECT
+      SUM(purchase_taxable) - SUM(return_taxable) as total
+    FROM (
+      SELECT
+        p.id as purchase_id,
+        COALESCE(SUM(pi.total_amount), 0) as purchase_taxable,
+        COALESCE(
+          (SELECT SUM(dni.total_amount)
+           FROM debit_note_items dni
+           INNER JOIN debit_notes dn ON dni.debit_note_id = dn.id
+           WHERE dn.purchase_id = p.id
+             AND dni.is_deleted = 0
+             AND dn.is_deleted = 0
+             AND dni.tax_amount > 0), 0
+        ) as return_taxable
+      FROM purchases p
+      LEFT JOIN purchase_items pi ON pi.purchase_id = p.id AND pi.is_deleted = 0 AND pi.tax_amount > 0
+      WHERE p.is_deleted = 0
+        AND date(p.created_at) >= date('now', '-7 days')
+      GROUP BY p.id
+    )
   ''');
 
   final nonTaxablePurchases = await db.rawQuery('''
-    SELECT SUM(pi.total_amount) as total
-    FROM purchase_items pi
-    INNER JOIN purchases p ON pi.purchase_id = p.id
-    WHERE pi.is_deleted = 0
-      AND p.is_deleted = 0
-      AND date(p.created_at) >= date('now', '-7 days')
-      AND pi.tax_amount = 0
+    SELECT
+      SUM(purchase_non_taxable) - SUM(return_non_taxable) as total
+    FROM (
+      SELECT
+        p.id as purchase_id,
+        COALESCE(SUM(pi.total_amount), 0) as purchase_non_taxable,
+        COALESCE(
+          (SELECT SUM(dni.total_amount)
+           FROM debit_note_items dni
+           INNER JOIN debit_notes dn ON dni.debit_note_id = dn.id
+           WHERE dn.purchase_id = p.id
+             AND dni.is_deleted = 0
+             AND dn.is_deleted = 0
+             AND dni.tax_amount = 0), 0
+        ) as return_non_taxable
+      FROM purchases p
+      LEFT JOIN purchase_items pi ON pi.purchase_id = p.id AND pi.is_deleted = 0 AND pi.tax_amount = 0
+      WHERE p.is_deleted = 0
+        AND date(p.created_at) >= date('now', '-7 days')
+      GROUP BY p.id
+    )
   ''');
 
   final taxableAmount = (taxablePurchases.first['total'] as num?) ?? 0;
   final nonTaxableAmount = (nonTaxablePurchases.first['total'] as num?) ?? 0;
+
+  // Get top 5 vendors by purchases (last 7 days)
+  // Net amount = (Purchases from last 7 days) - (All debit notes for those purchases)
+  // Exclude AUTO-STOCK-ADJUSTMENT vendor (id=7)
+  final topVendors = await db.rawQuery('''
+    SELECT
+      v.name as vendor_name,
+      SUM(p.total_amount) - COALESCE(
+        (SELECT SUM(dn.total_amount)
+         FROM debit_notes dn
+         INNER JOIN purchases p2 ON dn.purchase_id = p2.id
+         WHERE dn.is_deleted = 0
+           AND p2.vendor_id = v.id
+           AND date(p2.created_at) >= date('now', '-7 days')
+        ), 0
+      ) as total_amount,
+      COUNT(p.id) as purchase_count
+    FROM purchases p
+    INNER JOIN vendors v ON p.vendor_id = v.id
+    WHERE p.is_deleted = 0
+      AND v.is_deleted = 0
+      AND v.id != 7
+      AND date(p.created_at) >= date('now', '-7 days')
+    GROUP BY v.id, v.name
+    HAVING total_amount > 0
+    ORDER BY total_amount DESC
+    LIMIT 5
+  ''');
+
+  // Get top 5 purchased products (last 7 days)
+  // Net quantity = Purchased quantity - Returned quantity via debit notes
+  // Only include debit notes for purchases that are also in the last 7 days
+  final topPurchasedProducts = await db.rawQuery('''
+    SELECT
+      p.name as product_name,
+      COALESCE(SUM(pi.quantity), 0) - COALESCE(
+        (SELECT SUM(dni.quantity)
+         FROM debit_note_items dni
+         INNER JOIN debit_notes dn ON dni.debit_note_id = dn.id
+         INNER JOIN purchases pu ON dn.purchase_id = pu.id
+         WHERE dni.product_id = pi.product_id
+           AND dni.is_deleted = 0
+           AND dn.is_deleted = 0
+           AND date(pu.created_at) >= date('now', '-7 days')
+        ), 0
+      ) as total_quantity,
+      COALESCE(SUM(pi.total_amount), 0) - COALESCE(
+        (SELECT SUM(dni.total_amount)
+         FROM debit_note_items dni
+         INNER JOIN debit_notes dn ON dni.debit_note_id = dn.id
+         INNER JOIN purchases pu ON dn.purchase_id = pu.id
+         WHERE dni.product_id = pi.product_id
+           AND dni.is_deleted = 0
+           AND dn.is_deleted = 0
+           AND date(pu.created_at) >= date('now', '-7 days')
+        ), 0
+      ) as total_amount
+    FROM purchase_items pi
+    INNER JOIN purchases pu ON pi.purchase_id = pu.id
+    INNER JOIN products p ON pi.product_id = p.id
+    WHERE pi.is_deleted = 0
+      AND pu.is_deleted = 0
+      AND p.is_deleted = 0
+      AND date(pu.created_at) >= date('now', '-7 days')
+    GROUP BY pi.product_id, p.name
+    HAVING total_quantity > 0
+    ORDER BY total_quantity DESC
+    LIMIT 5
+  ''');
 
   return {
     'totalPurchases': totalPurchases,
@@ -262,6 +367,8 @@ final purchaseStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
     'dailyPurchases': dailyPurchases,
     'taxableAmount': taxableAmount,
     'nonTaxableAmount': nonTaxableAmount,
+    'topVendors': topVendors,
+    'topPurchasedProducts': topPurchasedProducts,
   };
 });
 
@@ -509,6 +616,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             stats['dailyPurchases'] as List<Map<String, dynamic>>;
         final taxableAmount = stats['taxableAmount'] as num;
         final nonTaxableAmount = stats['nonTaxableAmount'] as num;
+        final topVendors = stats['topVendors'] as List<Map<String, dynamic>>;
+        final topPurchasedProducts =
+            stats['topPurchasedProducts'] as List<Map<String, dynamic>>;
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -576,6 +686,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     ],
                   );
                 },
+              ),
+              const SizedBox(height: 32),
+
+              // Top Vendors and Top Purchased Products Row
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: _buildTopVendors(topVendors)),
+                  const SizedBox(width: 24),
+                  Expanded(
+                    child: _buildTopPurchasedProducts(topPurchasedProducts),
+                  ),
+                ],
               ),
               const SizedBox(height: 32),
 
@@ -1413,6 +1536,264 @@ Widget _buildTopProducts(List<Map<String, dynamic>> topProducts) {
             const SizedBox(width: 8),
             const Text(
               'Top Selling Products (Last 7 Days)',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (topProducts.isEmpty)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Text(
+                'No product data available',
+                style: TextStyle(color: Colors.grey.shade600),
+              ),
+            ),
+          )
+        else
+          ...topProducts.asMap().entries.map((entry) {
+            final index = entry.key;
+            final product = entry.value;
+            final productName = product['product_name'] as String;
+            final totalQuantity = (product['total_quantity'] as num).toDouble();
+            final totalAmount = (product['total_amount'] as num).toDouble();
+
+            return Column(
+              children: [
+                if (index > 0) const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    children: [
+                      // Rank
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: index == 0
+                              ? Colors.amber.shade100
+                              : index == 1
+                              ? Colors.grey.shade200
+                              : index == 2
+                              ? Colors.orange.shade100
+                              : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${index + 1}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: index < 3
+                                  ? Colors.black87
+                                  : Colors.grey.shade700,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Product info
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              productName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                                color: Colors.black87,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Qty: ${totalQuantity.toStringAsFixed(0)}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Amount
+                      Text(
+                        '₹${totalAmount.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }).toList(),
+      ],
+    ),
+  );
+}
+
+Widget _buildTopVendors(List<Map<String, dynamic>> topVendors) {
+  return Container(
+    padding: const EdgeInsets.all(24),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 10,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.local_shipping, color: AppColors.primary, size: 24),
+            const SizedBox(width: 8),
+            const Text(
+              'Top Vendors (Last 7 Days)',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (topVendors.isEmpty)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Text(
+                'No vendor data available',
+                style: TextStyle(color: Colors.grey.shade600),
+              ),
+            ),
+          )
+        else
+          ...topVendors.asMap().entries.map((entry) {
+            final index = entry.key;
+            final vendor = entry.value;
+            final vendorName = vendor['vendor_name'] as String;
+            final totalAmount = (vendor['total_amount'] as num).toDouble();
+            final purchaseCount = vendor['purchase_count'] as int;
+
+            return Column(
+              children: [
+                if (index > 0) const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    children: [
+                      // Rank
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: index == 0
+                              ? Colors.amber.shade100
+                              : index == 1
+                              ? Colors.grey.shade200
+                              : index == 2
+                              ? Colors.orange.shade100
+                              : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${index + 1}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: index < 3
+                                  ? Colors.black87
+                                  : Colors.grey.shade700,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Vendor info
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              vendorName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                                color: Colors.black87,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '$purchaseCount ${purchaseCount == 1 ? 'purchase' : 'purchases'}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Amount
+                      Text(
+                        '₹${totalAmount.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }).toList(),
+      ],
+    ),
+  );
+}
+
+Widget _buildTopPurchasedProducts(List<Map<String, dynamic>> topProducts) {
+  return Container(
+    padding: const EdgeInsets.all(24),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 10,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.inventory_2, color: AppColors.primary, size: 24),
+            const SizedBox(width: 8),
+            const Text(
+              'Top Purchased Products (Last 7 Days)',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
