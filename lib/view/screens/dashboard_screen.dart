@@ -31,36 +31,72 @@ final salesStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   final totalRefunds = (refundsResult.first['total'] as num?) ?? 0;
 
   // Get daily sales for the last 7 days
+  // Net sales per day = Bills - ALL credit notes associated with those bills
+  // (not just credit notes from last 7 days, but all credit notes for bills from last 7 days)
   final dailySales = await db.rawQuery('''
     SELECT
-      date(created_at) as day,
-      SUM(total_amount) as total
-    FROM bills
-    WHERE is_deleted = 0
-      AND date(created_at) >= date('now', '-7 days')
-    GROUP BY day
+      date(b.created_at) as day,
+      SUM(b.total_amount) - COALESCE(
+        SUM((SELECT SUM(cn.total_amount)
+             FROM credit_notes cn
+             WHERE cn.bill_id = b.id AND cn.is_deleted = 0)), 0
+      ) as total
+    FROM bills b
+    WHERE b.is_deleted = 0
+      AND date(b.created_at) >= date('now', '-7 days')
+    GROUP BY date(b.created_at)
     ORDER BY day ASC
   ''');
 
   // Get taxable vs non-taxable sales for last 7 days
+  // Net sales = Bills - ALL credit notes associated with those bills
+  // (not just credit notes from last 7 days, but all credit notes for bills from last 7 days)
   final taxableSales = await db.rawQuery('''
-    SELECT SUM(bi.total_amount) as total
-    FROM bill_items bi
-    INNER JOIN bills b ON bi.bill_id = b.id
-    WHERE bi.is_deleted = 0
-      AND b.is_deleted = 0
-      AND date(b.created_at) >= date('now', '-7 days')
-      AND bi.tax_amount > 0
+    SELECT
+      SUM(bill_taxable) - SUM(refund_taxable) as total
+    FROM (
+      SELECT
+        b.id as bill_id,
+        COALESCE(SUM(bi.total_amount), 0) as bill_taxable,
+        COALESCE(
+          (SELECT SUM(cni.total_amount)
+           FROM credit_note_items cni
+           INNER JOIN credit_notes cn ON cni.credit_note_id = cn.id
+           WHERE cn.bill_id = b.id
+             AND cni.is_deleted = 0
+             AND cn.is_deleted = 0
+             AND cni.tax_amount > 0), 0
+        ) as refund_taxable
+      FROM bills b
+      LEFT JOIN bill_items bi ON bi.bill_id = b.id AND bi.is_deleted = 0 AND bi.tax_amount > 0
+      WHERE b.is_deleted = 0
+        AND date(b.created_at) >= date('now', '-7 days')
+      GROUP BY b.id
+    )
   ''');
 
   final nonTaxableSales = await db.rawQuery('''
-    SELECT SUM(bi.total_amount) as total
-    FROM bill_items bi
-    INNER JOIN bills b ON bi.bill_id = b.id
-    WHERE bi.is_deleted = 0
-      AND b.is_deleted = 0
-      AND date(b.created_at) >= date('now', '-7 days')
-      AND bi.tax_amount = 0
+    SELECT
+      SUM(bill_non_taxable) - SUM(refund_non_taxable) as total
+    FROM (
+      SELECT
+        b.id as bill_id,
+        COALESCE(SUM(bi.total_amount), 0) as bill_non_taxable,
+        COALESCE(
+          (SELECT SUM(cni.total_amount)
+           FROM credit_note_items cni
+           INNER JOIN credit_notes cn ON cni.credit_note_id = cn.id
+           WHERE cn.bill_id = b.id
+             AND cni.is_deleted = 0
+             AND cn.is_deleted = 0
+             AND cni.tax_amount = 0), 0
+        ) as refund_non_taxable
+      FROM bills b
+      LEFT JOIN bill_items bi ON bi.bill_id = b.id AND bi.is_deleted = 0 AND bi.tax_amount = 0
+      WHERE b.is_deleted = 0
+        AND date(b.created_at) >= date('now', '-7 days')
+      GROUP BY b.id
+    )
   ''');
 
   final taxableAmount = (taxableSales.first['total'] as num?) ?? 0;
