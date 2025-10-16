@@ -805,27 +805,11 @@ class DebitNoteDetailsScreen extends ConsumerWidget {
 
                     // Taxable Items Table
                     if (taxableItems.isNotEmpty) ...[
-                      Text(
-                        'Taxable Items',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
                       buildTable(taxableItems, showTaxCols: true),
                       const SizedBox(height: 16),
                     ],
                     // Non-taxable Items Table
                     if (nonTaxableItems.isNotEmpty) ...[
-                      Text(
-                        'Non-taxable Items',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
                       buildTable(nonTaxableItems, showTaxCols: false),
                       const SizedBox(height: 16),
                     ],
@@ -1344,26 +1328,10 @@ class PurchaseItemsForDebitNote extends ConsumerWidget {
                     const SizedBox(height: 16),
 
                     if (taxable.isNotEmpty) ...[
-                      Text(
-                        'Taxable Items',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
                       buildTable(taxable, showTaxCols: true),
                       const SizedBox(height: 16),
                     ],
                     if (nonTaxable.isNotEmpty) ...[
-                      Text(
-                        'Non-taxable Items',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
                       buildTable(nonTaxable, showTaxCols: false),
                       const SizedBox(height: 16),
                     ],
