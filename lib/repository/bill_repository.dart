@@ -227,6 +227,25 @@ class BillRepository {
     );
   }
 
+  // Get bills within date range
+  Future<List<Map<String, dynamic>>> getBillsByDateRange(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
+    final startStr = startDate.toIso8601String().split('T')[0];
+    final endStr = endDate.toIso8601String().split('T')[0];
+
+    return await _db.rawQuery(
+      '''SELECT b.*, c.name as customer_name, c.gst_number as customer_gst
+      FROM bills b
+      LEFT JOIN customers c ON b.customer_id = c.id
+      WHERE b.is_deleted = 0
+      AND DATE(b.created_at) BETWEEN ? AND ?
+      ORDER BY b.id DESC''',
+      [startStr, endStr],
+    );
+  }
+
   // Get bill by ID
   Future<Map<String, dynamic>?> getBillById(int id) async {
     final result = await _db.rawQuery(

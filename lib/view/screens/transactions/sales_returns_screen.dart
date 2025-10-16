@@ -1,15 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
-import '../credit_notes_screen.dart';
+import '../../../core/providers/database_provider.dart';
+import '../transactions_screen.dart';
 import 'credit_note_details_screen.dart' as transactions;
+
+// Provider for credit notes list with date filtering
+final creditNotesProviderForTransactions =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
+      final db = await ref.watch(databaseProvider);
+      final dateRange = ref.watch(transactionDateRangeProvider);
+      final startStr = dateRange.start.toIso8601String().split('T')[0];
+      final endStr = dateRange.end.toIso8601String().split('T')[0];
+
+      final result = await db.rawQuery(
+        '''SELECT cn.*, c.name as customer_name
+     FROM credit_notes cn
+     LEFT JOIN customers c ON cn.customer_id = c.id
+     WHERE cn.is_deleted = 0
+     AND DATE(cn.created_at) BETWEEN ? AND ?
+     ORDER BY cn.id DESC''',
+        [startStr, endStr],
+      );
+      return result;
+    });
 
 class SalesReturnsScreen extends ConsumerWidget {
   const SalesReturnsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final creditNotesAsync = ref.watch(creditNotesProvider);
+    final creditNotesAsync = ref.watch(creditNotesProviderForTransactions);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -24,7 +45,8 @@ class SalesReturnsScreen extends ConsumerWidget {
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.refresh),
-                  onPressed: () => ref.invalidate(creditNotesProvider),
+                  onPressed: () =>
+                      ref.invalidate(creditNotesProviderForTransactions),
                   tooltip: 'Refresh',
                 ),
               ],

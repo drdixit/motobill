@@ -3,15 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../repository/purchase_repository.dart';
+import '../transactions_screen.dart';
 import 'purchase_details_screen.dart';
 
-// Provider for purchases list
+// Provider for purchases list with date filtering
 final purchasesListProvider = FutureProvider<List<Map<String, dynamic>>>((
   ref,
 ) async {
   final db = await ref.watch(databaseProvider);
   final repository = PurchaseRepository(db);
-  return repository.getAllPurchases();
+  final dateRange = ref.watch(transactionDateRangeProvider);
+  return repository.getPurchasesByDateRange(dateRange.start, dateRange.end);
 });
 
 class PurchaseScreen extends ConsumerWidget {

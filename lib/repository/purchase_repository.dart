@@ -150,6 +150,25 @@ class PurchaseRepository {
     );
   }
 
+  // Get purchases within date range
+  Future<List<Map<String, dynamic>>> getPurchasesByDateRange(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
+    final startStr = startDate.toIso8601String().split('T')[0];
+    final endStr = endDate.toIso8601String().split('T')[0];
+
+    return await _db.rawQuery(
+      '''SELECT p.*, v.name as vendor_name, v.gst_number as vendor_gst
+      FROM purchases p
+      LEFT JOIN vendors v ON p.vendor_id = v.id
+      WHERE p.is_deleted = 0
+      AND DATE(p.created_at) BETWEEN ? AND ?
+      ORDER BY p.id DESC''',
+      [startStr, endStr],
+    );
+  }
+
   // Get purchase by id
   Future<Map<String, dynamic>?> getPurchaseById(int id) async {
     final result = await _db.rawQuery(

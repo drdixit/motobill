@@ -3,15 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../repository/bill_repository.dart';
+import '../transactions_screen.dart';
 import 'bill_details_screen.dart';
 
-// Provider for bills list
+// Provider for bills list with date filtering
 final billsListProvider = FutureProvider<List<Map<String, dynamic>>>((
   ref,
 ) async {
   final db = await ref.watch(databaseProvider);
   final repository = BillRepository(db);
-  return repository.getAllBills();
+  final dateRange = ref.watch(transactionDateRangeProvider);
+  return repository.getBillsByDateRange(dateRange.start, dateRange.end);
 });
 
 class SalesScreen extends ConsumerWidget {

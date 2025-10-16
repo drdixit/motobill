@@ -3,15 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../repository/debit_note_repository.dart';
+import '../transactions_screen.dart';
 import 'debit_note_details_screen.dart' as transactions;
 
-// Provider for debit notes list
+// Provider for debit notes list with date filtering
 final debitNotesListProvider = FutureProvider<List<Map<String, dynamic>>>((
   ref,
 ) async {
   final db = await ref.watch(databaseProvider);
   final repository = DebitNoteRepository(db);
-  return repository.getAllDebitNotes();
+  final dateRange = ref.watch(transactionDateRangeProvider);
+  return repository.getDebitNotesByDateRange(dateRange.start, dateRange.end);
 });
 
 class PurchaseReturnsScreen extends ConsumerWidget {
