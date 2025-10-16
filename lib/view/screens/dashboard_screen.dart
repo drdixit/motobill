@@ -30,26 +30,26 @@ final salesStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   );
   final totalRefunds = (refundsResult.first['total'] as num?) ?? 0;
 
-  // Get daily sales for the last 10 days
+  // Get daily sales for the last 7 days
   final dailySales = await db.rawQuery('''
     SELECT
       date(created_at) as day,
       SUM(total_amount) as total
     FROM bills
     WHERE is_deleted = 0
-      AND date(created_at) >= date('now', '-10 days')
+      AND date(created_at) >= date('now', '-7 days')
     GROUP BY day
     ORDER BY day ASC
   ''');
 
-  // Get taxable vs non-taxable sales for last 10 days
+  // Get taxable vs non-taxable sales for last 7 days
   final taxableSales = await db.rawQuery('''
     SELECT SUM(bi.total_amount) as total
     FROM bill_items bi
     INNER JOIN bills b ON bi.bill_id = b.id
     WHERE bi.is_deleted = 0
       AND b.is_deleted = 0
-      AND date(b.created_at) >= date('now', '-10 days')
+      AND date(b.created_at) >= date('now', '-7 days')
       AND bi.tax_amount > 0
   ''');
 
@@ -59,18 +59,123 @@ final salesStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
     INNER JOIN bills b ON bi.bill_id = b.id
     WHERE bi.is_deleted = 0
       AND b.is_deleted = 0
-      AND date(b.created_at) >= date('now', '-10 days')
+      AND date(b.created_at) >= date('now', '-7 days')
       AND bi.tax_amount = 0
   ''');
 
   final taxableAmount = (taxableSales.first['total'] as num?) ?? 0;
   final nonTaxableAmount = (nonTaxableSales.first['total'] as num?) ?? 0;
 
+  // Get top 5 customers by sales (last 7 days)
+  final topCustomers = await db.rawQuery('''
+    SELECT
+      c.name as customer_name,
+      SUM(b.total_amount) as total_amount,
+      COUNT(b.id) as bill_count
+    FROM bills b
+    INNER JOIN customers c ON b.customer_id = c.id
+    WHERE b.is_deleted = 0
+      AND c.is_deleted = 0
+      AND date(b.created_at) >= date('now', '-7 days')
+    GROUP BY b.customer_id, c.name
+    ORDER BY total_amount DESC
+    LIMIT 5
+  ''');
+
+  // Get top 5 selling products (last 7 days)
+  final topProducts = await db.rawQuery('''
+    SELECT
+      p.name as product_name,
+      SUM(bi.quantity) as total_quantity,
+      SUM(bi.total_amount) as total_amount
+    FROM bill_items bi
+    INNER JOIN bills b ON bi.bill_id = b.id
+    INNER JOIN products p ON bi.product_id = p.id
+    WHERE bi.is_deleted = 0
+      AND b.is_deleted = 0
+      AND p.is_deleted = 0
+      AND date(b.created_at) >= date('now', '-7 days')
+    GROUP BY bi.product_id, p.name
+    ORDER BY total_quantity DESC
+    LIMIT 5
+  ''');
+
   return {
     'totalSales': totalSales,
     'totalBills': totalBills,
     'totalRefunds': totalRefunds,
     'dailySales': dailySales,
+    'taxableAmount': taxableAmount,
+    'nonTaxableAmount': nonTaxableAmount,
+    'topCustomers': topCustomers,
+    'topProducts': topProducts,
+  };
+});
+
+// Provider for purchase statistics
+final purchaseStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  final db = await ref.watch(databaseProvider);
+
+  // Get total purchase amount (lifetime)
+  final purchaseResult = await db.rawQuery(
+    'SELECT SUM(total_amount) as total FROM purchases WHERE is_deleted = 0',
+  );
+  final totalPurchases = (purchaseResult.first['total'] as num?) ?? 0;
+
+  // Get total purchases count (lifetime)
+  final purchasesCountResult = await db.rawQuery(
+    'SELECT COUNT(*) as count FROM purchases WHERE is_deleted = 0',
+  );
+  final totalPurchasesCount =
+      (purchasesCountResult.first['count'] as int?) ?? 0;
+
+  // Get total returns (debit notes) (lifetime)
+  final returnsResult = await db.rawQuery(
+    'SELECT SUM(total_amount) as total FROM debit_notes WHERE is_deleted = 0',
+  );
+  final totalReturns = (returnsResult.first['total'] as num?) ?? 0;
+
+  // Get daily purchases for the last 7 days
+  final dailyPurchases = await db.rawQuery('''
+    SELECT
+      date(created_at) as day,
+      SUM(total_amount) as total
+    FROM purchases
+    WHERE is_deleted = 0
+      AND date(created_at) >= date('now', '-7 days')
+    GROUP BY day
+    ORDER BY day ASC
+  ''');
+
+  // Get taxable vs non-taxable purchases for last 7 days
+  final taxablePurchases = await db.rawQuery('''
+    SELECT SUM(pi.total_amount) as total
+    FROM purchase_items pi
+    INNER JOIN purchases p ON pi.purchase_id = p.id
+    WHERE pi.is_deleted = 0
+      AND p.is_deleted = 0
+      AND date(p.created_at) >= date('now', '-7 days')
+      AND pi.tax_amount > 0
+  ''');
+
+  final nonTaxablePurchases = await db.rawQuery('''
+    SELECT SUM(pi.total_amount) as total
+    FROM purchase_items pi
+    INNER JOIN purchases p ON pi.purchase_id = p.id
+    WHERE pi.is_deleted = 0
+      AND p.is_deleted = 0
+      AND date(p.created_at) >= date('now', '-7 days')
+      AND pi.tax_amount = 0
+  ''');
+
+  final taxableAmount = (taxablePurchases.first['total'] as num?) ?? 0;
+  final nonTaxableAmount = (nonTaxablePurchases.first['total'] as num?) ?? 0;
+
+  return {
+    'totalPurchases': totalPurchases,
+    'totalPurchasesCount': totalPurchasesCount,
+    'totalReturns': totalReturns,
+    'dailyPurchases': dailyPurchases,
     'taxableAmount': taxableAmount,
     'nonTaxableAmount': nonTaxableAmount,
   };
@@ -84,7 +189,7 @@ class DashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late TabController _tabController;
 
   final List<String> _tabs = ['Sales', 'Purchase'];
@@ -93,12 +198,28 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: _tabs.length, vsync: this);
+    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _tabController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Refresh data when app resumes
+    if (state == AppLifecycleState.resumed) {
+      _refreshData();
+    }
+  }
+
+  void _refreshData() {
+    // Invalidate providers to refresh dashboard data
+    ref.invalidate(salesStatsProvider);
+    ref.invalidate(purchaseStatsProvider);
   }
 
   @override
@@ -163,6 +284,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         final dailySales = stats['dailySales'] as List<Map<String, dynamic>>;
         final taxableAmount = stats['taxableAmount'] as num;
         final nonTaxableAmount = stats['nonTaxableAmount'] as num;
+        final topCustomers =
+            stats['topCustomers'] as List<Map<String, dynamic>>;
+        final topProducts = stats['topProducts'] as List<Map<String, dynamic>>;
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -232,6 +356,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               ),
               const SizedBox(height: 32),
 
+              // Top Customers and Top Products Row
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: _buildTopCustomers(topCustomers)),
+                  const SizedBox(width: 24),
+                  Expanded(child: _buildTopProducts(topProducts)),
+                ],
+              ),
+              const SizedBox(height: 32),
+
               // Action Buttons
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -240,13 +375,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     context: context,
                     label: 'Create Bill',
                     icon: Icons.add_circle_outline,
-                    onPressed: () {
-                      Navigator.push(
+                    onPressed: () async {
+                      await Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => const CreateBillScreen(),
                         ),
                       );
+                      // Refresh data when coming back from Create Bill screen
+                      _refreshData();
                     },
                   ),
                   const SizedBox(width: 16),
@@ -254,13 +391,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     context: context,
                     label: 'Credit Notes',
                     icon: Icons.note_add_outlined,
-                    onPressed: () {
-                      Navigator.push(
+                    onPressed: () async {
+                      await Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => const CreditNotesScreen(),
                         ),
                       );
+                      // Refresh data when coming back from Credit Notes screen
+                      _refreshData();
                     },
                   ),
                 ],
@@ -273,63 +412,130 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   }
 
   Widget _buildPurchaseTab(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSizes.paddingXL),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.shopping_cart_outlined,
-              size: AppSizes.iconXL * 2,
-              color: AppColors.success,
-            ),
-            const SizedBox(height: AppSizes.paddingXL),
-            Text(
-              'Purchase',
-              style: TextStyle(
-                fontSize: AppSizes.fontXXL,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-                fontFamily: 'Roboto',
+    final statsAsync = ref.watch(purchaseStatsProvider);
+
+    return statsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (err, stack) => Center(child: Text('Error: $err')),
+      data: (stats) {
+        final totalPurchases = stats['totalPurchases'] as num;
+        final totalPurchasesCount = stats['totalPurchasesCount'] as int;
+        final totalReturns = stats['totalReturns'] as num;
+        final dailyPurchases =
+            stats['dailyPurchases'] as List<Map<String, dynamic>>;
+        final taxableAmount = stats['taxableAmount'] as num;
+        final nonTaxableAmount = stats['nonTaxableAmount'] as num;
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Main Row: Pie Chart (left) and Stats + Graph (right)
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Left side - Statistics Cards and Graph
+                      Expanded(
+                        child: Column(
+                          children: [
+                            // Statistics Cards (horizontal on top)
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildStatCard(
+                                    title: 'Total Purchases',
+                                    value:
+                                        '₹${totalPurchases.toStringAsFixed(2)}',
+                                    icon: Icons.shopping_cart,
+                                    color: Colors.purple,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: _buildStatCard(
+                                    title: 'Total Orders',
+                                    value: totalPurchasesCount.toString(),
+                                    icon: Icons.inventory,
+                                    color: Colors.blue,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: _buildStatCard(
+                                    title: 'Total Returns',
+                                    value:
+                                        '₹${totalReturns.toStringAsFixed(2)}',
+                                    icon: Icons.undo,
+                                    color: Colors.orange,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 24),
+                            // Purchase Overview Graph (below stats)
+                            _buildPurchaseOverviewGraph(dailyPurchases),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 24),
+                      // Right side - Pie Chart
+                      SizedBox(
+                        width: 350,
+                        child: _buildPurchasePieChart(
+                          taxableAmount.toDouble(),
+                          nonTaxableAmount.toDouble(),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
-            ),
-            const SizedBox(height: AppSizes.paddingXL),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildActionButton(
-                  context: context,
-                  label: 'Create Purchase',
-                  icon: Icons.add_shopping_cart_outlined,
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const CreatePurchaseScreen(),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(width: AppSizes.paddingL),
-                _buildActionButton(
-                  context: context,
-                  label: 'Debit Notes',
-                  icon: Icons.note_outlined,
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const DebitNotesScreen(),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
+              const SizedBox(height: 32),
+
+              // Action Buttons
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildActionButton(
+                    context: context,
+                    label: 'Create Purchase',
+                    icon: Icons.add_shopping_cart_outlined,
+                    onPressed: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const CreatePurchaseScreen(),
+                        ),
+                      );
+                      // Refresh data when coming back from Create Purchase screen
+                      _refreshData();
+                    },
+                  ),
+                  const SizedBox(width: 16),
+                  _buildActionButton(
+                    context: context,
+                    label: 'Debit Notes',
+                    icon: Icons.note_outlined,
+                    onPressed: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const DebitNotesScreen(),
+                        ),
+                      );
+                      // Refresh data when coming back from Debit Notes screen
+                      _refreshData();
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -470,7 +676,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Sales Distribution (Last 10 Days)',
+            'Sales Distribution (Last 7 Days)',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -588,7 +794,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Sales Overview (Last 10 Days)',
+            'Sales Overview (Last 7 Days)',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -600,12 +806,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             height: 250,
             child: Builder(
               builder: (context) {
-                // Generate all dates for the last 10 days
+                // Generate all dates for the last 7 days
                 final now = DateTime.now();
                 final List<DateTime> allDates = List.generate(
-                  10,
+                  7,
                   (index) =>
-                      DateTime(now.year, now.month, now.day - (9 - index)),
+                      DateTime(now.year, now.month, now.day - (6 - index)),
                 );
 
                 // Create a map of sales data by date
@@ -707,6 +913,526 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       ),
     );
   }
+
+  Widget _buildPurchasePieChart(double taxableAmount, double nonTaxableAmount) {
+    final total = taxableAmount + nonTaxableAmount;
+
+    if (total == 0) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Text(
+            'No purchase data available',
+            style: TextStyle(color: Colors.grey.shade600),
+          ),
+        ),
+      );
+    }
+
+    final taxablePercentage = (taxableAmount / total * 100);
+    final nonTaxablePercentage = (nonTaxableAmount / total * 100);
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Purchase Distribution (Last 7 Days)',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 24),
+          // Pie Chart
+          Center(
+            child: SizedBox(
+              width: 280,
+              height: 280,
+              child: CustomPaint(
+                painter: _PieChartPainter(
+                  taxableAmount: taxableAmount,
+                  nonTaxableAmount: nonTaxableAmount,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          // Legend
+          Column(
+            children: [
+              _buildLegendItem(
+                color: Colors.blue,
+                label:
+                    '₹${taxableAmount.toStringAsFixed(2)} (${taxablePercentage.toStringAsFixed(1)}%)',
+              ),
+              const SizedBox(height: 12),
+              _buildLegendItem(
+                color: Colors.orange,
+                label:
+                    '₹${nonTaxableAmount.toStringAsFixed(2)} (${nonTaxablePercentage.toStringAsFixed(1)}%)',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPurchaseOverviewGraph(
+    List<Map<String, dynamic>> dailyPurchases,
+  ) {
+    if (dailyPurchases.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Text(
+            'No purchase data available',
+            style: TextStyle(color: Colors.grey.shade600),
+          ),
+        ),
+      );
+    }
+
+    // Data is already in ascending order (oldest to newest)
+    final purchaseData = dailyPurchases;
+
+    // Find max value for scaling
+    double maxValue = 0;
+    for (final data in purchaseData) {
+      final value = (data['total'] as num).toDouble();
+      if (value > maxValue) maxValue = value;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Purchase Overview (Last 7 Days)',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            height: 250,
+            child: Builder(
+              builder: (context) {
+                // Generate all dates for the last 7 days
+                final now = DateTime.now();
+                final List<DateTime> allDates = List.generate(
+                  7,
+                  (index) =>
+                      DateTime(now.year, now.month, now.day - (6 - index)),
+                );
+
+                // Create a map of purchase data by date
+                final Map<String, double> purchaseMap = {};
+                for (final data in purchaseData) {
+                  final day = data['day'] as String;
+                  final total = (data['total'] as num).toDouble();
+                  purchaseMap[day] = total;
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: allDates.map((date) {
+                    final dateStr =
+                        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+                    final total = purchaseMap[dateStr] ?? 0.0;
+                    final hasData = total > 0;
+
+                    // Reserve space for labels: 24px top label + 4px spacing + 8px bottom spacing + 18px day label = 54px
+                    // Available height for bar: 250 - 54 = 196px
+                    final maxBarHeight = 196.0;
+                    final barHeight = maxValue > 0 && hasData
+                        ? (total / maxValue) * maxBarHeight
+                        : 0.0;
+
+                    // Format day (DD/MM)
+                    final dayLabel =
+                        '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}';
+
+                    return Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Value label (only show if there's data)
+                            SizedBox(
+                              height: 24,
+                              child: hasData
+                                  ? Text(
+                                      total >= 1000
+                                          ? '₹${(total / 1000).toStringAsFixed(1)}k'
+                                          : '₹${total.toStringAsFixed(0)}',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black87,
+                                      ),
+                                      maxLines: 1,
+                                    )
+                                  : const SizedBox.shrink(),
+                            ),
+                            const SizedBox(height: 4),
+                            // Bar (only show if there's data)
+                            hasData
+                                ? Container(
+                                    height: barHeight < 20 ? 20.0 : barHeight,
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.bottomCenter,
+                                        end: Alignment.topCenter,
+                                        colors: [
+                                          AppColors.primary,
+                                          AppColors.primary.withOpacity(0.7),
+                                        ],
+                                      ),
+                                      borderRadius: const BorderRadius.vertical(
+                                        top: Radius.circular(4),
+                                      ),
+                                    ),
+                                  )
+                                : const SizedBox(
+                                    height: 20,
+                                  ), // Maintain spacing
+                            const SizedBox(height: 8),
+                            // Day label (always show)
+                            SizedBox(
+                              height: 18,
+                              child: Text(
+                                dayLabel,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey.shade700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+Widget _buildTopCustomers(List<Map<String, dynamic>> topCustomers) {
+  return Container(
+    padding: const EdgeInsets.all(24),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 10,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.people, color: AppColors.primary, size: 24),
+            const SizedBox(width: 8),
+            const Text(
+              'Top Customers (Last 7 Days)',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (topCustomers.isEmpty)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Text(
+                'No customer data available',
+                style: TextStyle(color: Colors.grey.shade600),
+              ),
+            ),
+          )
+        else
+          ...topCustomers.asMap().entries.map((entry) {
+            final index = entry.key;
+            final customer = entry.value;
+            final customerName = customer['customer_name'] as String;
+            final totalAmount = (customer['total_amount'] as num).toDouble();
+            final billCount = customer['bill_count'] as int;
+
+            return Column(
+              children: [
+                if (index > 0) const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    children: [
+                      // Rank
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: index == 0
+                              ? Colors.amber.shade100
+                              : index == 1
+                              ? Colors.grey.shade200
+                              : index == 2
+                              ? Colors.orange.shade100
+                              : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${index + 1}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: index < 3
+                                  ? Colors.black87
+                                  : Colors.grey.shade700,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Customer info
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              customerName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                                color: Colors.black87,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '$billCount ${billCount == 1 ? 'bill' : 'bills'}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Amount
+                      Text(
+                        '₹${totalAmount.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }).toList(),
+      ],
+    ),
+  );
+}
+
+Widget _buildTopProducts(List<Map<String, dynamic>> topProducts) {
+  return Container(
+    padding: const EdgeInsets.all(24),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 10,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.inventory_2, color: AppColors.primary, size: 24),
+            const SizedBox(width: 8),
+            const Text(
+              'Top Selling Products (Last 7 Days)',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (topProducts.isEmpty)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Text(
+                'No product data available',
+                style: TextStyle(color: Colors.grey.shade600),
+              ),
+            ),
+          )
+        else
+          ...topProducts.asMap().entries.map((entry) {
+            final index = entry.key;
+            final product = entry.value;
+            final productName = product['product_name'] as String;
+            final totalQuantity = (product['total_quantity'] as num).toDouble();
+            final totalAmount = (product['total_amount'] as num).toDouble();
+
+            return Column(
+              children: [
+                if (index > 0) const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    children: [
+                      // Rank
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: index == 0
+                              ? Colors.amber.shade100
+                              : index == 1
+                              ? Colors.grey.shade200
+                              : index == 2
+                              ? Colors.orange.shade100
+                              : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${index + 1}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: index < 3
+                                  ? Colors.black87
+                                  : Colors.grey.shade700,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Product info
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              productName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                                color: Colors.black87,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Qty: ${totalQuantity.toStringAsFixed(0)}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Amount
+                      Text(
+                        '₹${totalAmount.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }).toList(),
+      ],
+    ),
+  );
 }
 
 // Custom painter for pie chart
