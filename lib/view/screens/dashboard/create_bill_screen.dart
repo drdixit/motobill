@@ -8,6 +8,8 @@ import '../../../model/customer.dart';
 import '../../../repository/bill_repository.dart';
 import '../../../repository/customer_repository.dart';
 import '../../../repository/gst_rate_repository.dart';
+import '../../../view_model/customer_viewmodel.dart';
+import '../../../view_model/pos_viewmodel.dart';
 import '../../widgets/customer_form_dialog.dart';
 import '../debit_notes_screen.dart';
 
@@ -514,8 +516,12 @@ class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
             final customerId = await customerRepository.createCustomer(
               newCustomer,
             );
-            // Refresh customer list
+            // Refresh customer list in Create Bill screen
             ref.invalidate(customerListForBillProvider);
+            // Refresh Masters > Customers screen
+            ref.invalidate(customerProvider);
+            // Refresh POS screen customer list
+            ref.invalidate(posViewModelProvider);
             // Wait for refresh
             await Future.delayed(const Duration(milliseconds: 100));
             // Auto-select the new customer

@@ -3,6 +3,19 @@ import '../model/vendor.dart';
 import '../repository/vendor_repository.dart';
 import '../core/providers/database_provider.dart';
 
+// Provider for VendorRepository (initialized with database)
+final vendorRepositoryProvider = FutureProvider<VendorRepository>((ref) async {
+  final db = await ref.watch(databaseProvider);
+  return VendorRepository(db);
+});
+
+// Vendor list provider for Create Purchase screen
+final vendorListForPurchaseProvider = FutureProvider<List<Vendor>>((ref) async {
+  final db = await ref.watch(databaseProvider);
+  final repository = VendorRepository(db);
+  return await repository.getAllVendors();
+});
+
 // State class
 class VendorState {
   final List<Vendor> vendors;
@@ -27,8 +40,10 @@ class VendorState {
 // ViewModel
 class VendorViewModel extends StateNotifier<VendorState> {
   final VendorRepository? _repository;
+  final Ref? _ref;
 
-  VendorViewModel(this._repository) : super(VendorState(isLoading: true)) {
+  VendorViewModel(this._repository, [this._ref])
+    : super(VendorState(isLoading: true)) {
     // Load vendors immediately if repository is available
     if (_repository != null) {
       loadVendors();
@@ -38,8 +53,8 @@ class VendorViewModel extends StateNotifier<VendorState> {
   // Factory for loading state
   VendorViewModel._loading()
     : _repository = null,
+      _ref = null,
       super(VendorState(isLoading: true));
-
   Future<void> loadVendors() async {
     if (_repository == null) return;
     state = state.copyWith(isLoading: true, error: null);
@@ -56,6 +71,8 @@ class VendorViewModel extends StateNotifier<VendorState> {
     try {
       await _repository.createVendor(vendor);
       await loadVendors();
+      // Invalidate Create Purchase screen vendor list
+      _ref?.invalidate(vendorListForPurchaseProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -66,6 +83,8 @@ class VendorViewModel extends StateNotifier<VendorState> {
     try {
       await _repository.updateVendor(vendor);
       await loadVendors();
+      // Invalidate Create Purchase screen vendor list
+      _ref?.invalidate(vendorListForPurchaseProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -76,6 +95,8 @@ class VendorViewModel extends StateNotifier<VendorState> {
     try {
       await _repository.softDeleteVendor(id);
       await loadVendors();
+      // Invalidate Create Purchase screen vendor list
+      _ref?.invalidate(vendorListForPurchaseProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -86,6 +107,8 @@ class VendorViewModel extends StateNotifier<VendorState> {
     try {
       await _repository.toggleVendorEnabled(id, isEnabled);
       await loadVendors();
+      // Invalidate Create Purchase screen vendor list
+      _ref?.invalidate(vendorListForPurchaseProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -107,12 +130,6 @@ class VendorViewModel extends StateNotifier<VendorState> {
   }
 }
 
-// Provider for VendorRepository (initialized with database)
-final vendorRepositoryProvider = FutureProvider<VendorRepository>((ref) async {
-  final db = await ref.watch(databaseProvider);
-  return VendorRepository(db);
-});
-
 // StateNotifier provider for VendorViewModel - Main provider to use in UI
 final vendorProvider = StateNotifierProvider<VendorViewModel, VendorState>((
   ref,
@@ -120,7 +137,7 @@ final vendorProvider = StateNotifierProvider<VendorViewModel, VendorState>((
   final repositoryAsync = ref.watch(vendorRepositoryProvider);
 
   return repositoryAsync.when(
-    data: (repository) => VendorViewModel(repository),
+    data: (repository) => VendorViewModel(repository, ref),
     loading: () => VendorViewModel._loading(),
     error: (error, stack) => VendorViewModel._loading(),
   );
