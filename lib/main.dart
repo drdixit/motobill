@@ -70,6 +70,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       _selectedIndex = index;
       _isSidebarOpen = false; // Close sidebar after selection
     });
+
+    // Refresh dashboard data when navigating to Dashboard screen
+    if (index == 0) {
+      ref.invalidate(salesStatsProvider);
+      ref.invalidate(purchaseStatsProvider);
+    }
   }
 
   Widget _getSelectedScreen() {
