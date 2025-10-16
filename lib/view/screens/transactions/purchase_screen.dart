@@ -16,24 +16,103 @@ final purchasesListProvider = FutureProvider<List<Map<String, dynamic>>>((
   return repository.getPurchasesByDateRange(dateRange.start, dateRange.end);
 });
 
-class PurchaseScreen extends ConsumerWidget {
+class PurchaseScreen extends ConsumerStatefulWidget {
   const PurchaseScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PurchaseScreen> createState() => _PurchaseScreenState();
+}
+
+class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  bool _fuzzyMatch(String text, String query) {
+    if (query.isEmpty) return true;
+    if (text.isEmpty) return false;
+
+    int textIndex = 0;
+    int queryIndex = 0;
+
+    while (textIndex < text.length && queryIndex < query.length) {
+      if (text[textIndex] == query[queryIndex]) {
+        queryIndex++;
+      }
+      textIndex++;
+    }
+
+    return queryIndex == query.length;
+  }
+
+  List<Map<String, dynamic>> _filterPurchases(
+    List<Map<String, dynamic>> purchases,
+  ) {
+    if (_searchQuery.isEmpty) return purchases;
+
+    final query = _searchQuery.toLowerCase();
+    return purchases.where((purchase) {
+      final purchaseNumber = (purchase['purchase_number'] as String)
+          .toLowerCase();
+      final vendorName = (purchase['vendor_name'] as String? ?? '')
+          .toLowerCase();
+      return _fuzzyMatch(purchaseNumber, query) ||
+          _fuzzyMatch(vendorName, query);
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final purchasesAsync = ref.watch(purchasesListProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Column(
         children: [
-          // Header
+          // Header with Search
           Container(
             padding: const EdgeInsets.all(16),
             color: Colors.white,
             child: Row(
               children: [
-                const Spacer(),
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search by purchase number or vendor...',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {
+                                  _searchQuery = '';
+                                });
+                              },
+                            )
+                          : null,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value;
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
                 IconButton(
                   icon: const Icon(Icons.refresh),
                   onPressed: () => ref.invalidate(purchasesListProvider),
@@ -64,7 +143,9 @@ class PurchaseScreen extends ConsumerWidget {
                 ),
               ),
               data: (purchases) {
-                if (purchases.isEmpty) {
+                final filteredPurchases = _filterPurchases(purchases);
+
+                if (filteredPurchases.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -76,7 +157,9 @@ class PurchaseScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'No purchases found',
+                          _searchQuery.isEmpty
+                              ? 'No purchases found'
+                              : 'No matching purchases',
                           style: TextStyle(
                             fontSize: 18,
                             color: Colors.grey.shade600,
@@ -84,7 +167,9 @@ class PurchaseScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Purchases will appear here',
+                          _searchQuery.isEmpty
+                              ? 'Purchases will appear here'
+                              : 'Try a different search term',
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.grey.shade500,
@@ -97,10 +182,10 @@ class PurchaseScreen extends ConsumerWidget {
 
                 return ListView.separated(
                   padding: const EdgeInsets.all(16),
-                  itemCount: purchases.length,
+                  itemCount: filteredPurchases.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
-                    final purchase = purchases[index];
+                    final purchase = filteredPurchases[index];
                     return _buildPurchaseCard(context, purchase);
                   },
                 );

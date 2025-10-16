@@ -16,24 +16,99 @@ final billsListProvider = FutureProvider<List<Map<String, dynamic>>>((
   return repository.getBillsByDateRange(dateRange.start, dateRange.end);
 });
 
-class SalesScreen extends ConsumerWidget {
+class SalesScreen extends ConsumerStatefulWidget {
   const SalesScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SalesScreen> createState() => _SalesScreenState();
+}
+
+class _SalesScreenState extends ConsumerState<SalesScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  bool _fuzzyMatch(String text, String query) {
+    if (query.isEmpty) return true;
+    if (text.isEmpty) return false;
+
+    int textIndex = 0;
+    int queryIndex = 0;
+
+    while (textIndex < text.length && queryIndex < query.length) {
+      if (text[textIndex] == query[queryIndex]) {
+        queryIndex++;
+      }
+      textIndex++;
+    }
+
+    return queryIndex == query.length;
+  }
+
+  List<Map<String, dynamic>> _filterBills(List<Map<String, dynamic>> bills) {
+    if (_searchQuery.isEmpty) return bills;
+
+    final query = _searchQuery.toLowerCase();
+    return bills.where((bill) {
+      final billNumber = (bill['bill_number'] as String).toLowerCase();
+      final customerName = (bill['customer_name'] as String? ?? '')
+          .toLowerCase();
+      return _fuzzyMatch(billNumber, query) || _fuzzyMatch(customerName, query);
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final billsAsync = ref.watch(billsListProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Column(
         children: [
-          // Header
+          // Header with Search
           Container(
             padding: const EdgeInsets.all(16),
             color: Colors.white,
             child: Row(
               children: [
-                const Spacer(),
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search by bill number or customer...',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {
+                                  _searchQuery = '';
+                                });
+                              },
+                            )
+                          : null,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value;
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
                 IconButton(
                   icon: const Icon(Icons.refresh),
                   onPressed: () => ref.invalidate(billsListProvider),
@@ -64,7 +139,9 @@ class SalesScreen extends ConsumerWidget {
                 ),
               ),
               data: (bills) {
-                if (bills.isEmpty) {
+                final filteredBills = _filterBills(bills);
+
+                if (filteredBills.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -76,7 +153,9 @@ class SalesScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'No bills found',
+                          _searchQuery.isEmpty
+                              ? 'No bills found'
+                              : 'No matching bills',
                           style: TextStyle(
                             fontSize: 18,
                             color: Colors.grey.shade600,
@@ -84,7 +163,9 @@ class SalesScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Create your first bill to get started',
+                          _searchQuery.isEmpty
+                              ? 'Create your first bill to get started'
+                              : 'Try a different search term',
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.grey.shade500,
@@ -97,10 +178,10 @@ class SalesScreen extends ConsumerWidget {
 
                 return ListView.separated(
                   padding: const EdgeInsets.all(16),
-                  itemCount: bills.length,
+                  itemCount: filteredBills.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
-                    final bill = bills[index];
+                    final bill = filteredBills[index];
                     return _buildBillCard(context, bill);
                   },
                 );
