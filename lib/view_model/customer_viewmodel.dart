@@ -3,6 +3,7 @@ import '../core/providers/database_provider.dart';
 import '../model/customer.dart';
 import '../repository/customer_repository.dart';
 import 'pos_viewmodel.dart';
+import '../view/screens/dashboard/create_bill_screen.dart';
 
 /// State for customer list
 class CustomerState {
@@ -68,6 +69,8 @@ class CustomerViewModel extends StateNotifier<CustomerState> {
       await loadCustomers(); // Refresh list
       // Invalidate POS to refresh customer list in POS screen
       _ref?.invalidate(posViewModelProvider);
+      // Invalidate Create Bill screen customer list
+      _ref?.invalidate(customerListForBillProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -81,6 +84,8 @@ class CustomerViewModel extends StateNotifier<CustomerState> {
       await loadCustomers(); // Refresh list
       // Invalidate POS to refresh customer data in POS screen
       _ref?.invalidate(posViewModelProvider);
+      // Invalidate Create Bill screen customer list
+      _ref?.invalidate(customerListForBillProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -94,6 +99,8 @@ class CustomerViewModel extends StateNotifier<CustomerState> {
       await loadCustomers(); // Refresh list
       // Invalidate POS to refresh customer list in POS screen
       _ref?.invalidate(posViewModelProvider);
+      // Invalidate Create Bill screen customer list
+      _ref?.invalidate(customerListForBillProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -107,6 +114,8 @@ class CustomerViewModel extends StateNotifier<CustomerState> {
       await loadCustomers(); // Refresh list - THIS WILL UPDATE THE UI IMMEDIATELY
       // Invalidate POS to refresh customer list in POS screen
       _ref?.invalidate(posViewModelProvider);
+      // Invalidate Create Bill screen customer list
+      _ref?.invalidate(customerListForBillProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }

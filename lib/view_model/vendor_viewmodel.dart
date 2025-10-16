@@ -59,7 +59,8 @@ class VendorViewModel extends StateNotifier<VendorState> {
     if (_repository == null) return;
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final vendors = await _repository.getAllVendors();
+      // Use getAllVendorsIncludingDisabled for Masters screen to show all vendors
+      final vendors = await _repository.getAllVendorsIncludingDisabled();
       state = state.copyWith(vendors: vendors, isLoading: false);
     } catch (e) {
       state = state.copyWith(error: e.toString(), isLoading: false);
