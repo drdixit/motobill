@@ -67,23 +67,47 @@ final salesStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   final nonTaxableAmount = (nonTaxableSales.first['total'] as num?) ?? 0;
 
   // Get top 5 customers by sales (last 7 days)
+  // Net amount = (Bills from last 7 days) - (Credit notes from last 7 days)
   final topCustomers = await db.rawQuery('''
+    WITH customer_bills AS (
+      SELECT
+        c.id as customer_id,
+        c.name as customer_name,
+        COALESCE(SUM(b.total_amount), 0) as total_bills,
+        COUNT(b.id) as bill_count
+      FROM bills b
+      INNER JOIN customers c ON b.customer_id = c.id
+      WHERE b.is_deleted = 0
+        AND c.is_deleted = 0
+        AND date(b.created_at) >= date('now', '-7 days')
+      GROUP BY c.id, c.name
+    ),
+    customer_refunds AS (
+      SELECT
+        c.id as customer_id,
+        COALESCE(SUM(cn.total_amount), 0) as total_refunds
+      FROM credit_notes cn
+      INNER JOIN bills b ON cn.bill_id = b.id
+      INNER JOIN customers c ON b.customer_id = c.id
+      WHERE cn.is_deleted = 0
+        AND date(cn.created_at) >= date('now', '-7 days')
+        AND date(b.created_at) >= date('now', '-7 days')
+      GROUP BY c.id
+    )
     SELECT
-      c.name as customer_name,
-      SUM(b.total_amount) as total_amount,
-      COUNT(b.id) as bill_count
-    FROM bills b
-    INNER JOIN customers c ON b.customer_id = c.id
-    WHERE b.is_deleted = 0
-      AND c.is_deleted = 0
-      AND date(b.created_at) >= date('now', '-7 days')
-    GROUP BY b.customer_id, c.name
+      cb.customer_name,
+      cb.total_bills - COALESCE(cr.total_refunds, 0) as total_amount,
+      cb.bill_count
+    FROM customer_bills cb
+    LEFT JOIN customer_refunds cr ON cb.customer_id = cr.customer_id
+    WHERE cb.total_bills - COALESCE(cr.total_refunds, 0) > 0
     ORDER BY total_amount DESC
     LIMIT 5
   ''');
 
   // Get top 5 selling products (last 7 days)
   // Net quantity = Sold quantity - Returned quantity via credit notes
+  // Only include credit notes for bills that are also in the last 7 days
   final topProducts = await db.rawQuery('''
     SELECT
       p.name as product_name,
@@ -91,20 +115,24 @@ final salesStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
         (SELECT SUM(cni.quantity)
          FROM credit_note_items cni
          INNER JOIN credit_notes cn ON cni.credit_note_id = cn.id
+         INNER JOIN bills b2 ON cn.bill_id = b2.id
          WHERE cni.product_id = bi.product_id
            AND cni.is_deleted = 0
            AND cn.is_deleted = 0
            AND date(cn.created_at) >= date('now', '-7 days')
+           AND date(b2.created_at) >= date('now', '-7 days')
         ), 0
       ) as total_quantity,
       COALESCE(SUM(bi.total_amount), 0) - COALESCE(
         (SELECT SUM(cni.total_amount)
          FROM credit_note_items cni
          INNER JOIN credit_notes cn ON cni.credit_note_id = cn.id
+         INNER JOIN bills b2 ON cn.bill_id = b2.id
          WHERE cni.product_id = bi.product_id
            AND cni.is_deleted = 0
            AND cn.is_deleted = 0
            AND date(cn.created_at) >= date('now', '-7 days')
+           AND date(b2.created_at) >= date('now', '-7 days')
         ), 0
       ) as total_amount
     FROM bill_items bi
