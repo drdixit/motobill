@@ -173,13 +173,13 @@ class HsnCodesScreen extends ConsumerWidget {
                 onPressed: () => _toggleHsnCode(ref, hsnCode),
                 tooltip: hsnCode.isEnabled ? 'Disable' : 'Enable',
               ),
-              // Delete button
-              IconButton(
-                icon: const Icon(Icons.delete, size: 20),
-                color: AppColors.error,
-                onPressed: () => _deleteHsnCode(context, ref, hsnCode),
-                tooltip: 'Delete',
-              ),
+              // Delete button - Hidden
+              // IconButton(
+              //   icon: const Icon(Icons.delete, size: 20),
+              //   color: AppColors.error,
+              //   onPressed: () => _deleteHsnCode(context, ref, hsnCode),
+              //   tooltip: 'Delete',
+              // ),
             ],
           ),
         ],
@@ -231,29 +231,30 @@ class HsnCodesScreen extends ConsumerWidget {
         .toggleHsnCodeStatus(hsnCode.id!, !hsnCode.isEnabled);
   }
 
-  void _deleteHsnCode(BuildContext context, WidgetRef ref, HsnCode hsnCode) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete HSN Code'),
-        content: Text('Are you sure you want to delete ${hsnCode.code}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              ref
-                  .read(hsnCodeViewModelProvider.notifier)
-                  .deleteHsnCode(hsnCode.id!);
-              Navigator.of(context).pop();
-            },
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
+  // Delete functionality - Hidden
+  // void _deleteHsnCode(BuildContext context, WidgetRef ref, HsnCode hsnCode) {
+  //   showDialog(
+  //     context: context,
+  //     builder: (context) => AlertDialog(
+  //       title: const Text('Delete HSN Code'),
+  //       content: Text('Are you sure you want to delete ${hsnCode.code}?'),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () => Navigator.of(context).pop(),
+  //           child: const Text('Cancel'),
+  //         ),
+  //         TextButton(
+  //           onPressed: () {
+  //             ref
+  //                 .read(hsnCodeViewModelProvider.notifier)
+  //                 .deleteHsnCode(hsnCode.id!);
+  //             Navigator.of(context).pop();
+  //           },
+  //           style: TextButton.styleFrom(foregroundColor: AppColors.error),
+  //           child: const Text('Delete'),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 }

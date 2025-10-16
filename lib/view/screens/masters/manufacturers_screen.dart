@@ -168,14 +168,14 @@ class ManufacturersScreen extends ConsumerWidget {
                 onPressed: () => _toggleManufacturer(ref, manufacturer),
                 tooltip: manufacturer.isEnabled ? 'Disable' : 'Enable',
               ),
-              // Delete button
-              IconButton(
-                icon: Icon(Icons.delete, size: 20),
-                color: AppColors.error,
-                onPressed: () =>
-                    _deleteManufacturer(context, ref, manufacturer),
-                tooltip: 'Delete',
-              ),
+              // Delete button - Hidden
+              // IconButton(
+              //   icon: Icon(Icons.delete, size: 20),
+              //   color: AppColors.error,
+              //   onPressed: () =>
+              //       _deleteManufacturer(context, ref, manufacturer),
+              //   tooltip: 'Delete',
+              // ),
             ],
           ),
         ],
@@ -261,33 +261,34 @@ class ManufacturersScreen extends ConsumerWidget {
         .toggleManufacturerEnabled(manufacturer.id!, !manufacturer.isEnabled);
   }
 
-  void _deleteManufacturer(
-    BuildContext context,
-    WidgetRef ref,
-    Manufacturer manufacturer,
-  ) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Manufacturer'),
-        content: Text('Are you sure you want to delete ${manufacturer.name}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              ref
-                  .read(manufacturerProvider.notifier)
-                  .deleteManufacturer(manufacturer.id!);
-              Navigator.of(context).pop();
-            },
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
+  // Delete functionality - Hidden
+  // void _deleteManufacturer(
+  //   BuildContext context,
+  //   WidgetRef ref,
+  //   Manufacturer manufacturer,
+  // ) {
+  //   showDialog(
+  //     context: context,
+  //     builder: (context) => AlertDialog(
+  //       title: const Text('Delete Manufacturer'),
+  //       content: Text('Are you sure you want to delete ${manufacturer.name}?'),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () => Navigator.of(context).pop(),
+  //           child: const Text('Cancel'),
+  //         ),
+  //         TextButton(
+  //           onPressed: () {
+  //             ref
+  //                 .read(manufacturerProvider.notifier)
+  //                 .deleteManufacturer(manufacturer.id!);
+  //             Navigator.of(context).pop();
+  //           },
+  //           style: TextButton.styleFrom(foregroundColor: AppColors.error),
+  //           child: const Text('Delete'),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 }

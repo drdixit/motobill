@@ -166,13 +166,13 @@ class MainCategoriesScreen extends ConsumerWidget {
                 onPressed: () => _toggleCategory(ref, category),
                 tooltip: category.isEnabled ? 'Disable' : 'Enable',
               ),
-              // Delete button
-              IconButton(
-                icon: Icon(Icons.delete, size: 20),
-                color: AppColors.error,
-                onPressed: () => _deleteCategory(context, ref, category),
-                tooltip: 'Delete',
-              ),
+              // Delete button - Hidden
+              // IconButton(
+              //   icon: Icon(Icons.delete, size: 20),
+              //   color: AppColors.error,
+              //   onPressed: () => _deleteCategory(context, ref, category),
+              //   tooltip: 'Delete',
+              // ),
             ],
           ),
         ],
@@ -254,33 +254,34 @@ class MainCategoriesScreen extends ConsumerWidget {
         .toggleCategoryEnabled(category.id!, !category.isEnabled);
   }
 
-  void _deleteCategory(
-    BuildContext context,
-    WidgetRef ref,
-    MainCategory category,
-  ) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Category'),
-        content: Text('Are you sure you want to delete ${category.name}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              ref
-                  .read(mainCategoryProvider.notifier)
-                  .deleteCategory(category.id!);
-              Navigator.of(context).pop();
-            },
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
+  // Delete functionality - Hidden
+  // void _deleteCategory(
+  //   BuildContext context,
+  //   WidgetRef ref,
+  //   MainCategory category,
+  // ) {
+  //   showDialog(
+  //     context: context,
+  //     builder: (context) => AlertDialog(
+  //       title: const Text('Delete Category'),
+  //       content: Text('Are you sure you want to delete ${category.name}?'),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () => Navigator.of(context).pop(),
+  //           child: const Text('Cancel'),
+  //         ),
+  //         TextButton(
+  //           onPressed: () {
+  //             ref
+  //                 .read(mainCategoryProvider.notifier)
+  //                 .deleteCategory(category.id!);
+  //             Navigator.of(context).pop();
+  //           },
+  //           style: TextButton.styleFrom(foregroundColor: AppColors.error),
+  //           child: const Text('Delete'),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 }
