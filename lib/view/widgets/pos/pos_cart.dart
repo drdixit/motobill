@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../view_model/pos_viewmodel.dart';
+import '../../../view_model/customer_viewmodel.dart';
 import '../../../model/bill.dart';
 import '../../../model/customer.dart';
 import '../../../repository/customer_repository.dart';
@@ -422,8 +423,10 @@ class PosCart extends ConsumerWidget {
             final customerId = await customerRepository.createCustomer(
               newCustomer,
             );
-            // Refresh customer list and auto-select the new customer
+            // Refresh customer list and auto-select the new customer in POS
             await viewModel.refreshCustomersAndSelect(customerId);
+            // Invalidate customer provider to refresh Masters > Customers screen
+            ref.invalidate(customerProvider);
           } catch (e) {
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(

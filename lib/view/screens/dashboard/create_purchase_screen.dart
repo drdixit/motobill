@@ -9,6 +9,7 @@ import '../../../repository/purchase_repository.dart';
 import '../../../repository/vendor_repository.dart';
 import '../../../repository/gst_rate_repository.dart';
 import '../../../view_model/pos_viewmodel.dart';
+import '../../../view_model/vendor_viewmodel.dart';
 import '../../widgets/vendor_form_dialog.dart';
 import '../debit_notes_screen.dart';
 
@@ -18,12 +19,6 @@ final purchaseRepositoryProvider = FutureProvider<PurchaseRepository>((
 ) async {
   final db = await ref.watch(databaseProvider);
   return PurchaseRepository(db);
-});
-
-final vendorListForPurchaseProvider = FutureProvider<List<Vendor>>((ref) async {
-  final db = await ref.watch(databaseProvider);
-  final repository = VendorRepository(db);
-  return await repository.getAllVendors();
 });
 
 final productListForPurchaseProvider =
