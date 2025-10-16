@@ -3,6 +3,7 @@ import '../model/main_category.dart';
 import '../repository/main_category_repository.dart';
 import '../core/providers/database_provider.dart';
 import 'pos_viewmodel.dart';
+import 'sub_category_viewmodel.dart';
 
 // State class
 class MainCategoryState {
@@ -65,6 +66,7 @@ class MainCategoryViewModel extends StateNotifier<MainCategoryState> {
       await _repository.createMainCategory(category);
       await loadCategories();
       _ref?.invalidate(posViewModelProvider);
+      _ref?.invalidate(mainCategoriesListProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -76,6 +78,7 @@ class MainCategoryViewModel extends StateNotifier<MainCategoryState> {
       await _repository.updateMainCategory(category);
       await loadCategories();
       _ref?.invalidate(posViewModelProvider);
+      _ref?.invalidate(mainCategoriesListProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -87,6 +90,7 @@ class MainCategoryViewModel extends StateNotifier<MainCategoryState> {
       await _repository.softDeleteMainCategory(id);
       await loadCategories();
       _ref?.invalidate(posViewModelProvider);
+      _ref?.invalidate(mainCategoriesListProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -98,6 +102,7 @@ class MainCategoryViewModel extends StateNotifier<MainCategoryState> {
       await _repository.toggleMainCategoryEnabled(id, isEnabled);
       await loadCategories();
       _ref?.invalidate(posViewModelProvider);
+      _ref?.invalidate(mainCategoriesListProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
