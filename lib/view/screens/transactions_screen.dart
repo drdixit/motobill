@@ -1,18 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
 import 'transactions/sales_screen.dart';
 import 'transactions/sales_returns_screen.dart';
 import 'transactions/purchase_screen.dart';
 import 'transactions/purchase_returns_screen.dart';
 
-class TransactionsScreen extends StatefulWidget {
+// Date range provider for all transaction tabs
+final transactionDateRangeProvider = StateProvider<DateTimeRange>((ref) {
+  final endDate = DateTime.now();
+  final startDate = endDate.subtract(const Duration(days: 10));
+  return DateTimeRange(start: startDate, end: endDate);
+});
+
+class TransactionsScreen extends ConsumerStatefulWidget {
   const TransactionsScreen({super.key});
 
   @override
-  State<TransactionsScreen> createState() => _TransactionsScreenState();
+  ConsumerState<TransactionsScreen> createState() => _TransactionsScreenState();
 }
 
-class _TransactionsScreenState extends State<TransactionsScreen>
+class _TransactionsScreenState extends ConsumerState<TransactionsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 

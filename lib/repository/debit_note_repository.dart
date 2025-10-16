@@ -15,6 +15,27 @@ class DebitNoteRepository {
     ''');
   }
 
+  // Get debit notes within date range
+  Future<List<Map<String, dynamic>>> getDebitNotesByDateRange(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
+    final startStr = startDate.toIso8601String().split('T')[0];
+    final endStr = endDate.toIso8601String().split('T')[0];
+
+    return await _db.rawQuery(
+      '''
+      SELECT dn.*, v.name as vendor_name
+      FROM debit_notes dn
+      LEFT JOIN vendors v ON dn.vendor_id = v.id
+      WHERE dn.is_deleted = 0
+      AND DATE(dn.created_at) BETWEEN ? AND ?
+      ORDER BY dn.id DESC
+    ''',
+      [startStr, endStr],
+    );
+  }
+
   Future<List<Map<String, dynamic>>> getDebitNoteItems(int debitNoteId) async {
     return await _db.rawQuery(
       '''SELECT dni.*, dn.debit_note_number, dn.reason, v.name as vendor_name

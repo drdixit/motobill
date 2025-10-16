@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'core/constants/app_colors.dart';
 import 'view/widgets/app_sidebar.dart';
+import 'view/widgets/date_picker_dialog.dart';
 import 'view/screens/dashboard_screen.dart';
 import 'view/screens/pos_screen.dart';
 import 'view/screens/transactions_screen.dart';
@@ -47,14 +48,14 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _isSidebarOpen = false;
   int _selectedIndex = 0;
 
@@ -125,6 +126,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildAppBar() {
+    final isTransactionsScreen = _selectedIndex == 2;
+
     return Container(
       height: 56,
       decoration: BoxDecoration(
@@ -148,6 +151,60 @@ class _HomeScreenState extends State<HomeScreen> {
               fontFamily: 'Roboto',
             ),
           ),
+          if (isTransactionsScreen) ...[
+            const Spacer(),
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Consumer(
+                builder: (context, ref, child) {
+                  final dateRange = ref.watch(transactionDateRangeProvider);
+                  return InkWell(
+                    onTap: () async {
+                      final picked = await showTransactionDateRangePicker(
+                        context,
+                        dateRange,
+                      );
+                      if (picked != null) {
+                        ref.read(transactionDateRangeProvider.notifier).state =
+                            picked;
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppColors.primary),
+                        borderRadius: BorderRadius.circular(8),
+                        color: AppColors.primary.withOpacity(0.05),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.calendar_today,
+                            size: 16,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${formatDate(dateRange.start)} - ${formatDate(dateRange.end)}',
+                            style: TextStyle(
+                              color: AppColors.primary,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ],
       ),
     );
