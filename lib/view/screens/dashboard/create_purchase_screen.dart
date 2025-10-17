@@ -500,8 +500,9 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
           Navigator.of(context).pop();
           try {
             final vendorId = await vendorRepository.createVendor(newVendor);
-            // Refresh vendor list
+            // Refresh vendor lists for both Create Purchase and Masters screens
             ref.invalidate(vendorListForPurchaseProvider);
+            ref.invalidate(vendorProvider);
             // Wait for refresh
             await Future.delayed(const Duration(milliseconds: 100));
             // Auto-select the new vendor

@@ -29,4 +29,34 @@ class CompanyInfoRepository {
     if (result.isEmpty) return null;
     return CompanyInfo.fromJson(result.first);
   }
+
+  Future<void> updateCompanyInfo(CompanyInfo companyInfo) async {
+    try {
+      await _db.rawUpdate(
+        '''
+        UPDATE company_info
+        SET name = ?, legal_name = ?, gst_number = ?,
+            address_line1 = ?, address_line2 = ?, city = ?,
+            state = ?, pincode = ?, phone = ?, email = ?,
+            updated_at = datetime('now')
+        WHERE id = ?
+      ''',
+        [
+          companyInfo.name,
+          companyInfo.legalName,
+          companyInfo.gstNumber,
+          companyInfo.addressLine1,
+          companyInfo.addressLine2,
+          companyInfo.city,
+          companyInfo.state,
+          companyInfo.pincode,
+          companyInfo.phone,
+          companyInfo.email,
+          companyInfo.id,
+        ],
+      );
+    } catch (e) {
+      throw Exception('Failed to update company info: $e');
+    }
+  }
 }

@@ -7,14 +7,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
 import '../../core/providers/database_provider.dart';
 import '../../model/company_info.dart';
-import '../../repository/company_info_repository.dart';
-
-// Provider for company info
-final companyInfoForPrintProvider = FutureProvider<CompanyInfo?>((ref) async {
-  final db = await ref.watch(databaseProvider);
-  final repository = CompanyInfoRepository(db);
-  return repository.getPrimaryCompanyInfo();
-});
+import '../../view_model/company_info_viewmodel.dart';
 
 // Provider to fetch bill details for printing
 final billDetailsProvider = FutureProvider.family<Map<String, dynamic>, String>((
