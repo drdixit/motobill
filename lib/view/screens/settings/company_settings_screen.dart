@@ -3,9 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../model/company_info.dart';
+import '../../../model/bank.dart';
 import '../../../view_model/company_info_viewmodel.dart';
 import '../../../view_model/bank_viewmodel.dart';
-import '../../widgets/bank_form_dialog.dart';
 
 class CompanySettingsScreen extends ConsumerStatefulWidget {
   const CompanySettingsScreen({super.key});
@@ -29,6 +29,13 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
   late TextEditingController _emailController;
   CompanyInfo? _currentCompanyInfo;
   bool _isInitialized = false;
+  // Bank form controllers
+  late TextEditingController _bankHolderController;
+  late TextEditingController _bankAccountController;
+  late TextEditingController _bankIfscController;
+  late TextEditingController _bankNameController;
+  late TextEditingController _bankBranchController;
+  bool _bankInitialized = false;
 
   @override
   void initState() {
@@ -43,6 +50,11 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
     _pincodeController = TextEditingController();
     _phoneController = TextEditingController();
     _emailController = TextEditingController();
+    _bankHolderController = TextEditingController();
+    _bankAccountController = TextEditingController();
+    _bankIfscController = TextEditingController();
+    _bankNameController = TextEditingController();
+    _bankBranchController = TextEditingController();
   }
 
   @override
@@ -57,7 +69,30 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
     _pincodeController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
+    _bankHolderController.dispose();
+    _bankAccountController.dispose();
+    _bankIfscController.dispose();
+    _bankNameController.dispose();
+    _bankBranchController.dispose();
     super.dispose();
+  }
+
+  void _initializeBankControllers(Bank? bank) {
+    if (_bankInitialized) return;
+    if (bank == null) {
+      _bankHolderController.text = '';
+      _bankAccountController.text = '';
+      _bankIfscController.text = '';
+      _bankNameController.text = '';
+      _bankBranchController.text = '';
+    } else {
+      _bankHolderController.text = bank.accountHolderName;
+      _bankAccountController.text = bank.accountNumber;
+      _bankIfscController.text = bank.ifscCode ?? '';
+      _bankNameController.text = bank.bankName ?? '';
+      _bankBranchController.text = bank.branchName ?? '';
+    }
+    _bankInitialized = true;
   }
 
   void _initializeControllers(CompanyInfo companyInfo) {
@@ -118,6 +153,56 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
         await ref
             .read(companyInfoViewModelProvider.notifier)
             .updateCompanyInfo(updatedCompanyInfo);
+        // Also save/update bank details (inline fields)
+        try {
+          final companyId = _currentCompanyInfo!.id!;
+          final repo = await ref.read(bankRepositoryProvider.future);
+          final existingBank = await repo.getBankByCompanyId(companyId);
+
+          final holder = _bankHolderController.text.trim();
+          final account = _bankAccountController.text.trim();
+          final ifsc = _bankIfscController.text.trim().isEmpty
+              ? null
+              : _bankIfscController.text.trim();
+          final bankName = _bankNameController.text.trim().isEmpty
+              ? null
+              : _bankNameController.text.trim();
+          final branchName = _bankBranchController.text.trim().isEmpty
+              ? null
+              : _bankBranchController.text.trim();
+
+          // Always create or update bank using the entered values (form validators ensure required fields)
+          final bank = Bank(
+            id: existingBank?.id,
+            accountHolderName: holder,
+            accountNumber: account,
+            ifscCode: ifsc,
+            bankName: bankName,
+            branchName: branchName,
+            companyId: companyId,
+            isEnabled: true,
+            isDeleted: false,
+          );
+
+          if (existingBank == null) {
+            await repo.createBank(bank);
+          } else {
+            await repo.updateBank(bank);
+          }
+
+          // Invalidate provider so UI shows updated bank
+          ref.invalidate(bankByCompanyProvider(companyId));
+        } catch (e) {
+          // Non-fatal; show a snackbar but don't block company save
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Bank save error: $e'),
+                backgroundColor: AppColors.error,
+              ),
+            );
+          }
+        }
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -201,33 +286,8 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header
-                Row(
-                  children: [
-                    Icon(Icons.business, size: 32, color: AppColors.primary),
-                    const SizedBox(width: AppSizes.paddingM),
-                    Text(
-                      'Company Information',
-                      style: TextStyle(
-                        fontSize: AppSizes.fontXXL,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                        fontFamily: 'Roboto',
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSizes.paddingXS),
-                Text(
-                  'Update your primary company details',
-                  style: TextStyle(
-                    fontSize: AppSizes.fontM,
-                    color: AppColors.textSecondary,
-                    fontFamily: 'Roboto',
-                  ),
-                ),
-                const SizedBox(height: AppSizes.paddingL),
-                const SizedBox(height: AppSizes.paddingXL),
+                // Header (removed static title and subtitle as requested)
+
                 // Form fields
                 Container(
                   padding: const EdgeInsets.all(AppSizes.paddingL),
@@ -415,36 +475,8 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: AppSizes.paddingXL),
-                      // Save Button
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _handleSave,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: AppColors.white,
-                            padding: const EdgeInsets.symmetric(
-                              vertical: AppSizes.paddingM,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(
-                                AppSizes.radiusS,
-                              ),
-                            ),
-                          ),
-                          child: Text(
-                            'Save Changes',
-                            style: TextStyle(
-                              fontSize: AppSizes.fontL,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
 
-                      const SizedBox(height: AppSizes.paddingL),
-                      // Bank account section (shown inside the same company form UI)
+                      // Inline Bank fields (editable as part of company form)
                       Builder(
                         builder: (context) {
                           final companyId = companyInfoState.companyInfo!.id!;
@@ -452,123 +484,166 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
                             margin: const EdgeInsets.only(
                               top: AppSizes.paddingM,
                             ),
-                            padding: const EdgeInsets.all(AppSizes.paddingL),
+                            padding: EdgeInsets.zero,
                             decoration: BoxDecoration(
                               color: AppColors.white,
                               borderRadius: BorderRadius.circular(
                                 AppSizes.radiusM,
                               ),
-                              border: Border.all(color: AppColors.divider),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'Bank Account',
-                                      style: TextStyle(
-                                        fontSize: AppSizes.fontL,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.textPrimary,
-                                      ),
-                                    ),
-                                    ElevatedButton(
-                                      onPressed: () async {
-                                        final repoAsync = ref.watch(
-                                          bankByCompanyProvider(companyId),
-                                        );
-                                        final bank = repoAsync.asData?.value;
-                                        final result = await showDialog<bool?>(
-                                          context: context,
-                                          builder: (_) => BankFormDialog(
-                                            bank: bank,
-                                            companyId: companyId,
-                                          ),
-                                        );
-                                        if (result == true) {
-                                          // invalidate and reload company info
-                                          ref.invalidate(
-                                            bankByCompanyProvider(companyId),
-                                          );
-                                          await ref
-                                              .read(
-                                                companyInfoViewModelProvider
-                                                    .notifier,
-                                              )
-                                              .loadPrimaryCompanyInfo();
-                                        }
-                                      },
-                                      child: const Text('Edit'),
-                                    ),
-                                  ],
+                                Text(
+                                  'Bank Account',
+                                  style: TextStyle(
+                                    fontSize: AppSizes.fontL,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                  ),
                                 ),
                                 const SizedBox(height: AppSizes.paddingM),
+                                // load bank and initialize controllers once
                                 ref
                                     .watch(bankByCompanyProvider(companyId))
                                     .when(
                                       data: (bank) {
-                                        if (bank == null) {
-                                          return Text(
-                                            'No bank account configured for this company.',
-                                            style: TextStyle(
-                                              fontSize: AppSizes.fontM,
-                                              color: AppColors.textSecondary,
-                                            ),
-                                          );
-                                        }
+                                        _initializeBankControllers(bank);
                                         return Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
                                           children: [
-                                            Text(
-                                              bank.accountHolderName,
-                                              style: TextStyle(
-                                                fontSize: AppSizes.fontM,
-                                                color: AppColors.textPrimary,
+                                            TextFormField(
+                                              controller: _bankHolderController,
+                                              decoration: InputDecoration(
+                                                labelText:
+                                                    'Account Holder Name',
+                                                hintText:
+                                                    'Enter account holder name',
+                                                border: OutlineInputBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                        AppSizes.radiusS,
+                                                      ),
+                                                ),
                                               ),
+                                              validator: (value) {
+                                                if (value == null ||
+                                                    value.trim().isEmpty) {
+                                                  return 'Account holder name is required';
+                                                }
+                                                return null;
+                                              },
                                             ),
                                             const SizedBox(
-                                              height: AppSizes.paddingXS,
+                                              height: AppSizes.paddingM,
                                             ),
-                                            Text(
-                                              'Account: ${bank.accountNumber}',
-                                              style: TextStyle(
-                                                fontSize: AppSizes.fontS,
-                                                color: AppColors.textSecondary,
+                                            TextFormField(
+                                              controller:
+                                                  _bankAccountController,
+                                              decoration: InputDecoration(
+                                                labelText: 'Account Number',
+                                                hintText:
+                                                    'Enter account number',
+                                                border: OutlineInputBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                        AppSizes.radiusS,
+                                                      ),
+                                                ),
                                               ),
+                                              validator: (value) {
+                                                if (value == null ||
+                                                    value.trim().isEmpty) {
+                                                  return 'Account number is required';
+                                                }
+                                                final acct = value.trim();
+                                                if (acct.length < 6) {
+                                                  return 'Account number is too short';
+                                                }
+                                                if (!RegExp(
+                                                  r'^[A-Za-z0-9]+$',
+                                                ).hasMatch(acct)) {
+                                                  return 'Account number must be alphanumeric';
+                                                }
+                                                return null;
+                                              },
                                             ),
                                             const SizedBox(
-                                              height: AppSizes.paddingXS,
+                                              height: AppSizes.paddingM,
                                             ),
-                                            Text(
-                                              'IFSC: ${bank.ifscCode ?? '-'}',
-                                              style: TextStyle(
-                                                fontSize: AppSizes.fontS,
-                                                color: AppColors.textSecondary,
+                                            TextFormField(
+                                              controller: _bankIfscController,
+                                              decoration: InputDecoration(
+                                                labelText: 'IFSC Code',
+                                                hintText: 'Enter IFSC code',
+                                                border: OutlineInputBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                        AppSizes.radiusS,
+                                                      ),
+                                                ),
                                               ),
+                                              validator: (value) {
+                                                if (value == null ||
+                                                    value.trim().isEmpty) {
+                                                  return 'IFSC code is required';
+                                                }
+                                                final code = value
+                                                    .trim()
+                                                    .toUpperCase();
+                                                // Basic IFSC format: 4 letters, 0, 6 alphanumeric
+                                                if (!RegExp(
+                                                  r'^[A-Z]{4}0[A-Z0-9]{6}$',
+                                                ).hasMatch(code)) {
+                                                  return 'Enter a valid IFSC code';
+                                                }
+                                                return null;
+                                              },
                                             ),
                                             const SizedBox(
-                                              height: AppSizes.paddingXS,
+                                              height: AppSizes.paddingM,
                                             ),
-                                            Text(
-                                              'Bank: ${bank.bankName ?? '-'}',
-                                              style: TextStyle(
-                                                fontSize: AppSizes.fontS,
-                                                color: AppColors.textSecondary,
+                                            TextFormField(
+                                              controller: _bankNameController,
+                                              decoration: InputDecoration(
+                                                labelText: 'Bank Name',
+                                                hintText: 'Enter bank name',
+                                                border: OutlineInputBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                        AppSizes.radiusS,
+                                                      ),
+                                                ),
                                               ),
+                                              validator: (value) {
+                                                if (value == null ||
+                                                    value.trim().isEmpty) {
+                                                  return 'Bank name is required';
+                                                }
+                                                return null;
+                                              },
                                             ),
                                             const SizedBox(
-                                              height: AppSizes.paddingXS,
+                                              height: AppSizes.paddingM,
                                             ),
-                                            Text(
-                                              'Branch: ${bank.branchName ?? '-'}',
-                                              style: TextStyle(
-                                                fontSize: AppSizes.fontS,
-                                                color: AppColors.textSecondary,
+                                            TextFormField(
+                                              controller: _bankBranchController,
+                                              decoration: InputDecoration(
+                                                labelText: 'Branch Name',
+                                                hintText: 'Enter branch name',
+                                                border: OutlineInputBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                        AppSizes.radiusS,
+                                                      ),
+                                                ),
                                               ),
+                                              validator: (value) {
+                                                if (value == null ||
+                                                    value.trim().isEmpty) {
+                                                  return 'Branch name is required';
+                                                }
+                                                return null;
+                                              },
                                             ),
                                           ],
                                         );
@@ -581,6 +656,32 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
                                         ),
                                       ),
                                     ),
+                                const SizedBox(height: AppSizes.paddingM),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton(
+                                    onPressed: _handleSave,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.primary,
+                                      foregroundColor: AppColors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: AppSizes.paddingM,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          AppSizes.radiusS,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'Save Changes',
+                                      style: TextStyle(
+                                        fontSize: AppSizes.fontL,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
                           );
