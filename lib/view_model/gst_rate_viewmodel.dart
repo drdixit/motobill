@@ -41,11 +41,16 @@ class GstRateViewModel extends StateNotifier<GstRateState> {
   Future<void> loadGstRates() async {
     if (_repository == null) return;
     try {
-      state = state.copyWith(isLoading: true, error: null);
+      if (mounted) {
+        state = state.copyWith(isLoading: true, error: null);
+      }
       final gstRates = await _repository.getAllGstRates();
+      if (!mounted) return;
       state = state.copyWith(gstRates: gstRates, isLoading: false);
     } catch (e) {
-      state = state.copyWith(error: e.toString(), isLoading: false);
+      if (mounted) {
+        state = state.copyWith(error: e.toString(), isLoading: false);
+      }
     }
   }
 
@@ -54,10 +59,13 @@ class GstRateViewModel extends StateNotifier<GstRateState> {
     try {
       final id = await _repository.insertGstRate(gstRate);
       await loadGstRates();
-      _ref?.invalidate(hsnCodesForGstProvider);
+      // Invalidate dependent providers if ref is still valid
+      try {
+        _ref?.invalidate(hsnCodesForGstProvider);
+      } catch (_) {}
       return id;
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      if (mounted) state = state.copyWith(error: e.toString());
       rethrow;
     }
   }
@@ -67,9 +75,11 @@ class GstRateViewModel extends StateNotifier<GstRateState> {
     try {
       await _repository.updateGstRate(gstRate);
       await loadGstRates();
-      _ref?.invalidate(hsnCodesForGstProvider);
+      try {
+        _ref?.invalidate(hsnCodesForGstProvider);
+      } catch (_) {}
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      if (mounted) state = state.copyWith(error: e.toString());
       rethrow;
     }
   }
@@ -79,9 +89,11 @@ class GstRateViewModel extends StateNotifier<GstRateState> {
     try {
       await _repository.deleteGstRate(id);
       await loadGstRates();
-      _ref?.invalidate(hsnCodesForGstProvider);
+      try {
+        _ref?.invalidate(hsnCodesForGstProvider);
+      } catch (_) {}
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      if (mounted) state = state.copyWith(error: e.toString());
       rethrow;
     }
   }
@@ -91,9 +103,11 @@ class GstRateViewModel extends StateNotifier<GstRateState> {
     try {
       await _repository.toggleGstRateStatus(id, isEnabled);
       await loadGstRates();
-      _ref?.invalidate(hsnCodesForGstProvider);
+      try {
+        _ref?.invalidate(hsnCodesForGstProvider);
+      } catch (_) {}
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      if (mounted) state = state.copyWith(error: e.toString());
       rethrow;
     }
   }
