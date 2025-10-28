@@ -4,6 +4,8 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../model/company_info.dart';
 import '../../../view_model/company_info_viewmodel.dart';
+import '../../../view_model/bank_viewmodel.dart';
+import '../../widgets/bank_form_dialog.dart';
 
 class CompanySettingsScreen extends ConsumerStatefulWidget {
   const CompanySettingsScreen({super.key});
@@ -223,6 +225,139 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
                     color: AppColors.textSecondary,
                     fontFamily: 'Roboto',
                   ),
+                ),
+                const SizedBox(height: AppSizes.paddingL),
+                // Bank account section for the primary company
+                Builder(
+                  builder: (context) {
+                    final companyId = companyInfoState.companyInfo!.id!;
+                    return Container(
+                      padding: const EdgeInsets.all(AppSizes.paddingL),
+                      decoration: BoxDecoration(
+                        color: AppColors.white,
+                        borderRadius: BorderRadius.circular(AppSizes.radiusM),
+                        border: Border.all(color: AppColors.divider),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Bank Account',
+                                style: TextStyle(
+                                  fontSize: AppSizes.fontL,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              ElevatedButton(
+                                onPressed: () async {
+                                  // open dialog to add/edit bank
+                                  final repoAsync = ref.watch(
+                                    bankByCompanyProvider(companyId),
+                                  );
+                                  final bank = repoAsync.asData?.value;
+                                  final result = await showDialog<bool?>(
+                                    context: context,
+                                    builder: (_) => BankFormDialog(
+                                      bank: bank,
+                                      companyId: companyId,
+                                    ),
+                                  );
+                                  if (result == true) {
+                                    // reload company info in case bank-related display needs update
+                                    await ref
+                                        .read(
+                                          companyInfoViewModelProvider.notifier,
+                                        )
+                                        .loadPrimaryCompanyInfo();
+                                  }
+                                },
+                                child: const Text('Edit'),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSizes.paddingM),
+                          // Bank details
+                          ref
+                              .watch(bankByCompanyProvider(companyId))
+                              .when(
+                                data: (bank) {
+                                  if (bank == null) {
+                                    return Text(
+                                      'No bank account configured for this company.',
+                                      style: TextStyle(
+                                        fontSize: AppSizes.fontM,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    );
+                                  }
+                                  return Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${bank.accountHolderName}',
+                                        style: TextStyle(
+                                          fontSize: AppSizes.fontM,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                      ),
+                                      const SizedBox(
+                                        height: AppSizes.paddingXS,
+                                      ),
+                                      Text(
+                                        'Account: ${bank.accountNumber}',
+                                        style: TextStyle(
+                                          fontSize: AppSizes.fontS,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                      const SizedBox(
+                                        height: AppSizes.paddingXS,
+                                      ),
+                                      Text(
+                                        'IFSC: ${bank.ifscCode ?? '-'}',
+                                        style: TextStyle(
+                                          fontSize: AppSizes.fontS,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                      const SizedBox(
+                                        height: AppSizes.paddingXS,
+                                      ),
+                                      Text(
+                                        'Bank: ${bank.bankName ?? '-'}',
+                                        style: TextStyle(
+                                          fontSize: AppSizes.fontS,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                      const SizedBox(
+                                        height: AppSizes.paddingXS,
+                                      ),
+                                      Text(
+                                        'Branch: ${bank.branchName ?? '-'}',
+                                        style: TextStyle(
+                                          fontSize: AppSizes.fontS,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                                loading: () => const SizedBox.shrink(),
+                                error: (e, st) => Text(
+                                  'Error loading bank: $e',
+                                  style: TextStyle(color: AppColors.error),
+                                ),
+                              ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: AppSizes.paddingXL),
                 // Form fields
