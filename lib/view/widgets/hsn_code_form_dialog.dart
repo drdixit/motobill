@@ -316,7 +316,7 @@ class _HsnCodeFormDialogState extends ConsumerState<HsnCodeFormDialog> {
                     child: TextFormField(
                       controller: _igstController,
                       decoration: InputDecoration(
-                        labelText: 'IGST % *',
+                        labelText: 'IGST/UTGST % *',
                         hintText: '18.0',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(AppSizes.radiusS),
@@ -345,7 +345,7 @@ class _HsnCodeFormDialogState extends ConsumerState<HsnCodeFormDialog> {
                     child: TextFormField(
                       controller: _utgstController,
                       decoration: InputDecoration(
-                        labelText: 'UTGST %',
+                        labelText: 'CESS %',
                         hintText: '0.0',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(AppSizes.radiusS),

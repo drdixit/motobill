@@ -224,7 +224,7 @@ class HsnCodesScreen extends ConsumerWidget {
                                   ),
                                 ),
                                 TextSpan(
-                                  text: 'IGST ',
+                                  text: 'IGST/UTGST ',
                                   style: TextStyle(
                                     fontSize: AppSizes.fontS,
                                     color: AppColors.textSecondary,
@@ -245,7 +245,7 @@ class HsnCodesScreen extends ConsumerWidget {
                                   ),
                                 ),
                                 TextSpan(
-                                  text: 'UTGST ',
+                                  text: 'CESS ',
                                   style: TextStyle(
                                     fontSize: AppSizes.fontS,
                                     color: AppColors.textSecondary,
