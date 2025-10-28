@@ -221,9 +221,15 @@ class _HsnCodeFormDialogState extends ConsumerState<HsnCodeFormDialog> {
                     borderRadius: BorderRadius.circular(AppSizes.radiusS),
                   ),
                 ),
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'HSN Code is required';
+                  }
+                  final v = value.trim();
+                  final digitsOnly = RegExp(r'^\d+$');
+                  if (!digitsOnly.hasMatch(v)) {
+                    return 'HSN Code must contain digits only';
                   }
                   return null;
                 },
