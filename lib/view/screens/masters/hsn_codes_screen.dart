@@ -4,6 +4,8 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../model/hsn_code.dart';
 import '../../../view_model/hsn_code_viewmodel.dart';
+import '../../../model/gst_rate.dart';
+import '../../../view_model/gst_rate_viewmodel.dart';
 import '../../widgets/hsn_code_form_dialog.dart';
 
 class HsnCodesScreen extends ConsumerWidget {
@@ -196,17 +198,76 @@ class HsnCodesScreen extends ConsumerWidget {
       context: context,
       builder: (context) => HsnCodeFormDialog(
         hsnCode: hsnCode,
-        onSave: (hsnCode) async {
+        onSave: (hsnCode, gstRate) async {
           try {
             if (hsnCode.id == null) {
-              await ref
+              // create HSN first
+              final newId = await ref
                   .read(hsnCodeViewModelProvider.notifier)
                   .addHsnCode(hsnCode);
+              // if gstRate provided, create GST rate for this HSN
+              if (gstRate != null) {
+                final repo = await ref.read(gstRateRepositoryProvider.future);
+                final existing = await repo.getGstRateByHsnCodeId(newId);
+                if (existing != null) {
+                  // shouldn't happen, but guard
+                  throw Exception('GST rate already exists for selected HSN');
+                }
+                final newGst = GstRate(
+                  id: null,
+                  hsnCodeId: newId,
+                  cgst: (gstRate['cgst'] as double),
+                  sgst: (gstRate['sgst'] as double),
+                  igst: (gstRate['igst'] as double),
+                  utgst: (gstRate['utgst'] as double),
+                  effectiveFrom: gstRate['effectiveFrom'] as DateTime,
+                  effectiveTo: null,
+                );
+                await ref
+                    .read(gstRateViewModelProvider.notifier)
+                    .addGstRate(newGst);
+              }
             } else {
+              // update HSN
               await ref
                   .read(hsnCodeViewModelProvider.notifier)
                   .updateHsnCode(hsnCode);
+              // handle gstRate
+              if (gstRate != null) {
+                final repo = await ref.read(gstRateRepositoryProvider.future);
+                final existing = await repo.getGstRateByHsnCodeId(hsnCode.id!);
+                if (existing != null) {
+                  // update existing
+                  final updated = existing.copyWith(
+                    cgst: gstRate['cgst'] as double,
+                    sgst: gstRate['sgst'] as double,
+                    igst: gstRate['igst'] as double,
+                    utgst: gstRate['utgst'] as double,
+                    effectiveFrom: gstRate['effectiveFrom'] as DateTime,
+                    effectiveTo: null,
+                  );
+                  await ref
+                      .read(gstRateViewModelProvider.notifier)
+                      .updateGstRate(updated);
+                } else {
+                  // create new gst rate for this HSN
+                  final newGst = GstRate(
+                    id: null,
+                    hsnCodeId: hsnCode.id!,
+                    cgst: (gstRate['cgst'] as double),
+                    sgst: (gstRate['sgst'] as double),
+                    igst: (gstRate['igst'] as double),
+                    utgst: (gstRate['utgst'] as double),
+                    effectiveFrom: gstRate['effectiveFrom'] as DateTime,
+                    effectiveTo: null,
+                  );
+                  await ref
+                      .read(gstRateViewModelProvider.notifier)
+                      .addGstRate(newGst);
+                }
+              }
             }
+
             if (context.mounted) {
               Navigator.of(context).pop();
             }

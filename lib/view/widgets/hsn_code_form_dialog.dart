@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
 import '../../model/hsn_code.dart';
 import '../../view_model/hsn_code_viewmodel.dart';
+import '../../view_model/gst_rate_viewmodel.dart';
 
 class HsnCodeFormDialog extends ConsumerStatefulWidget {
   final HsnCode? hsnCode;
-  final Function(HsnCode) onSave;
+  // Pass back HSN code and optional GST rate data
+  final Function(HsnCode, dynamic gstRate) onSave;
 
   const HsnCodeFormDialog({super.key, this.hsnCode, required this.onSave});
 
@@ -19,7 +22,14 @@ class _HsnCodeFormDialogState extends ConsumerState<HsnCodeFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _codeController;
   late TextEditingController _descriptionController;
+  // GST controllers
+  late TextEditingController _cgstController;
+  late TextEditingController _sgstController;
+  late TextEditingController _igstController;
+  late TextEditingController _utgstController;
+  DateTime? _effectiveFrom;
   late bool _isEnabled;
+  int? _editingGstId;
 
   @override
   void initState() {
@@ -28,13 +38,42 @@ class _HsnCodeFormDialogState extends ConsumerState<HsnCodeFormDialog> {
     _descriptionController = TextEditingController(
       text: widget.hsnCode?.description ?? '',
     );
+    _cgstController = TextEditingController(text: '');
+    _sgstController = TextEditingController(text: '');
+    _igstController = TextEditingController(text: '');
+    _utgstController = TextEditingController(text: '0.0');
+    // Default effectiveFrom to yesterday
+    _effectiveFrom = DateTime.now().subtract(const Duration(days: 1));
     _isEnabled = widget.hsnCode?.isEnabled ?? true;
+
+    // If editing an existing HSN, load existing GST rate (if any) and pre-fill fields
+    if (widget.hsnCode != null && widget.hsnCode!.id != null) {
+      // Use repository provider to fetch existing GST rate for this HSN
+      ref.read(gstRateRepositoryProvider.future).then((repo) async {
+        final existing = await repo.getGstRateByHsnCodeId(widget.hsnCode!.id!);
+        if (existing != null) {
+          if (!mounted) return;
+          setState(() {
+            _editingGstId = existing.id;
+            _cgstController.text = existing.cgst.toString();
+            _sgstController.text = existing.sgst.toString();
+            _igstController.text = existing.igst.toString();
+            _utgstController.text = existing.utgst.toString();
+            _effectiveFrom = existing.effectiveFrom;
+          });
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
     _codeController.dispose();
     _descriptionController.dispose();
+    _cgstController.dispose();
+    _sgstController.dispose();
+    _igstController.dispose();
+    _utgstController.dispose();
     super.dispose();
   }
 
@@ -87,7 +126,66 @@ class _HsnCodeFormDialogState extends ConsumerState<HsnCodeFormDialog> {
             : _descriptionController.text.trim(),
         isEnabled: _isEnabled,
       );
-      widget.onSave(hsnCode);
+      // Prepare optional GST rate object if user filled GST fields
+      dynamic gstRate;
+      final cgst = double.tryParse(_cgstController.text);
+      final sgst = double.tryParse(_sgstController.text);
+      final igst = double.tryParse(_igstController.text);
+      final utgst = double.tryParse(_utgstController.text) ?? 0.0;
+
+      // CGST, SGST, IGST are required fields now — ensure they are present
+      if (cgst == null || sgst == null || igst == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('CGST, SGST and IGST are required'),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+
+      if (_effectiveFrom == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Please select Effective From date (must be in the past)',
+            ),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+
+      // Build a lightweight map to pass gst values; the caller will convert to model and set hsn id
+      gstRate = {
+        'id': _editingGstId,
+        'cgst': cgst,
+        'sgst': sgst,
+        'igst': igst,
+        'utgst': utgst,
+        'effectiveFrom': _effectiveFrom,
+      };
+
+      widget.onSave(hsnCode, gstRate);
+    }
+  }
+
+  Future<void> _selectDate(BuildContext context) async {
+    final yesterday = DateTime.now().subtract(const Duration(days: 1));
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _effectiveFrom ?? yesterday,
+      firstDate: DateTime(2000),
+      lastDate: yesterday,
+    );
+    if (picked != null) {
+      setState(() {
+        _effectiveFrom = picked;
+      });
     }
   }
 
@@ -143,22 +241,162 @@ class _HsnCodeFormDialogState extends ConsumerState<HsnCodeFormDialog> {
                 maxLines: 3,
               ),
               const SizedBox(height: AppSizes.paddingM),
-              // Enabled switch - Commented out: HSN Codes are always enabled
-              // Row(
-              //   children: [
-              //     Switch(
-              //       value: _isEnabled,
-              //       onChanged: (value) {
-              //         setState(() {
-              //           _isEnabled = value;
-              //         });
-              //       },
-              //       activeColor: AppColors.primary,
-              //     ),
-              //     const SizedBox(width: AppSizes.paddingS),
-              //     const Text('Enabled'),
-              //   ],
-              // ),
+              // GST fields - optional but validated if provided
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _cgstController,
+                      decoration: InputDecoration(
+                        labelText: 'CGST % *',
+                        hintText: '9.0',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                        ),
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d+\.?\d{0,2}'),
+                        ),
+                      ],
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty)
+                          return 'CGST is required';
+                        final rate = double.tryParse(value);
+                        if (rate == null || rate < 0 || rate > 100)
+                          return 'Enter valid rate (0-100)';
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: AppSizes.paddingM),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _sgstController,
+                      decoration: InputDecoration(
+                        labelText: 'SGST % *',
+                        hintText: '9.0',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                        ),
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d+\.?\d{0,2}'),
+                        ),
+                      ],
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty)
+                          return 'SGST is required';
+                        final rate = double.tryParse(value);
+                        if (rate == null || rate < 0 || rate > 100)
+                          return 'Enter valid rate (0-100)';
+                        return null;
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSizes.paddingM),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _igstController,
+                      decoration: InputDecoration(
+                        labelText: 'IGST % *',
+                        hintText: '18.0',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                        ),
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d+\.?\d{0,2}'),
+                        ),
+                      ],
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty)
+                          return 'IGST is required';
+                        final rate = double.tryParse(value);
+                        if (rate == null || rate < 0 || rate > 100)
+                          return 'Enter valid rate (0-100)';
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: AppSizes.paddingM),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _utgstController,
+                      decoration: InputDecoration(
+                        labelText: 'UTGST %',
+                        hintText: '0.0',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                        ),
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d+\.?\d{0,2}'),
+                        ),
+                      ],
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) return null;
+                        final rate = double.tryParse(value);
+                        if (rate == null || rate < 0 || rate > 100)
+                          return 'Enter valid rate (0-100)';
+                        return null;
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSizes.paddingM),
+              // Effective From Date (past dates only)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Effective From (Must be a past date) *',
+                    style: TextStyle(fontSize: AppSizes.fontM),
+                  ),
+                  const SizedBox(height: AppSizes.paddingS),
+                  InkWell(
+                    onTap: () => _selectDate(context),
+                    child: Container(
+                      padding: const EdgeInsets.all(AppSizes.paddingM),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppColors.divider),
+                        borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _effectiveFrom != null
+                                ? '${_effectiveFrom!.day}/${_effectiveFrom!.month}/${_effectiveFrom!.year}'
+                                : 'Select date',
+                          ),
+                          const Icon(Icons.calendar_today, size: 20),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: AppSizes.paddingL),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
