@@ -62,6 +62,7 @@ class GstRateViewModel extends StateNotifier<GstRateState> {
       // Invalidate dependent providers if ref is still valid
       try {
         _ref?.invalidate(hsnCodesForGstProvider);
+        _ref?.invalidate(gstRateByHsnProvider(gstRate.hsnCodeId));
       } catch (_) {}
       return id;
     } catch (e) {
@@ -77,6 +78,7 @@ class GstRateViewModel extends StateNotifier<GstRateState> {
       await loadGstRates();
       try {
         _ref?.invalidate(hsnCodesForGstProvider);
+        _ref?.invalidate(gstRateByHsnProvider(gstRate.hsnCodeId));
       } catch (_) {}
     } catch (e) {
       if (mounted) state = state.copyWith(error: e.toString());
@@ -90,7 +92,12 @@ class GstRateViewModel extends StateNotifier<GstRateState> {
       await _repository.deleteGstRate(id);
       await loadGstRates();
       try {
+        // Try to invalidate the specific gst rate entry if we can determine its HSN
+        final existing = await _repository.getGstRateById(id);
         _ref?.invalidate(hsnCodesForGstProvider);
+        if (existing != null) {
+          _ref?.invalidate(gstRateByHsnProvider(existing.hsnCodeId));
+        }
       } catch (_) {}
     } catch (e) {
       if (mounted) state = state.copyWith(error: e.toString());
@@ -104,7 +111,11 @@ class GstRateViewModel extends StateNotifier<GstRateState> {
       await _repository.toggleGstRateStatus(id, isEnabled);
       await loadGstRates();
       try {
+        final existing = await _repository.getGstRateById(id);
         _ref?.invalidate(hsnCodesForGstProvider);
+        if (existing != null) {
+          _ref?.invalidate(gstRateByHsnProvider(existing.hsnCodeId));
+        }
       } catch (_) {}
     } catch (e) {
       if (mounted) state = state.copyWith(error: e.toString());
@@ -146,3 +157,12 @@ final gstRateViewModelProvider =
         error: (error, stack) => GstRateViewModel._loading(),
       );
     });
+
+// Provider to fetch GstRate by HSN id (used by UI lists)
+final gstRateByHsnProvider = FutureProvider.family<GstRate?, int>((
+  ref,
+  hsnId,
+) async {
+  final repo = await ref.watch(gstRateRepositoryProvider.future);
+  return await repo.getGstRateByHsnCodeId(hsnId);
+});

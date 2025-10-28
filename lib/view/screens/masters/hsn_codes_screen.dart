@@ -163,17 +163,108 @@ class HsnCodesScreen extends ConsumerWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: AppSizes.paddingXS),
-                // GST rate summary
+                // GST rate summary (watch per-HSN provider so UI updates reliably)
                 if (hsnCode.id != null)
-                  FutureBuilder<GstRate?>(
-                    future: ref
-                        .read(gstRateRepositoryProvider.future)
-                        .then(
-                          (repo) => repo.getGstRateByHsnCodeId(hsnCode.id!),
-                        ),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return SizedBox(
+                  ref
+                      .watch(gstRateByHsnProvider(hsnCode.id!))
+                      .when(
+                        data: (gst) {
+                          if (gst == null) {
+                            return Text(
+                              'GST: -',
+                              style: TextStyle(
+                                fontSize: AppSizes.fontS,
+                                color: AppColors.textSecondary,
+                              ),
+                            );
+                          }
+                          return RichText(
+                            text: TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: 'CGST ',
+                                  style: TextStyle(
+                                    fontSize: AppSizes.fontS,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: '${gst.cgst}%',
+                                  style: TextStyle(
+                                    fontSize: AppSizes.fontS,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: ' | ',
+                                  style: TextStyle(
+                                    fontSize: AppSizes.fontS,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: 'SGST ',
+                                  style: TextStyle(
+                                    fontSize: AppSizes.fontS,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: '${gst.sgst}%',
+                                  style: TextStyle(
+                                    fontSize: AppSizes.fontS,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: ' | ',
+                                  style: TextStyle(
+                                    fontSize: AppSizes.fontS,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: 'IGST ',
+                                  style: TextStyle(
+                                    fontSize: AppSizes.fontS,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: '${gst.igst}%',
+                                  style: TextStyle(
+                                    fontSize: AppSizes.fontS,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: ' | ',
+                                  style: TextStyle(
+                                    fontSize: AppSizes.fontS,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: 'UTGST ',
+                                  style: TextStyle(
+                                    fontSize: AppSizes.fontS,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: '${gst.utgst}%',
+                                  style: TextStyle(
+                                    fontSize: AppSizes.fontS,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          );
+                        },
+                        loading: () => SizedBox(
                           height: AppSizes.paddingL,
                           child: const Center(
                             child: SizedBox(
@@ -182,107 +273,15 @@ class HsnCodesScreen extends ConsumerWidget {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             ),
                           ),
-                        );
-                      }
-                      final gst = snapshot.data;
-                      if (gst == null) {
-                        return Text(
+                        ),
+                        error: (e, st) => Text(
                           'GST: -',
                           style: TextStyle(
                             fontSize: AppSizes.fontS,
                             color: AppColors.textSecondary,
                           ),
-                        );
-                      }
-                      // Display concise GST breakdown without static "GST:" prefix,
-                      // make labels bold and use ' | ' as separator
-                      return RichText(
-                        text: TextSpan(
-                          children: [
-                            TextSpan(
-                              text: 'CGST ',
-                              style: TextStyle(
-                                fontSize: AppSizes.fontS,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                            TextSpan(
-                              text: '${gst.cgst}%',
-                              style: TextStyle(
-                                fontSize: AppSizes.fontS,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                            TextSpan(
-                              text: ' | ',
-                              style: TextStyle(
-                                fontSize: AppSizes.fontS,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                            TextSpan(
-                              text: 'SGST ',
-                              style: TextStyle(
-                                fontSize: AppSizes.fontS,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                            TextSpan(
-                              text: '${gst.sgst}%',
-                              style: TextStyle(
-                                fontSize: AppSizes.fontS,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                            TextSpan(
-                              text: ' | ',
-                              style: TextStyle(
-                                fontSize: AppSizes.fontS,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                            TextSpan(
-                              text: 'IGST ',
-                              style: TextStyle(
-                                fontSize: AppSizes.fontS,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                            TextSpan(
-                              text: '${gst.igst}%',
-                              style: TextStyle(
-                                fontSize: AppSizes.fontS,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                            TextSpan(
-                              text: ' | ',
-                              style: TextStyle(
-                                fontSize: AppSizes.fontS,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                            TextSpan(
-                              text: 'UTGST ',
-                              style: TextStyle(
-                                fontSize: AppSizes.fontS,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                            TextSpan(
-                              text: '${gst.utgst}%',
-                              style: TextStyle(
-                                fontSize: AppSizes.fontS,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      );
-                    },
-                  ),
+                      ),
               ],
             ),
           ),
