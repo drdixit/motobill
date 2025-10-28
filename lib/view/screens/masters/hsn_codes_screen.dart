@@ -126,28 +126,162 @@ class HsnCodesScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // First line: Code
-                Text(
-                  hsnCode.code,
-                  style: TextStyle(
-                    fontSize: AppSizes.fontL,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                    fontFamily: 'Roboto',
+                // Single-line: Code - Description
+                RichText(
+                  text: TextSpan(
+                    children: [
+                      TextSpan(
+                        text: hsnCode.code,
+                        style: TextStyle(
+                          fontSize: AppSizes.fontL,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                          fontFamily: 'Roboto',
+                        ),
+                      ),
+                      if (hsnCode.description != null) ...[
+                        TextSpan(
+                          text: ' - ',
+                          style: TextStyle(
+                            fontSize: AppSizes.fontM,
+                            color: AppColors.textSecondary,
+                            fontFamily: 'Roboto',
+                          ),
+                        ),
+                        TextSpan(
+                          text: hsnCode.description!,
+                          style: TextStyle(
+                            fontSize: AppSizes.fontM,
+                            color: AppColors.textSecondary,
+                            fontFamily: 'Roboto',
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: AppSizes.paddingXS),
-                // Second line: Description
-                if (hsnCode.description != null)
-                  Text(
-                    hsnCode.description!,
-                    style: TextStyle(
-                      fontSize: AppSizes.fontM,
-                      color: AppColors.textSecondary,
-                      fontFamily: 'Roboto',
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                // GST rate summary
+                if (hsnCode.id != null)
+                  FutureBuilder<GstRate?>(
+                    future: ref
+                        .read(gstRateRepositoryProvider.future)
+                        .then(
+                          (repo) => repo.getGstRateByHsnCodeId(hsnCode.id!),
+                        ),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return SizedBox(
+                          height: AppSizes.paddingL,
+                          child: const Center(
+                            child: SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                        );
+                      }
+                      final gst = snapshot.data;
+                      if (gst == null) {
+                        return Text(
+                          'GST: -',
+                          style: TextStyle(
+                            fontSize: AppSizes.fontS,
+                            color: AppColors.textSecondary,
+                          ),
+                        );
+                      }
+                      // Display concise GST breakdown without static "GST:" prefix,
+                      // make labels bold and use ' | ' as separator
+                      return RichText(
+                        text: TextSpan(
+                          children: [
+                            TextSpan(
+                              text: 'CGST ',
+                              style: TextStyle(
+                                fontSize: AppSizes.fontS,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            TextSpan(
+                              text: '${gst.cgst}%',
+                              style: TextStyle(
+                                fontSize: AppSizes.fontS,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            TextSpan(
+                              text: ' | ',
+                              style: TextStyle(
+                                fontSize: AppSizes.fontS,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            TextSpan(
+                              text: 'SGST ',
+                              style: TextStyle(
+                                fontSize: AppSizes.fontS,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            TextSpan(
+                              text: '${gst.sgst}%',
+                              style: TextStyle(
+                                fontSize: AppSizes.fontS,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            TextSpan(
+                              text: ' | ',
+                              style: TextStyle(
+                                fontSize: AppSizes.fontS,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            TextSpan(
+                              text: 'IGST ',
+                              style: TextStyle(
+                                fontSize: AppSizes.fontS,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            TextSpan(
+                              text: '${gst.igst}%',
+                              style: TextStyle(
+                                fontSize: AppSizes.fontS,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            TextSpan(
+                              text: ' | ',
+                              style: TextStyle(
+                                fontSize: AppSizes.fontS,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            TextSpan(
+                              text: 'UTGST ',
+                              style: TextStyle(
+                                fontSize: AppSizes.fontS,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            TextSpan(
+                              text: '${gst.utgst}%',
+                              style: TextStyle(
+                                fontSize: AppSizes.fontS,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      );
+                    },
                   ),
               ],
             ),
