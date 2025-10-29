@@ -424,6 +424,15 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
           );
           chosen = datedCandidates.first;
         } else {
+          // No dated candidates: pick the valid candidate with the largest
+          // total tax (cgst+sgst+igst+utgst). This gives priority to the row
+          // that appears to carry the intended rate change when multiple
+          // undated duplicates are present.
+          validCandidates.sort((a, b) {
+            final sumA = a.cgst + a.sgst + a.igst + a.utgst;
+            final sumB = b.cgst + b.sgst + b.igst + b.utgst;
+            return sumB.compareTo(sumA);
+          });
           chosen = validCandidates.first;
         }
 
