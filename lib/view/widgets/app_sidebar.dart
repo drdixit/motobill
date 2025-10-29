@@ -57,6 +57,7 @@ class AppSidebar extends StatelessWidget {
                   icon: Icons.settings,
                   title: 'Settings',
                 ),
+                _buildMenuItem(index: 5, icon: Icons.science, title: 'Testing'),
               ],
             ),
           ),

@@ -43,6 +43,7 @@ dependencies:
   printing: ^5.13.4
   pdf: ^3.11.1
   url_launcher: ^6.3.1
+  excel: ^2.0.0
 
 dev_dependencies:
   flutter_test:

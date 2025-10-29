@@ -10,6 +10,7 @@ import 'view/screens/pos_screen.dart';
 import 'view/screens/transactions_screen.dart';
 import 'view/screens/masters_screen.dart';
 import 'view/screens/settings_screen.dart';
+import 'view/screens/testing_screen.dart';
 
 void main() {
   // Initialize sqflite for desktop platforms
@@ -90,6 +91,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         return const MastersScreen();
       case 4:
         return const SettingsScreen();
+      case 5:
+        return const TestingScreen();
       default:
         return const DashboardScreen();
     }
