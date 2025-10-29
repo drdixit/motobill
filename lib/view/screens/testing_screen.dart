@@ -833,12 +833,20 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                                             height: 6,
                                                           ),
                                                           Text(
+                                                            // If the import didn't provide an effectiveFrom and
+                                                            // this proposal will create a new HSN (no existingHsnId),
+                                                            // show today's date in the UI. Otherwise show '(none)'.
                                                             p.effectiveFrom !=
                                                                     null
                                                                 ? _formatDateForUi(
                                                                     p.effectiveFrom,
                                                                   )
-                                                                : '(none)',
+                                                                : (p.existingHsnId ==
+                                                                          null
+                                                                      ? _formatDateForUi(
+                                                                          DateTime.now(),
+                                                                        )
+                                                                      : '(none)'),
                                                           ),
                                                         ],
                                                       ),
@@ -982,7 +990,11 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                                   ? _formatDateForUi(
                                                       p.effectiveFrom,
                                                     )
-                                                  : '(none)',
+                                                  : (p.existingHsnId == null
+                                                        ? _formatDateForUi(
+                                                            DateTime.now(),
+                                                          )
+                                                        : '(none)'),
                                             ),
                                             // If there's an existing active rate and the proposal supplies a later effectiveFrom,
                                             // show the planned closure of the active rate to newFrom - 1 day and the new insertion date.
