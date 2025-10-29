@@ -360,50 +360,58 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
             }
           }
 
-          // Apply according to whether user supplied effectiveFrom
-          if (p.effectiveFrom == null) {
-            // update active rate if exists else create new with today's date
-            final active = await txn.rawQuery(
-              'SELECT * FROM gst_rates WHERE hsn_code_id = ? AND is_deleted = 0 AND effective_to IS NULL ORDER BY effective_from DESC LIMIT 1',
-              [hsnId],
-            );
-            if (active.isNotEmpty) {
-              final r = active.first;
+          // Apply using a unified approach: if proposal has no effectiveFrom, use today's date.
+          // This treats missing effectiveFrom as a dated change starting today rather than an in-place update.
+          final appliedFrom = p.effectiveFrom ?? DateTime.now();
+
+          // Find existing active rate (if any)
+          final active = await txn.rawQuery(
+            'SELECT * FROM gst_rates WHERE hsn_code_id = ? AND is_deleted = 0 AND effective_to IS NULL ORDER BY effective_from DESC LIMIT 1',
+            [hsnId],
+          );
+
+          if (active.isNotEmpty) {
+            final r = active.first;
+            final from = DateTime.parse(r['effective_from'] as String);
+
+            if (appliedFrom.isAtSameMomentAs(from)) {
+              // Same start date as active — update the active row in-place
               await txn.rawUpdate(
                 'UPDATE gst_rates SET cgst = ?, sgst = ?, igst = ?, utgst = ?, updated_at = datetime(\'now\') WHERE id = ?',
                 [p.cgst, p.sgst, p.igst, p.utgst, r['id']],
               );
-            } else {
-              final today = DateTime.now().toIso8601String().split('T')[0];
+            } else if (appliedFrom.isAfter(from)) {
+              // Close the active to (appliedFrom - 1) and insert a new dated rate starting appliedFrom
+              final newTo = appliedFrom.subtract(const Duration(days: 1));
+              await txn.rawUpdate(
+                'UPDATE gst_rates SET effective_to = ?, updated_at = datetime(\'now\') WHERE id = ?',
+                [newTo.toIso8601String().split('T')[0], r['id']],
+              );
+
               await txn.rawInsert(
                 '''
                 INSERT INTO gst_rates (hsn_code_id, cgst, sgst, igst, utgst, effective_from, effective_to, is_enabled, is_deleted, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, datetime('now'), datetime('now'))
               ''',
-                [hsnId, p.cgst, p.sgst, p.igst, p.utgst, today, null],
+                [
+                  hsnId,
+                  p.cgst,
+                  p.sgst,
+                  p.igst,
+                  p.utgst,
+                  appliedFrom.toIso8601String().split('T')[0],
+                  null,
+                ],
+              );
+            } else {
+              // appliedFrom is before existing active start — this should have been caught in validation.
+              // Fail the transaction to avoid creating inconsistent data.
+              throw Exception(
+                'Applied effective_from ${appliedFrom.toIso8601String().split('T')[0]} is before existing active rate start ${from.toIso8601String().split('T')[0]} for HSN ${p.hsnCode}',
               );
             }
           } else {
-            final newFrom = p.effectiveFrom!;
-            final existingRates = await txn.rawQuery(
-              'SELECT * FROM gst_rates WHERE hsn_code_id = ? AND is_deleted = 0 ORDER BY effective_from',
-              [hsnId],
-            );
-            for (final r in existingRates) {
-              final int id = r['id'] as int;
-              final from = DateTime.parse(r['effective_from'] as String);
-              final to = r['effective_to'] != null
-                  ? DateTime.parse(r['effective_to'] as String)
-                  : null;
-              if (to == null && from.isBefore(newFrom)) {
-                final newTo = newFrom.subtract(const Duration(days: 1));
-                await txn.rawUpdate(
-                  'UPDATE gst_rates SET effective_to = ?, updated_at = datetime(\'now\') WHERE id = ?',
-                  [newTo.toIso8601String().split('T')[0], id],
-                );
-                break;
-              }
-            }
+            // No active rate exists — insert new dated rate starting appliedFrom (today if none provided)
             await txn.rawInsert(
               '''
               INSERT INTO gst_rates (hsn_code_id, cgst, sgst, igst, utgst, effective_from, effective_to, is_enabled, is_deleted, created_at, updated_at)
@@ -415,7 +423,7 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                 p.sgst,
                 p.igst,
                 p.utgst,
-                newFrom.toIso8601String().split('T')[0],
+                appliedFrom.toIso8601String().split('T')[0],
                 null,
               ],
             );
