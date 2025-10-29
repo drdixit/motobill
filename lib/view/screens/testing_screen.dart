@@ -26,6 +26,7 @@ class _Proposal {
   String? suggestion;
 
   bool approved = false;
+  bool selectable = true; // only one proposal per HSN may be selectable
 
   _Proposal({
     required this.hsnCode,
@@ -398,6 +399,47 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
           }
         }
       }
+
+      // --- Duplicate resolution: only one proposal per HSN may be selectable/approved.
+      // Prefer proposals that are already valid. Among valid ones prefer dated proposals
+      // and pick the one with the latest effectiveFrom. Mark others as not selectable
+      // and invalid to prevent accidental insertion of duplicate proposals.
+      final validCandidates = group.where((p) => p.valid).toList();
+      if (validCandidates.isEmpty) {
+        for (final p in group) {
+          p.valid = false;
+          p.selectable = false;
+          p.invalidReason =
+              'Multiple proposals for same HSN in import; none passed validation. Resolve and re-import.';
+        }
+      } else {
+        // prefer dated candidates
+        final datedCandidates = validCandidates
+            .where((p) => p.effectiveFrom != null)
+            .toList();
+        _Proposal chosen;
+        if (datedCandidates.isNotEmpty) {
+          datedCandidates.sort(
+            (a, b) => b.effectiveFrom!.compareTo(a.effectiveFrom!),
+          );
+          chosen = datedCandidates.first;
+        } else {
+          chosen = validCandidates.first;
+        }
+
+        for (final p in group) {
+          if (identical(p, chosen)) {
+            p.selectable = true;
+            // keep p.valid as-is
+          } else {
+            p.selectable = false;
+            p.valid = false; // mark others invalid so they cannot be applied
+            p.invalidReason =
+                'Duplicate proposal for same HSN in import; only one may be selected.';
+            p.approved = false;
+          }
+        }
+      }
     }
 
     setState(() {});
@@ -600,8 +642,10 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                 TextButton(
                                   onPressed: () {
                                     setState(() {
+                                      // Approve only proposals that are both valid and selectable
                                       for (final p in _proposals) {
-                                        if (p.valid) p.approved = true;
+                                        if (p.valid && p.selectable)
+                                          p.approved = true;
                                       }
                                     });
                                   },
@@ -684,10 +728,24 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                     initiallyExpanded: false,
                                     leading: Checkbox(
                                       value: p.approved,
-                                      onChanged: p.valid
+                                      onChanged: (p.valid && p.selectable)
                                           ? (v) {
                                               setState(() {
-                                                p.approved = v ?? false;
+                                                final newVal = v ?? false;
+                                                // enforce single selection per HSN: unapprove others
+                                                if (newVal) {
+                                                  for (final other
+                                                      in _proposals) {
+                                                    if (other.hsnCode
+                                                                .toLowerCase() ==
+                                                            p.hsnCode
+                                                                .toLowerCase() &&
+                                                        !identical(other, p)) {
+                                                      other.approved = false;
+                                                    }
+                                                  }
+                                                }
+                                                p.approved = newVal;
                                               });
                                             }
                                           : null,
@@ -1157,11 +1215,29 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                                   MainAxisAlignment.end,
                                               children: [
                                                 TextButton(
-                                                  onPressed: p.valid
+                                                  onPressed:
+                                                      (p.valid && p.selectable)
                                                       ? () {
                                                           setState(() {
-                                                            p.approved =
+                                                            final newVal =
                                                                 !p.approved;
+                                                            if (newVal) {
+                                                              for (final other
+                                                                  in _proposals) {
+                                                                if (other.hsnCode
+                                                                            .toLowerCase() ==
+                                                                        p.hsnCode
+                                                                            .toLowerCase() &&
+                                                                    !identical(
+                                                                      other,
+                                                                      p,
+                                                                    )) {
+                                                                  other.approved =
+                                                                      false;
+                                                                }
+                                                              }
+                                                            }
+                                                            p.approved = newVal;
                                                           });
                                                         }
                                                       : null,
