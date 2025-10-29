@@ -232,6 +232,33 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
             [p.existingHsnId],
           );
           p.existingRates = rates;
+          // Edge-case check: if user did NOT provide effectiveFrom (null) but the
+          // existing active rate starts today, then applying with today's date
+          // would be a no-op start-date collision. Disallow such updates — require
+          // an explicit effectiveFrom > active start.
+          if (p.effectiveFrom == null && p.existingRates.isNotEmpty) {
+            for (final r in p.existingRates) {
+              if (r['effective_to'] == null) {
+                try {
+                  final afrom = DateTime.parse(r['effective_from'] as String);
+                  final now = DateTime.now();
+                  final sameDate =
+                      afrom.year == now.year &&
+                      afrom.month == now.month &&
+                      afrom.day == now.day;
+                  if (sameDate &&
+                      (p.cgst > 0 || p.sgst > 0 || p.igst > 0 || p.utgst > 0)) {
+                    p.valid = false;
+                    p.invalidReason =
+                        'No effective_from provided; existing active rate starts today (${_formatDateForUi(afrom)}). Provide an explicit effective_from > today to change rates.';
+                  }
+                } catch (_) {
+                  // ignore parse issues
+                }
+                break;
+              }
+            }
+          }
           // validate no overlap only when effectiveFrom is provided
           if (p.effectiveFrom != null) {
             final newFrom = p.effectiveFrom!;
@@ -886,16 +913,25 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                                             height: 6,
                                                           ),
                                                           Text(
-                                                            // If the import didn't provide an effectiveFrom and
-                                                            // this proposal will create a new HSN (no existingHsnId),
-                                                            // show today's date in the UI. Otherwise show '(none)'.
+                                                            // If the import didn't provide an effectiveFrom
+                                                            // then show today's date when this proposal
+                                                            // represents a real rate change (new HSN or any rate provided).
+                                                            // Otherwise show '(none)'.
                                                             p.effectiveFrom !=
                                                                     null
                                                                 ? _formatDateForUi(
                                                                     p.effectiveFrom,
                                                                   )
-                                                                : (p.existingHsnId ==
-                                                                          null
+                                                                : ((p.existingHsnId ==
+                                                                              null ||
+                                                                          p.cgst >
+                                                                              0 ||
+                                                                          p.sgst >
+                                                                              0 ||
+                                                                          p.igst >
+                                                                              0 ||
+                                                                          p.utgst >
+                                                                              0)
                                                                       ? _formatDateForUi(
                                                                           DateTime.now(),
                                                                         )
@@ -1043,7 +1079,11 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                                   ? _formatDateForUi(
                                                       p.effectiveFrom,
                                                     )
-                                                  : (p.existingHsnId == null
+                                                  : ((p.existingHsnId == null ||
+                                                            p.cgst > 0 ||
+                                                            p.sgst > 0 ||
+                                                            p.igst > 0 ||
+                                                            p.utgst > 0)
                                                         ? _formatDateForUi(
                                                             DateTime.now(),
                                                           )
