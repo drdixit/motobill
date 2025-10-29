@@ -400,10 +400,11 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
         }
       }
 
-      // --- Duplicate resolution: only one proposal per HSN may be selectable/approved.
-      // Prefer proposals that are already valid. Among valid ones prefer dated proposals
-      // and pick the one with the latest effectiveFrom. Mark others as not selectable
-      // and invalid to prevent accidental insertion of duplicate proposals.
+      // --- Duplicate resolution: when multiple proposals reference the same HSN
+      // we should NOT automatically invalidate other valid proposals. Instead
+      // keep all valid proposals selectable and surface the choice to the user.
+      // If none of the group are valid, mark them all invalid so the user knows
+      // to fix the import.
       final validCandidates = group.where((p) => p.valid).toList();
       if (validCandidates.isEmpty) {
         for (final p in group) {
@@ -413,39 +414,14 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
               'Multiple proposals for same HSN in import; none passed validation. Resolve and re-import.';
         }
       } else {
-        // prefer dated candidates
-        final datedCandidates = validCandidates
-            .where((p) => p.effectiveFrom != null)
-            .toList();
-        _Proposal chosen;
-        if (datedCandidates.isNotEmpty) {
-          datedCandidates.sort(
-            (a, b) => b.effectiveFrom!.compareTo(a.effectiveFrom!),
-          );
-          chosen = datedCandidates.first;
-        } else {
-          // No dated candidates: pick the valid candidate with the largest
-          // total tax (cgst+sgst+igst+utgst). This gives priority to the row
-          // that appears to carry the intended rate change when multiple
-          // undated duplicates are present.
-          validCandidates.sort((a, b) {
-            final sumA = a.cgst + a.sgst + a.igst + a.utgst;
-            final sumB = b.cgst + b.sgst + b.igst + b.utgst;
-            return sumB.compareTo(sumA);
-          });
-          chosen = validCandidates.first;
-        }
-
+        // Keep all valid candidates selectable and don't auto-disable any.
         for (final p in group) {
-          if (identical(p, chosen)) {
+          if (p.valid) {
             p.selectable = true;
-            // keep p.valid as-is
+            // leave p.valid as true and let the user pick which one to approve
           } else {
+            // invalid proposals remain non-selectable
             p.selectable = false;
-            p.valid = false; // mark others invalid so they cannot be applied
-            p.invalidReason =
-                'Duplicate proposal for same HSN in import; only one may be selected.';
-            p.approved = false;
           }
         }
       }
@@ -651,10 +627,23 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                 TextButton(
                                   onPressed: () {
                                     setState(() {
-                                      // Approve only proposals that are both valid and selectable
+                                      // Approve at most one proposal per HSN. We keep all
+                                      // valid proposals selectable but auto-approving must
+                                      // not create multiple selected entries for the same
+                                      // HSN. This picks the first valid/selectable proposal
+                                      // encountered per HSN and clears others.
+                                      final chosenHsn = <String>{};
                                       for (final p in _proposals) {
-                                        if (p.valid && p.selectable)
+                                        p.approved = false; // clear first
+                                      }
+                                      for (final p in _proposals) {
+                                        final key = p.hsnCode.toLowerCase();
+                                        if (p.valid &&
+                                            p.selectable &&
+                                            !chosenHsn.contains(key)) {
                                           p.approved = true;
+                                          chosenHsn.add(key);
+                                        }
                                       }
                                     });
                                   },
