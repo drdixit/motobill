@@ -51,6 +51,25 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
   final Map<String, List<List<String>>> _sheets = {};
   String? _fileName;
 
+  // UI date formatting helper: MM/DD/YYYY
+  String _formatDateForUi(dynamic d) {
+    if (d == null) return '-';
+    try {
+      DateTime dt;
+      if (d is DateTime) {
+        dt = d;
+      } else {
+        dt = DateTime.parse(d.toString());
+      }
+      final mm = dt.month.toString().padLeft(2, '0');
+      final dd = dt.day.toString().padLeft(2, '0');
+      final yyyy = dt.year.toString();
+      return '$mm/$dd/$yyyy';
+    } catch (_) {
+      return d.toString();
+    }
+  }
+
   Future<void> _pickAndLoadExcel() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -209,7 +228,7 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                 if (newFrom.isAtSameMomentAs(from) || newFrom.isBefore(from)) {
                   p.valid = false;
                   p.invalidReason =
-                      'Effective date ${newFrom.toIso8601String().split('T')[0]} conflicts with active DB rate starting ${from.toIso8601String().split('T')[0]}';
+                      'Effective date ${_formatDateForUi(newFrom)} conflicts with active DB rate starting ${_formatDateForUi(from)}';
                   break;
                 }
               } else {
@@ -217,7 +236,7 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                 if (!newFrom.isBefore(from) && !newFrom.isAfter(to)) {
                   p.valid = false;
                   p.invalidReason =
-                      'Effective date ${newFrom.toIso8601String().split('T')[0]} falls inside existing DB interval ${from.toIso8601String().split('T')[0]} - ${to.toIso8601String().split('T')[0]} (id=${r['id']})';
+                      'Effective date ${_formatDateForUi(newFrom)} falls inside existing DB interval ${_formatDateForUi(from)} - ${_formatDateForUi(to)} (id=${r['id']})';
                   break;
                 }
               }
@@ -278,7 +297,7 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
             if (p.effectiveFrom!.isAtSameMomentAs(other.effectiveFrom!)) {
               p.valid = false;
               p.invalidReason =
-                  'Duplicate effective_from ${p.effectiveFrom!.toIso8601String().split('T')[0]} in import for same HSN';
+                  'Duplicate effective_from ${_formatDateForUi(p.effectiveFrom)} in import for same HSN';
               break;
             }
           }
@@ -299,7 +318,7 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                 if (newFrom.isAtSameMomentAs(from) || newFrom.isBefore(from)) {
                   p.valid = false;
                   p.invalidReason =
-                      'Effective_from ${newFrom.toIso8601String().split('T')[0]} conflicts with active DB rate starting ${from.toIso8601String().split('T')[0]}';
+                      'Effective_from ${_formatDateForUi(newFrom)} conflicts with active DB rate starting ${_formatDateForUi(from)}';
                   break;
                 }
               } else {
@@ -308,7 +327,7 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                   // newFrom is within [from..to]
                   p.valid = false;
                   p.invalidReason =
-                      'Effective_from ${newFrom.toIso8601String().split('T')[0]} falls inside existing DB interval ${from.toIso8601String().split('T')[0]} - ${to.toIso8601String().split('T')[0]} (id=${r['id']})';
+                      'Effective_from ${_formatDateForUi(newFrom)} falls inside existing DB interval ${_formatDateForUi(from)} - ${_formatDateForUi(to)} (id=${r['id']})';
                   break;
                 }
               }
@@ -615,28 +634,80 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                             }
                                           : null,
                                     ),
-                                    title: Text(
-                                      '${p.hsnCode} → ${p.effectiveFrom != null ? p.effectiveFrom!.toIso8601String().split('T')[0] : '(none)'}',
+                                    // First line: compact summary — HSN | prev -> new | existence
+                                    title: Builder(
+                                      builder: (context) {
+                                        // compute previous (active) date if any
+                                        String prevDate = '-';
+                                        for (final r in p.existingRates) {
+                                          if (r['effective_to'] == null) {
+                                            try {
+                                              final dt = DateTime.parse(
+                                                r['effective_from'] as String,
+                                              );
+                                              prevDate = _formatDateForUi(dt);
+                                            } catch (_) {
+                                              prevDate =
+                                                  r['effective_from']
+                                                      ?.toString() ??
+                                                  '-';
+                                            }
+                                            break;
+                                          }
+                                        }
+                                        final newDate = p.effectiveFrom != null
+                                            ? _formatDateForUi(p.effectiveFrom)
+                                            : '(today)';
+
+                                        return Row(
+                                          children: [
+                                            Expanded(
+                                              flex: 2,
+                                              child: Text(
+                                                p.hsnCode,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            Expanded(
+                                              flex: 3,
+                                              child: Text(
+                                                '$prevDate → $newDate',
+                                                textAlign: TextAlign.center,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            Expanded(
+                                              flex: 3,
+                                              child: Text(
+                                                p.existingHsnId != null
+                                                    ? 'Exists (id=${p.existingHsnId})'
+                                                    : 'Will be created',
+                                                textAlign: TextAlign.right,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      },
                                     ),
-                                    subtitle: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        if (p.existingHsnId == null)
-                                          Text('HSN will be created'),
-                                        if (p.existingHsnId != null)
-                                          Text(
-                                            'HSN exists (id=${p.existingHsnId})',
-                                          ),
-                                        if (!p.valid && p.invalidReason != null)
-                                          Text(
-                                            'Invalid: ${p.invalidReason}',
-                                            style: const TextStyle(
-                                              color: Colors.red,
+                                    // Second line: show problem (if any)
+                                    subtitle: p.valid
+                                        ? null
+                                        : Padding(
+                                            padding: const EdgeInsets.only(
+                                              top: 4.0,
+                                            ),
+                                            child: Text(
+                                              p.invalidReason ??
+                                                  'Invalid proposal',
+                                              style: const TextStyle(
+                                                color: Colors.red,
+                                              ),
                                             ),
                                           ),
-                                      ],
-                                    ),
                                     children: [
                                       Padding(
                                         padding: const EdgeInsets.all(
@@ -764,11 +835,9 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                                           Text(
                                                             p.effectiveFrom !=
                                                                     null
-                                                                ? p.effectiveFrom!
-                                                                      .toIso8601String()
-                                                                      .split(
-                                                                        'T',
-                                                                      )[0]
+                                                                ? _formatDateForUi(
+                                                                    p.effectiveFrom,
+                                                                  )
                                                                 : '(none)',
                                                           ),
                                                         ],
@@ -824,18 +893,9 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                                     String formatDate(
                                                       dynamic d,
                                                     ) {
-                                                      if (d == null) return '-';
-                                                      try {
-                                                        final dt =
-                                                            DateTime.parse(
-                                                              d.toString(),
-                                                            );
-                                                        return dt
-                                                            .toIso8601String()
-                                                            .split('T')[0];
-                                                      } catch (_) {
-                                                        return d.toString();
-                                                      }
+                                                      return _formatDateForUi(
+                                                        d,
+                                                      );
                                                     }
 
                                                     return DataRow(
@@ -878,106 +938,9 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                                 ),
                                               ),
                                               const SizedBox(
-                                                height: AppSizes.paddingM,
+                                                height: AppSizes.paddingS,
                                               ),
                                             ],
-                                            const Text(
-                                              'Proposed diff',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                            const SizedBox(
-                                              height: AppSizes.paddingS,
-                                            ),
-                                            // Show high-level action: whether this will create a new entry or update an existing one
-                                            (() {
-                                              String oldAction = '-';
-                                              String newAction = '-';
-                                              // existing HSN present?
-                                              if (p.existingHsnId == null) {
-                                                // no existing HSN
-                                                oldAction = '-';
-                                                if (p.effectiveFrom == null) {
-                                                  newAction =
-                                                      'Create new active rate (effective today)';
-                                                } else {
-                                                  newAction =
-                                                      'Create new dated rate starting ${p.effectiveFrom!.toIso8601String().split('T')[0]}';
-                                                }
-                                              } else {
-                                                // existing HSN
-                                                // find active rate
-                                                Map<String, dynamic>? active;
-                                                for (final r
-                                                    in p.existingRates) {
-                                                  if (r['effective_to'] ==
-                                                      null) {
-                                                    active = r;
-                                                    break;
-                                                  }
-                                                }
-                                                if (p.effectiveFrom == null) {
-                                                  if (active != null) {
-                                                    oldAction =
-                                                        'Active rate present';
-                                                    newAction =
-                                                        'Update existing active rate with new values';
-                                                  } else {
-                                                    oldAction = '-';
-                                                    newAction =
-                                                        'Create new active rate (no active present)';
-                                                  }
-                                                } else {
-                                                  // dated proposal
-                                                  final newFrom = p
-                                                      .effectiveFrom!
-                                                      .toIso8601String()
-                                                      .split('T')[0];
-                                                  if (active != null) {
-                                                    try {
-                                                      final afrom = DateTime.parse(
-                                                        active['effective_from']
-                                                            as String,
-                                                      );
-                                                      if (p.effectiveFrom!
-                                                          .isAfter(afrom)) {
-                                                        oldAction =
-                                                            '${afrom.toIso8601String().split('T')[0]} - NULL';
-                                                        final newTo = p
-                                                            .effectiveFrom!
-                                                            .subtract(
-                                                              const Duration(
-                                                                days: 1,
-                                                              ),
-                                                            );
-                                                        newAction =
-                                                            'Close active to ${newTo.toIso8601String().split('T')[0]} and insert new dated rate starting $newFrom';
-                                                      } else {
-                                                        oldAction =
-                                                            'Active rate present';
-                                                        newAction =
-                                                            'Insert dated rate starting $newFrom (may conflict)';
-                                                      }
-                                                    } catch (_) {
-                                                      oldAction =
-                                                          'Active rate present';
-                                                      newAction =
-                                                          'Insert dated rate starting $newFrom';
-                                                    }
-                                                  } else {
-                                                    oldAction = '-';
-                                                    newAction =
-                                                        'Insert dated rate starting $newFrom';
-                                                  }
-                                                }
-                                              }
-                                              return diffRow(
-                                                'Action',
-                                                oldAction,
-                                                newAction,
-                                              );
-                                            })(),
                                             diffRow(
                                               'CGST',
                                               p.existingRates.isNotEmpty
@@ -1009,15 +972,16 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                             diffRow(
                                               'Effective From',
                                               p.existingRates.isNotEmpty
-                                                  ? (p
-                                                            .existingRates
-                                                            .last['effective_from'] ??
-                                                        '-')
+                                                  ? _formatDateForUi(
+                                                      p
+                                                          .existingRates
+                                                          .last['effective_from'],
+                                                    )
                                                   : '-',
                                               p.effectiveFrom != null
-                                                  ? p.effectiveFrom!
-                                                        .toIso8601String()
-                                                        .split('T')[0]
+                                                  ? _formatDateForUi(
+                                                      p.effectiveFrom,
+                                                    )
                                                   : '(none)',
                                             ),
                                             // If there's an existing active rate and the proposal supplies a later effectiveFrom,
@@ -1060,15 +1024,15 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                                           ),
                                                           diffRow(
                                                             'Existing active will be',
-                                                            '${afrom.toIso8601String().split('T')[0]} - NULL',
-                                                            '${afrom.toIso8601String().split('T')[0]} - ${newTo.toIso8601String().split('T')[0]}',
+                                                            '${_formatDateForUi(afrom)} - NULL',
+                                                            '${_formatDateForUi(afrom)} - ${_formatDateForUi(newTo)}',
                                                           ),
                                                           diffRow(
                                                             'New rate will start',
                                                             '-',
-                                                            p.effectiveFrom!
-                                                                .toIso8601String()
-                                                                .split('T')[0],
+                                                            _formatDateForUi(
+                                                              p.effectiveFrom,
+                                                            ),
                                                           ),
                                                         ],
                                                       );
