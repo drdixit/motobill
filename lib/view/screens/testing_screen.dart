@@ -327,14 +327,31 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
         }
       }
 
-      // If group contains both dated and undated proposals, mark undated as conflicting
+      // If group contains both dated and undated proposals, normally we mark
+      // undated ones as conflicting to avoid ambiguous ordering. However, when
+      // all proposals in the group are for a newly-created HSN (existingHsnId
+      // is null), treat undated rows as having priority equivalent to dated
+      // ones and allow them (their effectiveFrom will be treated as today).
       final dated = group.where((p) => p.effectiveFrom != null).toList();
       final undated = group.where((p) => p.effectiveFrom == null).toList();
       if (dated.isNotEmpty && undated.isNotEmpty) {
-        for (final p in undated) {
-          p.valid = false;
-          p.invalidReason =
-              'Conflicts with dated proposals for same HSN in this import. Provide effective_from or remove the dated rows.';
+        final hasExistingHsn = group.any((p) => p.existingHsnId != null);
+        if (hasExistingHsn) {
+          // If any proposal references an existing HSN in DB, keep the old
+          // conservative behavior and mark undated rows invalid so the user
+          // must provide dates to disambiguate.
+          for (final p in undated) {
+            p.valid = false;
+            p.invalidReason =
+                'Conflicts with dated proposals for same HSN in this import. Provide effective_from or remove the dated rows.';
+          }
+        } else {
+          // All proposals are for a new HSN: allow undated rows. For UI and
+          // validation purposes they will be treated as if effectiveFrom == today.
+          for (final p in undated) {
+            // keep p.valid as-is (do not mark invalid)
+            p.selectable = true;
+          }
         }
       }
 
@@ -610,6 +627,7 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
               SizedBox(
                 width: double.infinity,
                 child: Card(
+                  margin: EdgeInsets.zero,
                   child: Padding(
                     padding: const EdgeInsets.all(AppSizes.paddingM),
                     child: Column(
