@@ -11,12 +11,12 @@ import '../../core/providers/database_provider.dart';
 // Represents a single row parsed from Excel and the proposed DB actions
 class _Proposal {
   final String hsnCode;
-  final String? description;
-  final double cgst;
-  final double sgst;
-  final double igst;
-  final double utgst;
-  final DateTime effectiveFrom;
+  String? description;
+  double cgst;
+  double sgst;
+  double igst;
+  double utgst;
+  DateTime? effectiveFrom; // nullable - user may omit
 
   // populated during analysis
   int? existingHsnId;
@@ -33,8 +33,10 @@ class _Proposal {
     required this.sgst,
     required this.igst,
     required this.utgst,
-    required this.effectiveFrom,
+    this.effectiveFrom,
   });
+
+  DateTime get effectiveFromOrToday => effectiveFrom ?? DateTime.now();
 }
 
 class TestingScreen extends ConsumerStatefulWidget {
@@ -110,10 +112,24 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
     // Read rows from first sheet if available
     if (_sheets.isEmpty) return;
     final first = _sheets.entries.first.value;
-    for (final row in first) {
+    for (var rowIndex = 0; rowIndex < first.length; rowIndex++) {
+      final row = first[rowIndex];
+      // skip header row if it looks like one (contains hsn/hsn code/cgst/sgst/etc)
+      if (rowIndex == 0 && row.isNotEmpty) {
+        final joined = row.join(' ').toLowerCase();
+        if (joined.contains('hsn') ||
+            joined.contains('hsn code') ||
+            joined.contains('cgst') ||
+            joined.contains('sgst') ||
+            joined.contains('igst') ||
+            joined.contains('utgst') ||
+            joined.contains('effective')) {
+          continue;
+        }
+      }
       // Expect at least 7 columns per spec, but be defensive
       if (row.isEmpty) continue;
-      final hsn = row.length > 0 ? row[0].trim() : '';
+      final hsn = row.isNotEmpty ? row[0].trim() : '';
       if (hsn.isEmpty) continue;
       final desc = row.length > 1 ? row[1] : null;
       double parseDouble(dynamic v) {
@@ -149,7 +165,7 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
       }
 
       final eff = parseDate(row.length > 6 ? row[6] : null);
-      if (eff == null) continue; // skip rows without valid date
+      // allow missing effectiveFrom (user may choose to update active rate)
       _proposals.add(
         _Proposal(
           hsnCode: hsn,
@@ -179,21 +195,23 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
             [p.existingHsnId],
           );
           p.existingRates = rates;
-          // validate no overlap: new effectiveFrom must not fall within any existing effective_from..effective_to (inclusive)
-          for (final r in rates) {
-            final from = DateTime.parse(r['effective_from'] as String);
-            final to = r['effective_to'] != null
-                ? DateTime.parse(r['effective_to'] as String)
-                : null;
-            if ((p.effectiveFrom.isAtSameMomentAs(from) ||
-                    p.effectiveFrom.isAfter(from)) &&
-                (to == null ||
-                    p.effectiveFrom.isBefore(to) ||
-                    p.effectiveFrom.isAtSameMomentAs(to))) {
-              p.valid = false;
-              p.invalidReason =
-                  'Effective date overlaps existing rate ${r['id']} (${r['effective_from']}${to != null ? ' - ${r['effective_to']}' : ' - NULL'})';
-              break;
+          // validate no overlap only when effectiveFrom is provided
+          if (p.effectiveFrom != null) {
+            final newFrom = p.effectiveFrom!;
+            for (final r in rates) {
+              final from = DateTime.parse(r['effective_from'] as String);
+              final to = r['effective_to'] != null
+                  ? DateTime.parse(r['effective_to'] as String)
+                  : null;
+              if ((newFrom.isAtSameMomentAs(from) || newFrom.isAfter(from)) &&
+                  (to == null ||
+                      newFrom.isBefore(to) ||
+                      newFrom.isAtSameMomentAs(to))) {
+                p.valid = false;
+                p.invalidReason =
+                    'Effective date overlaps existing rate ${r['id']} (${r['effective_from']}${to != null ? ' - ${r['effective_to']}' : ' - NULL'})';
+                break;
+              }
             }
           }
         } else {
@@ -242,67 +260,115 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
             }
           }
 
-          // Find any existing rate that needs closing: the one with effective_to IS NULL or effective_to >= newFrom
-          final existingRates = await txn.rawQuery(
-            'SELECT * FROM gst_rates WHERE hsn_code_id = ? AND is_deleted = 0 ORDER BY effective_from',
-            [hsnId],
-          );
-          // If there is a rate where effective_from <= newFrom <= (effective_to or NULL) it's invalid; we validated earlier
-          // Find the rate with effective_to IS NULL (active) and set its effective_to to newFrom - 1 day if exists and its effective_from < newFrom
-          for (final r in existingRates) {
-            final int id = r['id'] as int;
-            final from = DateTime.parse(r['effective_from'] as String);
-            final to = r['effective_to'] != null
-                ? DateTime.parse(r['effective_to'] as String)
-                : null;
-            if (to == null && from.isBefore(p.effectiveFrom)) {
-              final newTo = p.effectiveFrom.subtract(const Duration(days: 1));
+          // Apply according to whether user supplied effectiveFrom
+          if (p.effectiveFrom == null) {
+            // update active rate if exists else create new with today's date
+            final active = await txn.rawQuery(
+              'SELECT * FROM gst_rates WHERE hsn_code_id = ? AND is_deleted = 0 AND effective_to IS NULL ORDER BY effective_from DESC LIMIT 1',
+              [hsnId],
+            );
+            if (active.isNotEmpty) {
+              final r = active.first;
               await txn.rawUpdate(
-                'UPDATE gst_rates SET effective_to = ?, updated_at = datetime(\'now\') WHERE id = ?',
-                [newTo.toIso8601String().split('T')[0], id],
+                'UPDATE gst_rates SET cgst = ?, sgst = ?, igst = ?, utgst = ?, updated_at = datetime(\'now\') WHERE id = ?',
+                [p.cgst, p.sgst, p.igst, p.utgst, r['id']],
               );
-              break;
+            } else {
+              final today = DateTime.now().toIso8601String().split('T')[0];
+              await txn.rawInsert(
+                '''
+                INSERT INTO gst_rates (hsn_code_id, cgst, sgst, igst, utgst, effective_from, effective_to, is_enabled, is_deleted, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, datetime('now'), datetime('now'))
+              ''',
+                [hsnId, p.cgst, p.sgst, p.igst, p.utgst, today, null],
+              );
             }
-            if (to != null &&
-                to.isAfter(p.effectiveFrom.subtract(const Duration(days: 1))) &&
-                from.isBefore(p.effectiveFrom)) {
-              // overlapping handled earlier - should not happen
+          } else {
+            final newFrom = p.effectiveFrom!;
+            final existingRates = await txn.rawQuery(
+              'SELECT * FROM gst_rates WHERE hsn_code_id = ? AND is_deleted = 0 ORDER BY effective_from',
+              [hsnId],
+            );
+            for (final r in existingRates) {
+              final int id = r['id'] as int;
+              final from = DateTime.parse(r['effective_from'] as String);
+              final to = r['effective_to'] != null
+                  ? DateTime.parse(r['effective_to'] as String)
+                  : null;
+              if (to == null && from.isBefore(newFrom)) {
+                final newTo = newFrom.subtract(const Duration(days: 1));
+                await txn.rawUpdate(
+                  'UPDATE gst_rates SET effective_to = ?, updated_at = datetime(\'now\') WHERE id = ?',
+                  [newTo.toIso8601String().split('T')[0], id],
+                );
+                break;
+              }
             }
+            await txn.rawInsert(
+              '''
+              INSERT INTO gst_rates (hsn_code_id, cgst, sgst, igst, utgst, effective_from, effective_to, is_enabled, is_deleted, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, datetime('now'), datetime('now'))
+            ''',
+              [
+                hsnId,
+                p.cgst,
+                p.sgst,
+                p.igst,
+                p.utgst,
+                newFrom.toIso8601String().split('T')[0],
+                null,
+              ],
+            );
           }
-
-          // Insert new gst_rate
-          await txn.rawInsert(
-            '''
-            INSERT INTO gst_rates (hsn_code_id, cgst, sgst, igst, utgst, effective_from, effective_to, is_enabled, is_deleted, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, datetime('now'), datetime('now'))
-          ''',
-            [
-              hsnId,
-              p.cgst,
-              p.sgst,
-              p.igst,
-              p.utgst,
-              p.effectiveFrom.toIso8601String().split('T')[0],
-              null,
-            ],
-          );
         }
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Applied selected proposals')),
-      );
-      // Refresh proposals and sheets
-      await _prepareProposalsFromLoaded();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Applied selected proposals')),
+        );
+        // Refresh proposals and sheets
+        await _prepareProposalsFromLoaded();
+      }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to apply changes: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to apply changes: $e')));
+      }
     }
+  }
+
+  void _validateProposal(_Proposal p) {
+    p.valid = true;
+    p.invalidReason = null;
+    if (p.effectiveFrom != null) {
+      final newFrom = p.effectiveFrom!;
+      for (final r in p.existingRates) {
+        final from = DateTime.parse(r['effective_from'] as String);
+        final to = r['effective_to'] != null
+            ? DateTime.parse(r['effective_to'] as String)
+            : null;
+        if ((newFrom.isAtSameMomentAs(from) || newFrom.isAfter(from)) &&
+            (to == null ||
+                newFrom.isBefore(to) ||
+                newFrom.isAtSameMomentAs(to))) {
+          p.valid = false;
+          p.invalidReason =
+              'Effective date overlaps existing rate ${r['id']} (${r['effective_from']}${to != null ? ' - ${r['effective_to']}' : ' - NULL'})';
+          break;
+        }
+      }
+    } else {
+      p.valid = true;
+      p.invalidReason = null;
+    }
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
+    final proposalsMaxHeight = MediaQuery.of(context).size.height * 0.36;
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Center(
@@ -469,40 +535,468 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                           ],
                         ),
                         const SizedBox(height: AppSizes.paddingM),
-                        ..._proposals.map((p) {
-                          return ListTile(
-                            leading: Checkbox(
-                              value: p.approved,
-                              onChanged: p.valid
-                                  ? (v) {
-                                      setState(() {
-                                        p.approved = v ?? false;
-                                      });
-                                    }
-                                  : null,
-                            ),
-                            title: Text(
-                              '${p.hsnCode} → ${p.effectiveFrom.toIso8601String().split('T')[0]}',
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (p.existingHsnId == null)
-                                  Text('HSN will be created'),
-                                if (p.existingHsnId != null)
-                                  Text('HSN exists (id=${p.existingHsnId})'),
-                                Text(
-                                  'Rates: CGST ${p.cgst}, SGST ${p.sgst}, IGST ${p.igst}, UTGST ${p.utgst}',
-                                ),
-                                if (!p.valid && p.invalidReason != null)
-                                  Text(
-                                    'Invalid: ${p.invalidReason}',
-                                    style: const TextStyle(color: Colors.red),
+                        // Constrain proposals area to avoid overflowing the screen when many cards expand
+                        SizedBox(
+                          height: proposalsMaxHeight,
+                          child: SingleChildScrollView(
+                            child: Column(
+                              children: _proposals.map((p) {
+                                // helper to render simple diff row
+                                Widget diffRow(
+                                  String label,
+                                  String oldVal,
+                                  String newVal,
+                                ) {
+                                  final changed = oldVal != newVal;
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 2.0,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        SizedBox(
+                                          width: 120,
+                                          child: Text(
+                                            label,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: Text(
+                                            oldVal,
+                                            style: TextStyle(
+                                              color: changed
+                                                  ? Colors.red
+                                                  : AppColors.textSecondary,
+                                            ),
+                                          ),
+                                        ),
+                                        const Padding(
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                          ),
+                                          child: Icon(Icons.arrow_right_alt),
+                                        ),
+                                        Expanded(
+                                          child: Text(
+                                            newVal,
+                                            style: TextStyle(
+                                              color: changed
+                                                  ? Colors.green
+                                                  : AppColors.textPrimary,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }
+
+                                return Card(
+                                  margin: const EdgeInsets.only(
+                                    bottom: AppSizes.paddingS,
                                   ),
-                              ],
+                                  child: ExpansionTile(
+                                    initiallyExpanded: false,
+                                    leading: Checkbox(
+                                      value: p.approved,
+                                      onChanged: p.valid
+                                          ? (v) {
+                                              setState(() {
+                                                p.approved = v ?? false;
+                                              });
+                                            }
+                                          : null,
+                                    ),
+                                    title: Text(
+                                      '${p.hsnCode} → ${p.effectiveFrom != null ? p.effectiveFrom!.toIso8601String().split('T')[0] : '(none)'}',
+                                    ),
+                                    subtitle: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        if (p.existingHsnId == null)
+                                          Text('HSN will be created'),
+                                        if (p.existingHsnId != null)
+                                          Text(
+                                            'HSN exists (id=${p.existingHsnId})',
+                                          ),
+                                        if (!p.valid && p.invalidReason != null)
+                                          Text(
+                                            'Invalid: ${p.invalidReason}',
+                                            style: const TextStyle(
+                                              color: Colors.red,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.all(
+                                          AppSizes.paddingM,
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            Wrap(
+                                              spacing: AppSizes.paddingM,
+                                              runSpacing: AppSizes.paddingS,
+                                              children: [
+                                                SizedBox(
+                                                  width: 140,
+                                                  child: TextFormField(
+                                                    initialValue: p.cgst
+                                                        .toString(),
+                                                    decoration:
+                                                        const InputDecoration(
+                                                          labelText: 'CGST',
+                                                        ),
+                                                    keyboardType:
+                                                        const TextInputType.numberWithOptions(
+                                                          decimal: true,
+                                                        ),
+                                                    onChanged: (v) {
+                                                      setState(() {
+                                                        p.cgst =
+                                                            double.tryParse(
+                                                              v,
+                                                            ) ??
+                                                            0.0;
+                                                      });
+                                                      _validateProposal(p);
+                                                    },
+                                                  ),
+                                                ),
+                                                SizedBox(
+                                                  width: 140,
+                                                  child: TextFormField(
+                                                    initialValue: p.sgst
+                                                        .toString(),
+                                                    decoration:
+                                                        const InputDecoration(
+                                                          labelText: 'SGST',
+                                                        ),
+                                                    keyboardType:
+                                                        const TextInputType.numberWithOptions(
+                                                          decimal: true,
+                                                        ),
+                                                    onChanged: (v) {
+                                                      setState(() {
+                                                        p.sgst =
+                                                            double.tryParse(
+                                                              v,
+                                                            ) ??
+                                                            0.0;
+                                                      });
+                                                      _validateProposal(p);
+                                                    },
+                                                  ),
+                                                ),
+                                                SizedBox(
+                                                  width: 140,
+                                                  child: TextFormField(
+                                                    initialValue: p.igst
+                                                        .toString(),
+                                                    decoration:
+                                                        const InputDecoration(
+                                                          labelText: 'IGST',
+                                                        ),
+                                                    keyboardType:
+                                                        const TextInputType.numberWithOptions(
+                                                          decimal: true,
+                                                        ),
+                                                    onChanged: (v) {
+                                                      setState(() {
+                                                        p.igst =
+                                                            double.tryParse(
+                                                              v,
+                                                            ) ??
+                                                            0.0;
+                                                      });
+                                                      _validateProposal(p);
+                                                    },
+                                                  ),
+                                                ),
+                                                SizedBox(
+                                                  width: 140,
+                                                  child: TextFormField(
+                                                    initialValue: p.utgst
+                                                        .toString(),
+                                                    decoration:
+                                                        const InputDecoration(
+                                                          labelText: 'UTGST',
+                                                        ),
+                                                    keyboardType:
+                                                        const TextInputType.numberWithOptions(
+                                                          decimal: true,
+                                                        ),
+                                                    onChanged: (v) {
+                                                      setState(() {
+                                                        p.utgst =
+                                                            double.tryParse(
+                                                              v,
+                                                            ) ??
+                                                            0.0;
+                                                      });
+                                                      _validateProposal(p);
+                                                    },
+                                                  ),
+                                                ),
+                                                SizedBox(
+                                                  width: 220,
+                                                  child: Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: Text(
+                                                          p.effectiveFrom !=
+                                                                  null
+                                                              ? p.effectiveFrom!
+                                                                    .toIso8601String()
+                                                                    .split(
+                                                                      'T',
+                                                                    )[0]
+                                                              : '(none)',
+                                                        ),
+                                                      ),
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                          Icons.calendar_today,
+                                                        ),
+                                                        onPressed: () async {
+                                                          final picked =
+                                                              await showDatePicker(
+                                                                context:
+                                                                    context,
+                                                                initialDate:
+                                                                    p.effectiveFrom ??
+                                                                    DateTime.now(),
+                                                                firstDate:
+                                                                    DateTime(
+                                                                      1970,
+                                                                    ),
+                                                                lastDate:
+                                                                    DateTime(
+                                                                      2100,
+                                                                    ),
+                                                              );
+                                                          if (picked != null) {
+                                                            if (!mounted)
+                                                              return;
+                                                            setState(() {
+                                                              p.effectiveFrom =
+                                                                  picked;
+                                                            });
+                                                            _validateProposal(
+                                                              p,
+                                                            );
+                                                          }
+                                                        },
+                                                      ),
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                          Icons.clear,
+                                                        ),
+                                                        onPressed: () {
+                                                          setState(() {
+                                                            p.effectiveFrom =
+                                                                null;
+                                                          });
+                                                          _validateProposal(p);
+                                                        },
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(
+                                              height: AppSizes.paddingM,
+                                            ),
+                                            if (p.existingRates.isNotEmpty) ...[
+                                              const Text(
+                                                'Existing GST rates',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                              const SizedBox(
+                                                height: AppSizes.paddingS,
+                                              ),
+                                              SingleChildScrollView(
+                                                scrollDirection:
+                                                    Axis.horizontal,
+                                                child: DataTable(
+                                                  columns: const [
+                                                    DataColumn(
+                                                      label: Text('id'),
+                                                    ),
+                                                    DataColumn(
+                                                      label: Text('cgst'),
+                                                    ),
+                                                    DataColumn(
+                                                      label: Text('sgst'),
+                                                    ),
+                                                    DataColumn(
+                                                      label: Text('igst'),
+                                                    ),
+                                                    DataColumn(
+                                                      label: Text('utgst'),
+                                                    ),
+                                                    DataColumn(
+                                                      label: Text('from'),
+                                                    ),
+                                                    DataColumn(
+                                                      label: Text('to'),
+                                                    ),
+                                                  ],
+                                                  rows: p.existingRates.map((
+                                                    r,
+                                                  ) {
+                                                    String formatDate(
+                                                      dynamic d,
+                                                    ) {
+                                                      if (d == null) return '-';
+                                                      try {
+                                                        final dt =
+                                                            DateTime.parse(
+                                                              d.toString(),
+                                                            );
+                                                        return dt
+                                                            .toIso8601String()
+                                                            .split('T')[0];
+                                                      } catch (_) {
+                                                        return d.toString();
+                                                      }
+                                                    }
+
+                                                    return DataRow(
+                                                      cells: [
+                                                        DataCell(
+                                                          Text('${r['id']}'),
+                                                        ),
+                                                        DataCell(
+                                                          Text('${r['cgst']}'),
+                                                        ),
+                                                        DataCell(
+                                                          Text('${r['sgst']}'),
+                                                        ),
+                                                        DataCell(
+                                                          Text('${r['igst']}'),
+                                                        ),
+                                                        DataCell(
+                                                          Text('${r['utgst']}'),
+                                                        ),
+                                                        DataCell(
+                                                          Text(
+                                                            formatDate(
+                                                              r['effective_from'],
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        DataCell(
+                                                          Text(
+                                                            r['effective_to'] !=
+                                                                    null
+                                                                ? formatDate(
+                                                                    r['effective_to'],
+                                                                  )
+                                                                : '-',
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    );
+                                                  }).toList(),
+                                                ),
+                                              ),
+                                              const SizedBox(
+                                                height: AppSizes.paddingM,
+                                              ),
+                                            ],
+                                            const Text(
+                                              'Proposed diff',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            const SizedBox(
+                                              height: AppSizes.paddingS,
+                                            ),
+                                            diffRow(
+                                              'CGST',
+                                              p.existingRates.isNotEmpty
+                                                  ? '${p.existingRates.last['cgst']}'
+                                                  : '-',
+                                              '${p.cgst}',
+                                            ),
+                                            diffRow(
+                                              'SGST',
+                                              p.existingRates.isNotEmpty
+                                                  ? '${p.existingRates.last['sgst']}'
+                                                  : '-',
+                                              '${p.sgst}',
+                                            ),
+                                            diffRow(
+                                              'IGST',
+                                              p.existingRates.isNotEmpty
+                                                  ? '${p.existingRates.last['igst']}'
+                                                  : '-',
+                                              '${p.igst}',
+                                            ),
+                                            diffRow(
+                                              'UTGST',
+                                              p.existingRates.isNotEmpty
+                                                  ? '${p.existingRates.last['utgst']}'
+                                                  : '-',
+                                              '${p.utgst}',
+                                            ),
+                                            diffRow(
+                                              'Effective From',
+                                              p.existingRates.isNotEmpty
+                                                  ? (p
+                                                            .existingRates
+                                                            .last['effective_from'] ??
+                                                        '-')
+                                                  : '-',
+                                              p.effectiveFrom != null
+                                                  ? p.effectiveFrom!
+                                                        .toIso8601String()
+                                                        .split('T')[0]
+                                                  : '(none)',
+                                            ),
+                                            const SizedBox(
+                                              height: AppSizes.paddingM,
+                                            ),
+                                            Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.end,
+                                              children: [
+                                                TextButton(
+                                                  onPressed: () {
+                                                    setState(() {
+                                                      p.approved = !p.approved;
+                                                    });
+                                                  },
+                                                  child: Text(
+                                                    p.approved
+                                                        ? 'Unselect'
+                                                        : 'Select',
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
                             ),
-                          );
-                        }).toList(),
+                          ),
+                        ),
                       ],
                     ),
                   ),
