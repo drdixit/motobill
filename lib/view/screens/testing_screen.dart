@@ -23,6 +23,7 @@ class _Proposal {
   List<Map<String, dynamic>> existingRates = [];
   bool valid = true;
   String? invalidReason;
+  String? suggestion;
 
   bool approved = false;
 
@@ -156,10 +157,10 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
         return double.tryParse(v.toString()) ?? 0.0;
       }
 
-      final cgst = parseDouble(row.length > 2 ? row[2] : null);
-      final sgst = parseDouble(row.length > 3 ? row[3] : null);
-      final igst = parseDouble(row.length > 4 ? row[4] : null);
-      final utgst = parseDouble(row.length > 5 ? row[5] : null);
+      double cgst = parseDouble(row.length > 2 ? row[2] : null);
+      double sgst = parseDouble(row.length > 3 ? row[3] : null);
+      double igst = parseDouble(row.length > 4 ? row[4] : null);
+      final double utgst = parseDouble(row.length > 5 ? row[5] : null);
       DateTime? parseDate(dynamic v) {
         if (v == null) return null;
         try {
@@ -184,6 +185,23 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
       }
 
       final eff = parseDate(row.length > 6 ? row[6] : null);
+      // If cgst & sgst provided but igst missing, compute igst = cgst + sgst
+      // If igst provided but cgst & sgst missing, split igst equally into cgst/sgst
+      String? suggestion;
+      if ((cgst > 0 || sgst > 0) && igst == 0) {
+        // Only compute if both cgst and sgst present (non-zero). If one is zero, prefer provided values.
+        if (cgst > 0 && sgst > 0) {
+          igst = cgst + sgst;
+          suggestion = 'Computed IGST=${igst} as CGST+SGST';
+        }
+      } else if (igst > 0 && cgst == 0 && sgst == 0) {
+        // Split IGST evenly into CGST/SGST
+        final half = igst / 2.0;
+        cgst = half;
+        sgst = half;
+        suggestion = 'Computed CGST=${cgst} and SGST=${sgst} as IGST/2';
+      }
+
       // allow missing effectiveFrom (user may choose to update active rate)
       _proposals.add(
         _Proposal(
@@ -194,7 +212,7 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
           igst: igst,
           utgst: utgst,
           effectiveFrom: eff,
-        ),
+        )..suggestion = suggestion,
       );
     }
 
@@ -248,6 +266,19 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
       } catch (e) {
         p.valid = false;
         p.invalidReason = 'DB error: $e';
+      }
+
+      // Validate percentage ranges for rates (0..100)
+      if (p.valid) {
+        String? badField;
+        if (p.cgst < 0 || p.cgst > 100) badField = 'CGST';
+        if (p.sgst < 0 || p.sgst > 100) badField = badField ?? 'SGST';
+        if (p.igst < 0 || p.igst > 100) badField = badField ?? 'IGST';
+        if (p.utgst < 0 || p.utgst > 100) badField = badField ?? 'UTGST';
+        if (badField != null) {
+          p.valid = false;
+          p.invalidReason = '$badField must be between 0 and 100';
+        }
       }
     }
     // Cross-proposal validation: detect conflicts within the imported set
@@ -693,19 +724,41 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                         );
                                       },
                                     ),
-                                    // Second line: show problem (if any)
-                                    subtitle: p.valid
+                                    // Second line: show problem (if any) and suggestions
+                                    subtitle: (p.valid && p.suggestion == null)
                                         ? null
                                         : Padding(
                                             padding: const EdgeInsets.only(
                                               top: 4.0,
                                             ),
-                                            child: Text(
-                                              p.invalidReason ??
-                                                  'Invalid proposal',
-                                              style: const TextStyle(
-                                                color: Colors.red,
-                                              ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                if (!p.valid)
+                                                  Text(
+                                                    p.invalidReason ??
+                                                        'Invalid proposal',
+                                                    style: const TextStyle(
+                                                      color: Colors.red,
+                                                    ),
+                                                  ),
+                                                if (p.suggestion != null)
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                          top: 4.0,
+                                                        ),
+                                                    child: Text(
+                                                      p.suggestion!,
+                                                      style: TextStyle(
+                                                        color: Colors.blue[700],
+                                                        fontSize:
+                                                            AppSizes.fontS,
+                                                      ),
+                                                    ),
+                                                  ),
+                                              ],
                                             ),
                                           ),
                                     children: [
