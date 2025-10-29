@@ -203,14 +203,23 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
               final to = r['effective_to'] != null
                   ? DateTime.parse(r['effective_to'] as String)
                   : null;
-              if ((newFrom.isAtSameMomentAs(from) || newFrom.isAfter(from)) &&
-                  (to == null ||
-                      newFrom.isBefore(to) ||
-                      newFrom.isAtSameMomentAs(to))) {
-                p.valid = false;
-                p.invalidReason =
-                    'Effective date overlaps existing rate ${r['id']} (${r['effective_from']}${to != null ? ' - ${r['effective_to']}' : ' - NULL'})';
-                break;
+              if (to == null) {
+                // existing active interval [from .. NULL]
+                // allow newFrom only if strictly after 'from' (we will close the active to newFrom - 1)
+                if (newFrom.isAtSameMomentAs(from) || newFrom.isBefore(from)) {
+                  p.valid = false;
+                  p.invalidReason =
+                      'Effective date ${newFrom.toIso8601String().split('T')[0]} conflicts with active DB rate starting ${from.toIso8601String().split('T')[0]}';
+                  break;
+                }
+              } else {
+                // closed interval [from .. to] - newFrom must not fall inside this interval (inclusive)
+                if (!newFrom.isBefore(from) && !newFrom.isAfter(to)) {
+                  p.valid = false;
+                  p.invalidReason =
+                      'Effective date ${newFrom.toIso8601String().split('T')[0]} falls inside existing DB interval ${from.toIso8601String().split('T')[0]} - ${to.toIso8601String().split('T')[0]} (id=${r['id']})';
+                  break;
+                }
               }
             }
           }
@@ -220,6 +229,97 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
       } catch (e) {
         p.valid = false;
         p.invalidReason = 'DB error: $e';
+      }
+    }
+    // Cross-proposal validation: detect conflicts within the imported set
+    // Group proposals by HSN (case-insensitive)
+    final Map<String, List<_Proposal>> byHsn = {};
+    for (final p in _proposals) {
+      final key = p.hsnCode.toLowerCase();
+      byHsn.putIfAbsent(key, () => []).add(p);
+    }
+
+    for (final entry in byHsn.entries) {
+      final List<_Proposal> group = entry.value;
+      // Collect DB intervals from any proposal (they were populated earlier)
+      final List<Map<String, dynamic>> dbIntervals = [];
+      for (final p in group) {
+        if (p.existingRates.isNotEmpty) {
+          dbIntervals.addAll(p.existingRates);
+        }
+      }
+
+      // If group contains both dated and undated proposals, mark undated as conflicting
+      final dated = group.where((p) => p.effectiveFrom != null).toList();
+      final undated = group.where((p) => p.effectiveFrom == null).toList();
+      if (dated.isNotEmpty && undated.isNotEmpty) {
+        for (final p in undated) {
+          p.valid = false;
+          p.invalidReason =
+              'Conflicts with dated proposals for same HSN in this import. Provide effective_from or remove the dated rows.';
+        }
+      }
+
+      // Validate dated proposals vs DB intervals
+      if (dated.isNotEmpty) {
+        // sort by effectiveFrom ascending
+        dated.sort((a, b) => a.effectiveFrom!.compareTo(b.effectiveFrom!));
+        // check duplicates and overlaps within proposals
+        for (var i = 0; i < dated.length; i++) {
+          final p = dated[i];
+          p.valid = p
+              .valid; // keep previous DB-based validity unless we find a new problem
+          p.invalidReason = p.invalidReason;
+
+          // duplicate effective_from within import
+          for (var j = 0; j < dated.length; j++) {
+            if (i == j) continue;
+            final other = dated[j];
+            if (p.effectiveFrom!.isAtSameMomentAs(other.effectiveFrom!)) {
+              p.valid = false;
+              p.invalidReason =
+                  'Duplicate effective_from ${p.effectiveFrom!.toIso8601String().split('T')[0]} in import for same HSN';
+              break;
+            }
+          }
+          if (!p.valid) continue;
+
+          // Check against DB intervals
+          for (final r in dbIntervals) {
+            try {
+              final from = DateTime.parse(r['effective_from'] as String);
+              final to = r['effective_to'] != null
+                  ? DateTime.parse(r['effective_to'] as String)
+                  : null;
+              final newFrom = p.effectiveFrom!;
+
+              if (to == null) {
+                // existing active interval [from .. NULL]
+                // allow newFrom only if strictly after 'from' (it will close the active)
+                if (newFrom.isAtSameMomentAs(from) || newFrom.isBefore(from)) {
+                  p.valid = false;
+                  p.invalidReason =
+                      'Effective_from ${newFrom.toIso8601String().split('T')[0]} conflicts with active DB rate starting ${from.toIso8601String().split('T')[0]}';
+                  break;
+                }
+              } else {
+                // closed interval [from .. to]
+                if (!newFrom.isBefore(from) && !newFrom.isAfter(to)) {
+                  // newFrom is within [from..to]
+                  p.valid = false;
+                  p.invalidReason =
+                      'Effective_from ${newFrom.toIso8601String().split('T')[0]} falls inside existing DB interval ${from.toIso8601String().split('T')[0]} - ${to.toIso8601String().split('T')[0]} (id=${r['id']})';
+                  break;
+                }
+              }
+            } catch (e) {
+              // parsing error - mark invalid
+              p.valid = false;
+              p.invalidReason = 'Invalid date in DB interval: $e';
+              break;
+            }
+          }
+        }
       }
     }
 
@@ -339,168 +439,65 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
     }
   }
 
-  void _validateProposal(_Proposal p) {
-    p.valid = true;
-    p.invalidReason = null;
-    if (p.effectiveFrom != null) {
-      final newFrom = p.effectiveFrom!;
-      for (final r in p.existingRates) {
-        final from = DateTime.parse(r['effective_from'] as String);
-        final to = r['effective_to'] != null
-            ? DateTime.parse(r['effective_to'] as String)
-            : null;
-        if ((newFrom.isAtSameMomentAs(from) || newFrom.isAfter(from)) &&
-            (to == null ||
-                newFrom.isBefore(to) ||
-                newFrom.isAtSameMomentAs(to))) {
-          p.valid = false;
-          p.invalidReason =
-              'Effective date overlaps existing rate ${r['id']} (${r['effective_from']}${to != null ? ' - ${r['effective_to']}' : ' - NULL'})';
-          break;
-        }
-      }
-    } else {
-      p.valid = true;
-      p.invalidReason = null;
-    }
-    setState(() {});
-  }
-
   @override
   Widget build(BuildContext context) {
-    final proposalsMaxHeight = MediaQuery.of(context).size.height * 0.36;
+    // proposals area will expand to fill available space
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: Center(
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 900),
-          padding: const EdgeInsets.all(AppSizes.paddingL),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Testing',
-                style: TextStyle(
-                  fontSize: AppSizes.fontXXL,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
+      body: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSizes.paddingL),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Testing',
+              style: TextStyle(
+                fontSize: AppSizes.fontXXL,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
               ),
-              const SizedBox(height: AppSizes.paddingS),
-              Text(
-                _fileName == null
-                    ? 'Upload an .xlsx file to display its contents'
-                    : 'Showing: $_fileName',
-                style: TextStyle(
-                  fontSize: AppSizes.fontM,
-                  color: AppColors.textSecondary,
-                ),
+            ),
+            const SizedBox(height: AppSizes.paddingS),
+            Text(
+              _fileName == null
+                  ? 'Upload an .xlsx file to display its contents'
+                  : 'Showing: $_fileName',
+              style: TextStyle(
+                fontSize: AppSizes.fontM,
+                color: AppColors.textSecondary,
               ),
-              const SizedBox(height: AppSizes.paddingL),
-              Row(
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: _pickAndLoadExcel,
-                    icon: const Icon(Icons.upload_file),
-                    label: const Text('Upload .xlsx'),
+            ),
+            const SizedBox(height: AppSizes.paddingL),
+            Row(
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _pickAndLoadExcel,
+                  icon: const Icon(Icons.upload_file),
+                  label: const Text('Upload .xlsx'),
+                ),
+                const SizedBox(width: AppSizes.paddingM),
+                if (_sheets.isNotEmpty)
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _sheets.clear();
+                        _fileName = null;
+                        _proposals.clear();
+                      });
+                    },
+                    child: const Text('Clear'),
                   ),
-                  const SizedBox(width: AppSizes.paddingM),
-                  if (_sheets.isNotEmpty)
-                    ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          _sheets.clear();
-                          _fileName = null;
-                        });
-                      },
-                      child: const Text('Clear'),
-                    ),
-                ],
-              ),
-              const SizedBox(height: AppSizes.paddingL),
-              Expanded(
-                child: _sheets.isEmpty
-                    ? Center(
-                        child: Text(
-                          'No data loaded',
-                          style: TextStyle(color: AppColors.textSecondary),
-                        ),
-                      )
-                    : ListView(
-                        children: _sheets.entries.map((entry) {
-                          final sheetName = entry.key;
-                          final rows = entry.value;
-                          return Card(
-                            margin: const EdgeInsets.only(
-                              bottom: AppSizes.paddingM,
-                            ),
-                            child: ExpansionTile(
-                              title: Text(sheetName),
-                              children: [
-                                SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: Builder(
-                                    builder: (context) {
-                                      // Determine maximum number of columns across all rows
-                                      final maxCols = rows.fold<int>(
-                                        0,
-                                        (prev, row) => row.length > prev
-                                            ? row.length
-                                            : prev,
-                                      );
-                                      final cols = maxCols > 0 ? maxCols : 1;
-
-                                      final columnWidgets =
-                                          List<DataColumn>.generate(
-                                            cols,
-                                            (i) => DataColumn(
-                                              label: Text('C${i + 1}'),
-                                            ),
-                                          );
-
-                                      if (columnWidgets.isEmpty) {
-                                        // Defensive fallback: show a placeholder instead of an empty DataTable
-                                        return Container(
-                                          padding: const EdgeInsets.all(8),
-                                          child: Text(
-                                            'No columns available to display',
-                                            style: TextStyle(
-                                              color: AppColors.textSecondary,
-                                            ),
-                                          ),
-                                        );
-                                      }
-
-                                      final dataRows = rows.map((r) {
-                                        // Pad missing cells with empty strings so every row has `cols` cells
-                                        return DataRow(
-                                          cells: List<DataCell>.generate(cols, (
-                                            i,
-                                          ) {
-                                            final value = i < r.length
-                                                ? r[i]
-                                                : '';
-                                            return DataCell(Text(value));
-                                          }),
-                                        );
-                                      }).toList();
-
-                                      return DataTable(
-                                        columns: columnWidgets,
-                                        rows: dataRows,
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      ),
-              ),
-              const SizedBox(height: AppSizes.paddingL),
-              if (_proposals.isNotEmpty)
-                Card(
+              ],
+            ),
+            const SizedBox(height: AppSizes.paddingL),
+            // Sheet preview removed — we only show proposals below. The uploaded file is parsed into proposals.
+            const SizedBox.shrink(),
+            const SizedBox(height: AppSizes.paddingL),
+            if (_proposals.isNotEmpty)
+              SizedBox(
+                width: double.infinity,
+                child: Card(
                   child: Padding(
                     padding: const EdgeInsets.all(AppSizes.paddingM),
                     child: Column(
@@ -519,11 +516,11 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                   onPressed: () {
                                     setState(() {
                                       for (final p in _proposals) {
-                                        p.approved = true;
+                                        if (p.valid) p.approved = true;
                                       }
                                     });
                                   },
-                                  child: const Text('Approve All'),
+                                  child: const Text('Approve All (valid only)'),
                                 ),
                                 const SizedBox(width: AppSizes.paddingS),
                                 ElevatedButton(
@@ -535,9 +532,9 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                           ],
                         ),
                         const SizedBox(height: AppSizes.paddingM),
-                        // Constrain proposals area to avoid overflowing the screen when many cards expand
+                        // Bounded proposals area to avoid unbounded height errors in nested Columns
                         SizedBox(
-                          height: proposalsMaxHeight,
+                          height: MediaQuery.of(context).size.height * 0.5,
                           child: SingleChildScrollView(
                             child: Column(
                               children: _proposals.map((p) {
@@ -645,170 +642,131 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                               spacing: AppSizes.paddingM,
                                               runSpacing: AppSizes.paddingS,
                                               children: [
-                                                SizedBox(
-                                                  width: 140,
-                                                  child: TextFormField(
-                                                    initialValue: p.cgst
-                                                        .toString(),
-                                                    decoration:
-                                                        const InputDecoration(
-                                                          labelText: 'CGST',
-                                                        ),
-                                                    keyboardType:
-                                                        const TextInputType.numberWithOptions(
-                                                          decimal: true,
-                                                        ),
-                                                    onChanged: (v) {
-                                                      setState(() {
-                                                        p.cgst =
-                                                            double.tryParse(
-                                                              v,
-                                                            ) ??
-                                                            0.0;
-                                                      });
-                                                      _validateProposal(p);
-                                                    },
-                                                  ),
-                                                ),
-                                                SizedBox(
-                                                  width: 140,
-                                                  child: TextFormField(
-                                                    initialValue: p.sgst
-                                                        .toString(),
-                                                    decoration:
-                                                        const InputDecoration(
-                                                          labelText: 'SGST',
-                                                        ),
-                                                    keyboardType:
-                                                        const TextInputType.numberWithOptions(
-                                                          decimal: true,
-                                                        ),
-                                                    onChanged: (v) {
-                                                      setState(() {
-                                                        p.sgst =
-                                                            double.tryParse(
-                                                              v,
-                                                            ) ??
-                                                            0.0;
-                                                      });
-                                                      _validateProposal(p);
-                                                    },
-                                                  ),
-                                                ),
-                                                SizedBox(
-                                                  width: 140,
-                                                  child: TextFormField(
-                                                    initialValue: p.igst
-                                                        .toString(),
-                                                    decoration:
-                                                        const InputDecoration(
-                                                          labelText: 'IGST',
-                                                        ),
-                                                    keyboardType:
-                                                        const TextInputType.numberWithOptions(
-                                                          decimal: true,
-                                                        ),
-                                                    onChanged: (v) {
-                                                      setState(() {
-                                                        p.igst =
-                                                            double.tryParse(
-                                                              v,
-                                                            ) ??
-                                                            0.0;
-                                                      });
-                                                      _validateProposal(p);
-                                                    },
-                                                  ),
-                                                ),
-                                                SizedBox(
-                                                  width: 140,
-                                                  child: TextFormField(
-                                                    initialValue: p.utgst
-                                                        .toString(),
-                                                    decoration:
-                                                        const InputDecoration(
-                                                          labelText: 'UTGST',
-                                                        ),
-                                                    keyboardType:
-                                                        const TextInputType.numberWithOptions(
-                                                          decimal: true,
-                                                        ),
-                                                    onChanged: (v) {
-                                                      setState(() {
-                                                        p.utgst =
-                                                            double.tryParse(
-                                                              v,
-                                                            ) ??
-                                                            0.0;
-                                                      });
-                                                      _validateProposal(p);
-                                                    },
-                                                  ),
-                                                ),
-                                                SizedBox(
-                                                  width: 220,
-                                                  child: Row(
-                                                    children: [
-                                                      Expanded(
-                                                        child: Text(
-                                                          p.effectiveFrom !=
-                                                                  null
-                                                              ? p.effectiveFrom!
-                                                                    .toIso8601String()
-                                                                    .split(
-                                                                      'T',
-                                                                    )[0]
-                                                              : '(none)',
-                                                        ),
+                                                // Read-only display of values (no editing allowed in import flow)
+                                                Wrap(
+                                                  spacing: AppSizes.paddingM,
+                                                  runSpacing: AppSizes.paddingS,
+                                                  children: [
+                                                    SizedBox(
+                                                      width: 140,
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          const Text(
+                                                            'CGST',
+                                                            style: TextStyle(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(
+                                                            height: 6,
+                                                          ),
+                                                          Text('${p.cgst}'),
+                                                        ],
                                                       ),
-                                                      IconButton(
-                                                        icon: const Icon(
-                                                          Icons.calendar_today,
-                                                        ),
-                                                        onPressed: () async {
-                                                          final picked =
-                                                              await showDatePicker(
-                                                                context:
-                                                                    context,
-                                                                initialDate:
-                                                                    p.effectiveFrom ??
-                                                                    DateTime.now(),
-                                                                firstDate:
-                                                                    DateTime(
-                                                                      1970,
-                                                                    ),
-                                                                lastDate:
-                                                                    DateTime(
-                                                                      2100,
-                                                                    ),
-                                                              );
-                                                          if (picked != null) {
-                                                            if (!mounted)
-                                                              return;
-                                                            setState(() {
-                                                              p.effectiveFrom =
-                                                                  picked;
-                                                            });
-                                                            _validateProposal(
-                                                              p,
-                                                            );
-                                                          }
-                                                        },
+                                                    ),
+                                                    SizedBox(
+                                                      width: 140,
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          const Text(
+                                                            'SGST',
+                                                            style: TextStyle(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(
+                                                            height: 6,
+                                                          ),
+                                                          Text('${p.sgst}'),
+                                                        ],
                                                       ),
-                                                      IconButton(
-                                                        icon: const Icon(
-                                                          Icons.clear,
-                                                        ),
-                                                        onPressed: () {
-                                                          setState(() {
-                                                            p.effectiveFrom =
-                                                                null;
-                                                          });
-                                                          _validateProposal(p);
-                                                        },
+                                                    ),
+                                                    SizedBox(
+                                                      width: 140,
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          const Text(
+                                                            'IGST',
+                                                            style: TextStyle(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(
+                                                            height: 6,
+                                                          ),
+                                                          Text('${p.igst}'),
+                                                        ],
                                                       ),
-                                                    ],
-                                                  ),
+                                                    ),
+                                                    SizedBox(
+                                                      width: 140,
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          const Text(
+                                                            'UTGST',
+                                                            style: TextStyle(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(
+                                                            height: 6,
+                                                          ),
+                                                          Text('${p.utgst}'),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                    SizedBox(
+                                                      width: 220,
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          const Text(
+                                                            'Effective From',
+                                                            style: TextStyle(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(
+                                                            height: 6,
+                                                          ),
+                                                          Text(
+                                                            p.effectiveFrom !=
+                                                                    null
+                                                                ? p.effectiveFrom!
+                                                                      .toIso8601String()
+                                                                      .split(
+                                                                        'T',
+                                                                      )[0]
+                                                                : '(none)',
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ],
                                                 ),
                                               ],
                                             ),
@@ -924,6 +882,94 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                             const SizedBox(
                                               height: AppSizes.paddingS,
                                             ),
+                                            // Show high-level action: whether this will create a new entry or update an existing one
+                                            (() {
+                                              String oldAction = '-';
+                                              String newAction = '-';
+                                              // existing HSN present?
+                                              if (p.existingHsnId == null) {
+                                                // no existing HSN
+                                                oldAction = '-';
+                                                if (p.effectiveFrom == null) {
+                                                  newAction =
+                                                      'Create new active rate (effective today)';
+                                                } else {
+                                                  newAction =
+                                                      'Create new dated rate starting ${p.effectiveFrom!.toIso8601String().split('T')[0]}';
+                                                }
+                                              } else {
+                                                // existing HSN
+                                                // find active rate
+                                                Map<String, dynamic>? active;
+                                                for (final r
+                                                    in p.existingRates) {
+                                                  if (r['effective_to'] ==
+                                                      null) {
+                                                    active = r;
+                                                    break;
+                                                  }
+                                                }
+                                                if (p.effectiveFrom == null) {
+                                                  if (active != null) {
+                                                    oldAction =
+                                                        'Active rate present';
+                                                    newAction =
+                                                        'Update existing active rate with new values';
+                                                  } else {
+                                                    oldAction = '-';
+                                                    newAction =
+                                                        'Create new active rate (no active present)';
+                                                  }
+                                                } else {
+                                                  // dated proposal
+                                                  final newFrom = p
+                                                      .effectiveFrom!
+                                                      .toIso8601String()
+                                                      .split('T')[0];
+                                                  if (active != null) {
+                                                    try {
+                                                      final afrom = DateTime.parse(
+                                                        active['effective_from']
+                                                            as String,
+                                                      );
+                                                      if (p.effectiveFrom!
+                                                          .isAfter(afrom)) {
+                                                        oldAction =
+                                                            '${afrom.toIso8601String().split('T')[0]} - NULL';
+                                                        final newTo = p
+                                                            .effectiveFrom!
+                                                            .subtract(
+                                                              const Duration(
+                                                                days: 1,
+                                                              ),
+                                                            );
+                                                        newAction =
+                                                            'Close active to ${newTo.toIso8601String().split('T')[0]} and insert new dated rate starting $newFrom';
+                                                      } else {
+                                                        oldAction =
+                                                            'Active rate present';
+                                                        newAction =
+                                                            'Insert dated rate starting $newFrom (may conflict)';
+                                                      }
+                                                    } catch (_) {
+                                                      oldAction =
+                                                          'Active rate present';
+                                                      newAction =
+                                                          'Insert dated rate starting $newFrom';
+                                                    }
+                                                  } else {
+                                                    oldAction = '-';
+                                                    newAction =
+                                                        'Insert dated rate starting $newFrom';
+                                                  }
+                                                }
+                                              }
+                                              return diffRow(
+                                                'Action',
+                                                oldAction,
+                                                newAction,
+                                              );
+                                            })(),
                                             diffRow(
                                               'CGST',
                                               p.existingRates.isNotEmpty
@@ -966,6 +1012,66 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                                         .split('T')[0]
                                                   : '(none)',
                                             ),
+                                            // If there's an existing active rate and the proposal supplies a later effectiveFrom,
+                                            // show the planned closure of the active rate to newFrom - 1 day and the new insertion date.
+                                            if (p.effectiveFrom != null &&
+                                                p.existingRates.isNotEmpty) ...[
+                                              (() {
+                                                Map<String, dynamic>? active;
+                                                for (final r
+                                                    in p.existingRates) {
+                                                  if (r['effective_to'] ==
+                                                      null) {
+                                                    active = r;
+                                                    break;
+                                                  }
+                                                }
+                                                if (active != null) {
+                                                  try {
+                                                    final afrom = DateTime.parse(
+                                                      active['effective_from']
+                                                          as String,
+                                                    );
+                                                    if (p.effectiveFrom!
+                                                        .isAfter(afrom)) {
+                                                      final newTo = p
+                                                          .effectiveFrom!
+                                                          .subtract(
+                                                            const Duration(
+                                                              days: 1,
+                                                            ),
+                                                          );
+                                                      return Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .stretch,
+                                                        children: [
+                                                          const SizedBox(
+                                                            height: AppSizes
+                                                                .paddingS,
+                                                          ),
+                                                          diffRow(
+                                                            'Existing active will be',
+                                                            '${afrom.toIso8601String().split('T')[0]} - NULL',
+                                                            '${afrom.toIso8601String().split('T')[0]} - ${newTo.toIso8601String().split('T')[0]}',
+                                                          ),
+                                                          diffRow(
+                                                            'New rate will start',
+                                                            '-',
+                                                            p.effectiveFrom!
+                                                                .toIso8601String()
+                                                                .split('T')[0],
+                                                          ),
+                                                        ],
+                                                      );
+                                                    }
+                                                  } catch (_) {
+                                                    // ignore parse issues here
+                                                  }
+                                                }
+                                                return const SizedBox.shrink();
+                                              })(),
+                                            ],
                                             const SizedBox(
                                               height: AppSizes.paddingM,
                                             ),
@@ -974,11 +1080,14 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                                   MainAxisAlignment.end,
                                               children: [
                                                 TextButton(
-                                                  onPressed: () {
-                                                    setState(() {
-                                                      p.approved = !p.approved;
-                                                    });
-                                                  },
+                                                  onPressed: p.valid
+                                                      ? () {
+                                                          setState(() {
+                                                            p.approved =
+                                                                !p.approved;
+                                                          });
+                                                        }
+                                                      : null,
                                                   child: Text(
                                                     p.approved
                                                         ? 'Unselect'
@@ -1001,8 +1110,8 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                     ),
                   ),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
       ),
     );
