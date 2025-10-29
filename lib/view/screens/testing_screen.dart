@@ -307,6 +307,25 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
           p.valid = false;
           p.invalidReason = '$badField must be between 0 and 100';
         }
+
+        // Ensure HSN code is present
+        if (p.valid) {
+          if (p.hsnCode.trim().isEmpty) {
+            p.valid = false;
+            p.invalidReason = 'HSN code is required';
+          }
+        }
+
+        // Require either both CGST and SGST (both > 0) or IGST (> 0).
+        // This rule applies to newly created HSNs and existing ones.
+        if (p.valid) {
+          final hasBothCsgst = p.cgst > 0 && p.sgst > 0;
+          final hasIgst = p.igst > 0;
+          if (!(hasBothCsgst || hasIgst)) {
+            p.valid = false;
+            p.invalidReason = 'Provide both CGST and SGST, or provide IGST.';
+          }
+        }
       }
     }
     // Cross-proposal validation: detect conflicts within the imported set
@@ -371,10 +390,23 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
             if (i == j) continue;
             final other = dated[j];
             if (p.effectiveFrom!.isAtSameMomentAs(other.effectiveFrom!)) {
-              p.valid = false;
-              p.invalidReason =
-                  'Duplicate effective_from ${_formatDateForUi(p.effectiveFrom)} in import for same HSN';
-              break;
+              // If the group contains any existing HSN (already in DB) then
+              // duplicate effective_from within import is ambiguous and should
+              // be rejected. However, if all proposals in the group are for a
+              // newly-created HSN (existingHsnId == null), allow duplicate
+              // dates here — they are treated as same-priority and the UI
+              // selection/Apply logic will ensure only one goes to DB.
+              final hasExistingHsn = group.any((x) => x.existingHsnId != null);
+              if (hasExistingHsn) {
+                p.valid = false;
+                p.invalidReason =
+                    'Duplicate effective_from ${_formatDateForUi(p.effectiveFrom)} in import for same HSN';
+                break;
+              } else {
+                // all new HSNs: allow duplicate dates — keep valid/selectable
+                // (do not mark invalid).
+                break;
+              }
             }
           }
           if (!p.valid) continue;
