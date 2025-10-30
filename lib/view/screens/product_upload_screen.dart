@@ -843,15 +843,19 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                             Expanded(
                                               flex: 1,
                                               child: Text(
-                                                p.costPrice.toStringAsFixed(2),
+                                                p.costPrice > 0
+                                                    ? p.costPrice
+                                                          .toStringAsFixed(2)
+                                                    : '',
                                               ),
                                             ),
                                             Expanded(
                                               flex: 1,
                                               child: Text(
-                                                p.sellingPrice.toStringAsFixed(
-                                                  2,
-                                                ),
+                                                p.sellingPrice > 0
+                                                    ? p.sellingPrice
+                                                          .toStringAsFixed(2)
+                                                    : '',
                                               ),
                                             ),
                                             Expanded(
@@ -867,15 +871,19 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                             Expanded(
                                               flex: 1,
                                               child: Text(
-                                                p.computedCostExcl
-                                                    .toStringAsFixed(2),
+                                                p.computedCostExcl > 0
+                                                    ? p.computedCostExcl
+                                                          .toStringAsFixed(2)
+                                                    : '',
                                               ),
                                             ),
                                             Expanded(
                                               flex: 1,
                                               child: Text(
-                                                p.computedSellingExcl
-                                                    .toStringAsFixed(2),
+                                                p.computedSellingExcl > 0
+                                                    ? p.computedSellingExcl
+                                                          .toStringAsFixed(2)
+                                                    : '',
                                               ),
                                             ),
                                             SizedBox(
