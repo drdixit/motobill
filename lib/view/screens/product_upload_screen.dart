@@ -809,9 +809,6 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                             ),
                                           ],
                                         ),
-                                        subtitle: Text(
-                                          'HSN: ${p.hsnCode} • Provided: ${p.costPrice.toStringAsFixed(2)}/${p.sellingPrice.toStringAsFixed(2)} • Included Tax: ${p.includeTax ? 'YES' : 'NO'}',
-                                        ),
                                         children: [
                                           Padding(
                                             padding: const EdgeInsets.all(
