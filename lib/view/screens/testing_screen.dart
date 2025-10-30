@@ -88,6 +88,38 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
       final bytes = File(path).readAsBytesSync();
       final excel = Excel.decodeBytes(bytes);
 
+      // Validate H1 (column H, row 1) of the first sheet: it MUST contain
+      // exactly four space characters ("    "). This is our canonical
+      // validation for HSN code import files. If it doesn't match, we
+      // reject the file and do not process it further.
+      if (excel.tables.isNotEmpty) {
+        final firstKey = excel.tables.keys.first;
+        final firstTable = excel.tables[firstKey];
+        if (firstTable != null && firstTable.rows.isNotEmpty) {
+          final firstRow = firstTable.rows.first;
+          // Column H is index 7 (0-based). Safely check length.
+          String h1Val = '';
+          if (firstRow.length > 7 && firstRow[7] != null) {
+            final v = firstRow[7]?.value;
+            h1Val = v == null ? '' : v.toString();
+          }
+
+          // If H1 does NOT contain exactly four spaces, reject the file.
+          if (h1Val != '    ') {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Invalid Uploaded Excel File Please Use Official Template',
+                  ),
+                ),
+              );
+            }
+            return;
+          }
+        }
+      }
+
       final Map<String, List<List<String>>> parsed = {};
 
       for (final sheetName in excel.tables.keys) {
