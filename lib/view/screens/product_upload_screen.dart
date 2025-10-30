@@ -34,6 +34,36 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
       final bytes = File(path).readAsBytesSync();
       final excel = Excel.decodeBytes(bytes);
 
+      // Validate I1 (column I, row 1) of the first sheet: it MUST contain
+      // exactly four space characters ("    "). If not, reject the file and
+      // show an error message. Product Upload uses I1 as the sentinel.
+      if (excel.tables.isNotEmpty) {
+        final firstKey = excel.tables.keys.first;
+        final firstTable = excel.tables[firstKey];
+        if (firstTable != null && firstTable.rows.isNotEmpty) {
+          final firstRow = firstTable.rows.first;
+          String h1Val = '';
+          // Column I is index 8 (0-based)
+          if (firstRow.length > 8 && firstRow[8] != null) {
+            final v = firstRow[8]?.value;
+            h1Val = v == null ? '' : v.toString();
+          }
+
+          if (h1Val != '    ') {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Invalid Uploaded Excel File Please Use Official Template',
+                  ),
+                ),
+              );
+            }
+            return;
+          }
+        }
+      }
+
       final Map<String, List<List<String>>> parsed = {};
       for (final sheetName in excel.tables.keys) {
         final table = excel.tables[sheetName];
@@ -106,6 +136,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                 onPressed: () {
                   setState(() {
                     _fileName = null;
+                    _sheets.clear();
                   });
                 },
                 child: const Text('Clear'),
