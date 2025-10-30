@@ -656,7 +656,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                           ),
                           const SizedBox(width: AppSizes.paddingM),
                           Text(
-                            'Valid: ${_proposals.where((p) => p.valid).length}  Selected: ${_proposals.where((p) => p.approved && p.valid).length}',
+                            'Valid: ${_proposals.where((p) => p.valid).length}  Invalid: ${_proposals.where((p) => !p.valid).length}  Selected: ${_proposals.where((p) => p.approved && p.valid).length}',
                             style: TextStyle(color: AppColors.textSecondary),
                           ),
                         ],
