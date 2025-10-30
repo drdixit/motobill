@@ -23,6 +23,8 @@ class _ProductProposal {
   final double costPrice; // provided in sheet
   final double sellingPrice; // provided in sheet
   final bool includeTax; // whether provided prices include tax (YES/NO column)
+  bool includeProvided =
+      false; // whether include_tax column was provided in the sheet
 
   // computed
   int? existingProductId;
@@ -206,6 +208,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         p.plannedIsTaxable = defaultIsTaxable;
         p.plannedIsEnabled = defaultIsEnabled;
         p.plannedNegativeAllow = defaultNegativeAllow;
+        p.includeProvided = includeProvided;
         _proposals.add(p);
         continue;
       }
@@ -220,6 +223,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           sellingPrice: sell,
           includeTax: includeTax,
         );
+        p.includeProvided = includeProvided;
         // keep provided values visible
         p.computedCostExcl = p.costPrice;
         p.computedSellingExcl = p.sellingPrice;
@@ -247,7 +251,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
       }
 
       // include_tax is required
-      if (!includeStr.isNotEmpty) {
+      if (!includeProvided) {
         final p = _ProductProposal(
           name: name,
           partNumber: part,
@@ -256,10 +260,12 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           sellingPrice: sell,
           includeTax: includeTax,
         );
+        p.includeProvided = includeProvided;
         p.computedCostExcl = p.costPrice;
         p.computedSellingExcl = p.sellingPrice;
         p.valid = false;
-        p.invalidReason = 'include_tax column missing';
+        // concise invalid reason
+        p.invalidReason = 'include_tax';
         // set planned defaults to avoid null UI values
         const defaultSubCategoryId = 1;
         const defaultManufacturerId = 1;
@@ -285,6 +291,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         sellingPrice: sell,
         includeTax: includeTax,
       );
+      p.includeProvided = includeProvided;
 
       // default to showing provided values unless we reverse-calc using HSN GST
       p.computedCostExcl = p.costPrice;
@@ -312,7 +319,8 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           // include_tax must be provided when HSN exists
           if (!includeProvided) {
             p.valid = false;
-            p.invalidReason = 'include_tax column missing for HSN ${p.hsnCode}';
+            // concise invalid reason
+            p.invalidReason = 'include_tax';
             _proposals.add(p);
             continue;
           }
@@ -849,7 +857,11 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                             Expanded(
                                               flex: 1,
                                               child: Text(
-                                                p.includeTax ? 'YES' : 'NO',
+                                                p.includeProvided
+                                                    ? (p.includeTax
+                                                          ? 'YES'
+                                                          : 'NO')
+                                                    : '',
                                               ),
                                             ),
                                             Expanded(
