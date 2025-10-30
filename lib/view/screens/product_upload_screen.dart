@@ -541,8 +541,12 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Applied selected product proposals')),
         );
-        // refresh proposals
-        await _prepareProductProposalsFromLoaded();
+        // Clear UI state after successful apply as requested
+        setState(() {
+          _fileName = null;
+          _sheets.clear();
+          _proposals.clear();
+        });
       }
     } catch (e) {
       if (mounted)
