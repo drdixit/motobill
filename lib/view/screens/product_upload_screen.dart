@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
+import '../../core/providers/database_provider.dart';
 
 class ProductUploadScreen extends ConsumerStatefulWidget {
   const ProductUploadScreen({super.key});
@@ -15,9 +16,40 @@ class ProductUploadScreen extends ConsumerStatefulWidget {
       _ProductUploadScreenState();
 }
 
+class _ProductProposal {
+  final String name;
+  final String partNumber;
+  final String hsnCode;
+  final double costPrice; // provided in sheet
+  final double sellingPrice; // provided in sheet
+  final bool includeTax; // whether provided prices include tax (YES/NO column)
+
+  // computed
+  int? existingProductId;
+  int? hsnCodeId;
+  double computedCostExcl = 0.0; // what we'll store in DB
+  double computedSellingExcl = 0.0;
+  bool valid = true;
+  String? invalidReason;
+  String? suggestion;
+
+  bool approved = false;
+  bool selectable = true;
+
+  _ProductProposal({
+    required this.name,
+    required this.partNumber,
+    required this.hsnCode,
+    required this.costPrice,
+    required this.sellingPrice,
+    required this.includeTax,
+  });
+}
+
 class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
   String? _fileName;
   final Map<String, List<List<String>>> _sheets = {};
+  final List<_ProductProposal> _proposals = [];
 
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles(
@@ -88,12 +120,284 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           ..addAll(parsed);
         _fileName = result.files.single.name;
       });
+      // Prepare proposals for preview
+      await _prepareProductProposalsFromLoaded();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to read Excel file: $e')),
         );
       }
+    }
+  }
+
+  // product proposals prepared from uploaded sheet
+
+  Future<void> _prepareProductProposalsFromLoaded() async {
+    _proposals.clear();
+    if (_sheets.isEmpty) return;
+    final first = _sheets.entries.first.value;
+
+    for (var rowIndex = 0; rowIndex < first.length; rowIndex++) {
+      final row = first[rowIndex];
+      // first row is header; skip it
+      if (rowIndex == 0) continue;
+      if (row.isEmpty) continue;
+      final name = row.length > 0 ? row[0].trim() : '';
+      final part = row.length > 1 ? row[1].trim() : '';
+      final hsn = row.length > 2 ? row[2].trim() : '';
+      double parseDouble(dynamic v) {
+        if (v == null) return 0.0;
+        final s = v.toString().trim();
+        if (s.isEmpty) return 0.0;
+        return double.tryParse(s) ?? 0.0;
+      }
+
+      final cost = parseDouble(row.length > 3 ? row[3] : null);
+      final sell = parseDouble(row.length > 4 ? row[4] : null);
+      final includeRaw = row.length > 5 ? row[5] : null;
+      final includeStr = includeRaw == null ? '' : includeRaw.toString().trim();
+      final includeProvided = includeStr.isNotEmpty;
+      final includeTax =
+          includeProvided &&
+          (includeStr.toLowerCase() == 'yes' ||
+              includeStr.toLowerCase().startsWith('y'));
+
+      // require name and part_number and hsn
+      if (name.isEmpty || part.isEmpty || hsn.isEmpty) {
+        // still add but mark invalid
+        final p = _ProductProposal(
+          name: name,
+          partNumber: part,
+          hsnCode: hsn,
+          costPrice: cost,
+          sellingPrice: sell,
+          includeTax: includeTax,
+        );
+        p.valid = false;
+        p.invalidReason =
+            'Missing required column(s): name, part_number, or hsn_code';
+        _proposals.add(p);
+        continue;
+      }
+
+      // require cost and selling provided
+      if (cost <= 0 || sell <= 0) {
+        final p = _ProductProposal(
+          name: name,
+          partNumber: part,
+          hsnCode: hsn,
+          costPrice: cost,
+          sellingPrice: sell,
+          includeTax: includeTax,
+        );
+        p.valid = false;
+        p.invalidReason = 'Missing or invalid cost_price or selling_price';
+        _proposals.add(p);
+        continue;
+      }
+
+      // include_tax is required
+      if (!includeStr.isNotEmpty) {
+        final p = _ProductProposal(
+          name: name,
+          partNumber: part,
+          hsnCode: hsn,
+          costPrice: cost,
+          sellingPrice: sell,
+          includeTax: includeTax,
+        );
+        p.valid = false;
+        p.invalidReason = 'include_tax column missing';
+        _proposals.add(p);
+        continue;
+      }
+
+      final p = _ProductProposal(
+        name: name,
+        partNumber: part,
+        hsnCode: hsn,
+        costPrice: cost,
+        sellingPrice: sell,
+        includeTax: includeTax,
+      );
+
+      // Lookup existing product by part_number
+      try {
+        final db = await ref.read(databaseProvider);
+        final prodRows = await db.rawQuery(
+          'SELECT * FROM products WHERE part_number = ? AND is_deleted = 0 LIMIT 1',
+          [p.partNumber],
+        );
+        if (prodRows.isNotEmpty) {
+          p.existingProductId = prodRows.first['id'] as int;
+        }
+
+        // find hsn code id
+        final hsnRows = await db.rawQuery(
+          'SELECT * FROM hsn_codes WHERE LOWER(code) = LOWER(?) AND is_deleted = 0 LIMIT 1',
+          [p.hsnCode],
+        );
+        if (hsnRows.isNotEmpty) {
+          p.hsnCodeId = hsnRows.first['id'] as int;
+          // include_tax must be provided when HSN exists
+          if (!includeProvided) {
+            p.valid = false;
+            p.invalidReason = 'include_tax column missing for HSN ${p.hsnCode}';
+            _proposals.add(p);
+            continue;
+          }
+          // load active gst rate for this hsn
+          final rates = await db.rawQuery(
+            'SELECT * FROM gst_rates WHERE hsn_code_id = ? AND is_deleted = 0 ORDER BY effective_from DESC',
+            [p.hsnCodeId],
+          );
+          Map<String, dynamic>? active;
+          for (final r in rates) {
+            if (r['effective_to'] == null) {
+              active = r;
+              break;
+            }
+          }
+          if (active == null && rates.isNotEmpty) active = rates.first;
+
+          if (active != null) {
+            final cgst = (active['cgst'] as num?)?.toDouble() ?? 0.0;
+            final sgst = (active['sgst'] as num?)?.toDouble() ?? 0.0;
+            final igst = (active['igst'] as num?)?.toDouble() ?? 0.0;
+            double totalTax = 0.0;
+            if (cgst > 0 || sgst > 0)
+              totalTax = cgst + sgst;
+            else if (igst > 0)
+              totalTax = igst;
+
+            if (totalTax <= 0) {
+              p.valid = false;
+              p.invalidReason =
+                  'HSN has no GST rate to compute tax percentages';
+            } else {
+              // Determine final cost/sell excluding tax
+              double computeExcl(double incl) {
+                if (incl <= 0) return 0.0;
+                return incl / (1 + totalTax / 100.0);
+              }
+
+              if (p.includeTax) {
+                p.computedCostExcl = computeExcl(p.costPrice);
+                p.computedSellingExcl = computeExcl(p.sellingPrice);
+                p.suggestion = 'Reversed tax ${totalTax}% from included prices';
+              } else {
+                p.computedCostExcl = p.costPrice;
+                p.computedSellingExcl = p.sellingPrice;
+              }
+            }
+          } else {
+            p.valid = false;
+            p.invalidReason = 'No GST rates found for HSN code ${p.hsnCode}';
+          }
+        } else {
+          // HSN not present -> mark invalid (user asked show diff and error)
+          p.valid = false;
+          p.invalidReason = 'HSN code ${p.hsnCode} not found in DB';
+        }
+      } catch (e) {
+        p.valid = false;
+        p.invalidReason = 'DB error: $e';
+      }
+
+      _proposals.add(p);
+    }
+
+    setState(() {});
+  }
+
+  Future<void> _applySelectedProductProposals() async {
+    final toApply = _proposals.where((p) => p.approved && p.valid).toList();
+    if (toApply.isEmpty) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No proposals selected or valid')),
+        );
+      return;
+    }
+
+    final db = await ref.read(databaseProvider);
+    try {
+      await db.transaction((txn) async {
+        for (final p in toApply) {
+          // Require HSN to exist (we do not auto-create HSNs during product import)
+          if (p.hsnCodeId == null) {
+            throw Exception('HSN code missing for product ${p.partNumber}');
+          }
+          final hsnId = p.hsnCodeId!;
+
+          // Defaults per user instructions
+          const defaultSubCategoryId = 1; // assumption: exists
+          const defaultManufacturerId = 1; // assumption: exists
+          const defaultUqcId = 9; // as requested
+          const defaultIsTaxable = 0; // 0
+          const defaultIsEnabled = 1;
+
+          final existing = await txn.rawQuery(
+            'SELECT * FROM products WHERE part_number = ? AND is_deleted = 0 LIMIT 1',
+            [p.partNumber],
+          );
+          if (existing.isNotEmpty) {
+            final id = existing.first['id'] as int;
+            await txn.rawUpdate(
+              '''
+              UPDATE products SET
+                name = ?, hsn_code_id = ?, uqc_id = ?, cost_price = ?, selling_price = ?, sub_category_id = ?, manufacturer_id = ?, is_taxable = ?, updated_at = datetime('now')
+              WHERE id = ?
+              ''',
+              [
+                p.name,
+                hsnId,
+                defaultUqcId,
+                p.computedCostExcl,
+                p.computedSellingExcl,
+                defaultSubCategoryId,
+                defaultManufacturerId,
+                defaultIsTaxable,
+                id,
+              ],
+            );
+          } else {
+            await txn.rawInsert(
+              '''
+              INSERT INTO products (name, part_number, hsn_code_id, uqc_id, cost_price, selling_price, sub_category_id, manufacturer_id, is_taxable, is_enabled, negative_allow, is_deleted, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'), datetime('now'))
+              ''',
+              [
+                p.name,
+                p.partNumber,
+                hsnId,
+                defaultUqcId,
+                p.computedCostExcl,
+                p.computedSellingExcl,
+                defaultSubCategoryId,
+                defaultManufacturerId,
+                defaultIsTaxable,
+                defaultIsEnabled,
+                0, // negative_allow default false
+              ],
+            );
+          }
+        }
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Applied selected product proposals')),
+        );
+        // refresh proposals
+        await _prepareProductProposalsFromLoaded();
+      }
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to apply products: $e')));
     }
   }
 
@@ -163,7 +467,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
               ),
             )
           else
-            // Show first sheet content in a scrollable DataTable
+            // Show first sheet content in a scrollable DataTable and proposals
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(AppSizes.paddingM),
@@ -171,63 +475,196 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'Sheets: ${_sheets.keys.join(', ')}',
+                      'Proposals prepared from sheet(s): ${_sheets.keys.join(', ')}',
                       style: TextStyle(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: AppSizes.paddingS),
-                    SizedBox(
-                      height: MediaQuery.of(context).size.height * 0.5,
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
+
+                    // Actions for proposals
+                    Row(
+                      children: [
+                        ElevatedButton(
+                          onPressed: () {
+                            // Approve all valid proposals but ensure at most one per part_number
+                            final approvedFor = <String, bool>{};
+                            setState(() {
+                              for (final p in _proposals) {
+                                if (!p.valid) {
+                                  p.approved = false;
+                                  continue;
+                                }
+                                if (approvedFor[p.partNumber] == true) {
+                                  p.approved = false;
+                                } else {
+                                  p.approved = true;
+                                  approvedFor[p.partNumber] = true;
+                                }
+                              }
+                            });
+                          },
+                          child: const Text('Approve All (valid only)'),
+                        ),
+                        const SizedBox(width: AppSizes.paddingM),
+                        ElevatedButton(
+                          onPressed: _applySelectedProductProposals,
+                          child: const Text('Apply Selected'),
+                        ),
+                        const SizedBox(width: AppSizes.paddingM),
+                        Text(
+                          'Valid: ${_proposals.where((p) => p.valid).length}  Selected: ${_proposals.where((p) => p.approved && p.valid).length}',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: AppSizes.paddingS),
+
+                    // List proposals
+                    if (_proposals.isEmpty)
+                      const Text('No proposals prepared yet.')
+                    else
+                      SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.25,
                         child: SingleChildScrollView(
-                          child: _buildSheetTable(
-                            _sheets.entries.first.key,
-                            _sheets.entries.first.value,
+                          child: Column(
+                            children: _proposals.map((p) {
+                              return Card(
+                                margin: const EdgeInsets.symmetric(
+                                  vertical: AppSizes.paddingS,
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(
+                                    AppSizes.paddingM,
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Checkbox(
+                                        value: p.approved,
+                                        onChanged: (v) {
+                                          setState(() {
+                                            if (v == true) {
+                                              // enforce one approved per partNumber
+                                              for (final other in _proposals) {
+                                                if (other.partNumber ==
+                                                    p.partNumber) {
+                                                  other.approved = false;
+                                                }
+                                              }
+                                              p.approved = true;
+                                            } else {
+                                              p.approved = false;
+                                            }
+                                          });
+                                        },
+                                      ),
+                                      const SizedBox(width: AppSizes.paddingS),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
+                                              children: [
+                                                Text(
+                                                  '${p.name}  (${p.partNumber})',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  p.existingProductId != null
+                                                      ? 'Existing'
+                                                      : 'New',
+                                                  style: TextStyle(
+                                                    color:
+                                                        AppColors.textSecondary,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(
+                                              height: AppSizes.paddingS,
+                                            ),
+                                            Text('HSN: ${p.hsnCode}'),
+                                            const SizedBox(
+                                              height: AppSizes.paddingXS,
+                                            ),
+                                            Wrap(
+                                              spacing: AppSizes.paddingM,
+                                              children: [
+                                                Text(
+                                                  'Provided Cost: ${p.costPrice.toStringAsFixed(2)}',
+                                                ),
+                                                Text(
+                                                  'Provided Sell: ${p.sellingPrice.toStringAsFixed(2)}',
+                                                ),
+                                                Text(
+                                                  'Included Tax: ${p.includeTax ? 'YES' : 'NO'}',
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(
+                                              height: AppSizes.paddingXS,
+                                            ),
+                                            Wrap(
+                                              spacing: AppSizes.paddingM,
+                                              children: [
+                                                Text(
+                                                  'Store Cost (excl): ${p.computedCostExcl.toStringAsFixed(2)}',
+                                                ),
+                                                Text(
+                                                  'Store Sell (excl): ${p.computedSellingExcl.toStringAsFixed(2)}',
+                                                ),
+                                              ],
+                                            ),
+                                            if (!p.valid &&
+                                                p.invalidReason != null)
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                  top: AppSizes.paddingS,
+                                                ),
+                                                child: Text(
+                                                  p.invalidReason!,
+                                                  style: const TextStyle(
+                                                    color: Colors.red,
+                                                  ),
+                                                ),
+                                              ),
+                                            if (p.suggestion != null)
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                  top: AppSizes.paddingS,
+                                                ),
+                                                child: Text(
+                                                  p.suggestion!,
+                                                  style: TextStyle(
+                                                    color:
+                                                        AppColors.textSecondary,
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }).toList(),
                           ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),
             ),
         ],
       ),
-    );
-  }
-
-  Widget _buildSheetTable(String name, List<List<String>> rows) {
-    if (rows.isEmpty) return const SizedBox.shrink();
-
-    // Determine max columns
-    var maxCols = 0;
-    for (final r in rows) {
-      if (r.length > maxCols) maxCols = r.length;
-    }
-
-    // Determine if first row is header-like
-    final firstRow = rows.first;
-    final isHeader =
-        firstRow.join(' ').trim().isNotEmpty &&
-        firstRow.any((c) => RegExp(r'[A-Za-z]').hasMatch(c));
-
-    final headers = List<String>.generate(
-      maxCols,
-      (i) => isHeader && i < firstRow.length && firstRow[i].trim().isNotEmpty
-          ? firstRow[i].trim()
-          : 'Col ${i + 1}',
-    );
-
-    final dataRows = isHeader ? rows.sublist(1) : rows;
-
-    return DataTable(
-      columns: headers.map((h) => DataColumn(label: Text(h))).toList(),
-      rows: dataRows.map((r) {
-        final cells = List<String>.from(r);
-        // pad
-        while (cells.length < maxCols) cells.add('');
-        return DataRow(cells: cells.map((c) => DataCell(Text(c))).toList());
-      }).toList(),
     );
   }
 }
