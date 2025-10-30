@@ -188,11 +188,11 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         p.computedCostExcl = p.costPrice;
         p.computedSellingExcl = p.sellingPrice;
         p.valid = false;
-        // craft a specific missing-field message rather than a generic one
+        // craft a concise missing/invalid message (show only field names)
         final missing = <String>[];
         if (name.isEmpty) missing.add('name');
         if (hsn.isEmpty) missing.add('hsn_code');
-        p.invalidReason = 'Missing required column(s): ${missing.join(', ')}';
+        p.invalidReason = missing.join(', ');
         // set planned defaults so UI doesn't show nulls
         const defaultSubCategoryId = 1;
         const defaultManufacturerId = 1;
@@ -224,7 +224,11 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         p.computedCostExcl = p.costPrice;
         p.computedSellingExcl = p.sellingPrice;
         p.valid = false;
-        p.invalidReason = 'Missing or invalid cost_price or selling_price';
+        // Show concise field names for what's missing/invalid
+        final missingPrice = <String>[];
+        if (cost <= 0) missingPrice.add('cost_price');
+        if (sell <= 0) missingPrice.add('selling_price');
+        p.invalidReason = missingPrice.join(', ');
         // set planned defaults to avoid nulls in UI
         const defaultSubCategoryId = 1;
         const defaultManufacturerId = 1;
