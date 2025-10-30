@@ -188,7 +188,11 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         p.computedCostExcl = p.costPrice;
         p.computedSellingExcl = p.sellingPrice;
         p.valid = false;
-        p.invalidReason = 'Missing required column(s): name or hsn_code';
+        // craft a specific missing-field message rather than a generic one
+        final missing = <String>[];
+        if (name.isEmpty) missing.add('name');
+        if (hsn.isEmpty) missing.add('hsn_code');
+        p.invalidReason = 'Missing required column(s): ${missing.join(', ')}';
         // set planned defaults so UI doesn't show nulls
         const defaultSubCategoryId = 1;
         const defaultManufacturerId = 1;
@@ -731,6 +735,15 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                         ),
                                       ),
                                     ),
+                                    Expanded(
+                                      flex: 1,
+                                      child: Text(
+                                        'Store Sell (excl)',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
                                     SizedBox(
                                       width: 64,
                                       child: Text(
@@ -839,6 +852,13 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                               flex: 1,
                                               child: Text(
                                                 p.computedCostExcl
+                                                    .toStringAsFixed(2),
+                                              ),
+                                            ),
+                                            Expanded(
+                                              flex: 1,
+                                              child: Text(
+                                                p.computedSellingExcl
                                                     .toStringAsFixed(2),
                                               ),
                                             ),
