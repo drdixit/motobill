@@ -609,160 +609,307 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
 
                       const SizedBox(height: AppSizes.paddingS),
 
-                      // List proposals - take available vertical space and scroll
+                      // List proposals - take available vertical space and show tabular expandable UI
                       if (_proposals.isEmpty)
                         const Text('No proposals prepared yet.')
                       else
                         Expanded(
-                          child: ListView.builder(
-                            itemCount: _proposals.length,
-                            itemBuilder: (context, index) {
-                              final p = _proposals[index];
-                              return Card(
-                                margin: const EdgeInsets.symmetric(
-                                  vertical: AppSizes.paddingS,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // Header row (tabular look)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: AppSizes.paddingXS,
+                                  horizontal: AppSizes.paddingS,
                                 ),
-                                child: ExpansionTile(
-                                  initiallyExpanded: false,
-                                  leading: Checkbox(
-                                    value: p.approved,
-                                    onChanged: p.valid
-                                        ? (v) {
-                                            setState(() {
-                                              if (v == true) {
-                                                // selecting one variant unselects others with same name
-                                                for (final other
-                                                    in _proposals) {
-                                                  if (other.name
-                                                          .toLowerCase() ==
-                                                      p.name.toLowerCase()) {
-                                                    other.approved = false;
-                                                  }
-                                                }
-                                                p.approved = true;
-                                              } else {
-                                                p.approved = false;
-                                              }
-                                            });
-                                          }
-                                        : null,
-                                  ),
-                                  title: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Flexible(
-                                        child: Text(
-                                          '${p.name}  (${p.partNumber})',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      Text(
-                                        p.existingProductId != null
-                                            ? 'Existing'
-                                            : 'New',
+                                color: Colors.grey.shade100,
+                                child: Row(
+                                  children: const [
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        'Name (Part#)',
                                         style: TextStyle(
-                                          color: AppColors.textSecondary,
+                                          fontWeight: FontWeight.w600,
                                         ),
                                       ),
-                                    ],
-                                  ),
-                                  subtitle: Text(
-                                    'HSN: ${p.hsnCode} • Provided: ${p.costPrice.toStringAsFixed(2)}/${p.sellingPrice.toStringAsFixed(2)} • Included Tax: ${p.includeTax ? 'YES' : 'NO'}',
-                                  ),
-                                  children: [
-                                    Padding(
-                                      padding: const EdgeInsets.all(
-                                        AppSizes.paddingM,
+                                    ),
+                                    Expanded(
+                                      flex: 1,
+                                      child: Text(
+                                        'HSN',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Wrap(
-                                            spacing: AppSizes.paddingM,
-                                            children: [
-                                              Text(
-                                                'Store Cost (excl): ${p.computedCostExcl.toStringAsFixed(2)}',
-                                              ),
-                                              Text(
-                                                'Store Sell (excl): ${p.computedSellingExcl.toStringAsFixed(2)}',
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(
-                                            height: AppSizes.paddingS,
-                                          ),
-                                          if (!p.valid &&
-                                              p.invalidReason != null)
-                                            Text(
-                                              p.invalidReason!,
-                                              style: const TextStyle(
-                                                color: Colors.red,
-                                              ),
-                                            ),
-                                          if (p.suggestion != null)
-                                            Padding(
-                                              padding: const EdgeInsets.only(
-                                                top: AppSizes.paddingS,
-                                              ),
-                                              child: Text(
-                                                p.suggestion!,
-                                                style: TextStyle(
-                                                  color:
-                                                      AppColors.textSecondary,
-                                                ),
-                                              ),
-                                            ),
-                                          const Divider(),
-                                          Text(
-                                            'Planned DB values',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                          const SizedBox(
-                                            height: AppSizes.paddingXS,
-                                          ),
-                                          Text(
-                                            'Sub-category: ${p.plannedSubCategoryName ?? p.plannedSubCategoryId}',
-                                          ),
-                                          Text(
-                                            'Manufacturer: ${p.plannedManufacturerName ?? p.plannedManufacturerId}',
-                                          ),
-                                          Text(
-                                            'UQC: ${p.plannedUqcName ?? p.plannedUqcId}',
-                                          ),
-                                          Text(
-                                            'isTaxable: ${p.plannedIsTaxable}  isEnabled: ${p.plannedIsEnabled}  negativeAllow: ${p.plannedNegativeAllow}',
-                                          ),
-                                          if (p.existingData != null) ...[
-                                            const Divider(),
-                                            Text(
-                                              'Existing product data (DB)',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                            const SizedBox(
-                                              height: AppSizes.paddingXS,
-                                            ),
-                                            for (final entry
-                                                in p.existingData!.entries)
-                                              Text(
-                                                '${entry.key}: ${entry.value}',
-                                              ),
-                                          ],
-                                        ],
+                                    ),
+                                    Expanded(
+                                      flex: 1,
+                                      child: Text(
+                                        'Provided Cost',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 1,
+                                      child: Text(
+                                        'Provided Sell',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 1,
+                                      child: Text(
+                                        'Incl Tax',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 1,
+                                      child: Text(
+                                        'Store Cost (excl)',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                    SizedBox(
+                                      width: 64,
+                                      child: Text(
+                                        'Status',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
-                              );
-                            },
+                              ),
+                              const SizedBox(height: AppSizes.paddingXS),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: _proposals.length,
+                                  itemBuilder: (context, index) {
+                                    final p = _proposals[index];
+                                    return Card(
+                                      margin: const EdgeInsets.symmetric(
+                                        vertical: AppSizes.paddingS,
+                                      ),
+                                      child: ExpansionTile(
+                                        initiallyExpanded: false,
+                                        leading: Checkbox(
+                                          value: p.approved,
+                                          onChanged: p.valid
+                                              ? (v) {
+                                                  setState(() {
+                                                    if (v == true) {
+                                                      // selecting one variant unselects others with same name
+                                                      for (final other
+                                                          in _proposals) {
+                                                        if (other.name
+                                                                .toLowerCase() ==
+                                                            p.name
+                                                                .toLowerCase()) {
+                                                          other.approved =
+                                                              false;
+                                                        }
+                                                      }
+                                                      p.approved = true;
+                                                    } else {
+                                                      p.approved = false;
+                                                    }
+                                                  });
+                                                }
+                                              : null,
+                                        ),
+                                        title: Row(
+                                          children: [
+                                            Expanded(
+                                              flex: 2,
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    '${p.name} (${p.partNumber})',
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                  if (!p.valid &&
+                                                      p.invalidReason != null)
+                                                    Text(
+                                                      p.invalidReason!,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style: const TextStyle(
+                                                        color: Colors.red,
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                            Expanded(
+                                              flex: 1,
+                                              child: Text(p.hsnCode),
+                                            ),
+                                            Expanded(
+                                              flex: 1,
+                                              child: Text(
+                                                p.costPrice.toStringAsFixed(2),
+                                              ),
+                                            ),
+                                            Expanded(
+                                              flex: 1,
+                                              child: Text(
+                                                p.sellingPrice.toStringAsFixed(
+                                                  2,
+                                                ),
+                                              ),
+                                            ),
+                                            Expanded(
+                                              flex: 1,
+                                              child: Text(
+                                                p.includeTax ? 'YES' : 'NO',
+                                              ),
+                                            ),
+                                            Expanded(
+                                              flex: 1,
+                                              child: Text(
+                                                p.computedCostExcl
+                                                    .toStringAsFixed(2),
+                                              ),
+                                            ),
+                                            SizedBox(
+                                              width: 64,
+                                              child: Text(
+                                                p.valid
+                                                    ? (p.existingProductId !=
+                                                              null
+                                                          ? 'Existing'
+                                                          : 'New')
+                                                    : 'Invalid',
+                                                style: TextStyle(
+                                                  color: p.valid
+                                                      ? AppColors.textSecondary
+                                                      : Colors.red,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        subtitle: Text(
+                                          'HSN: ${p.hsnCode} • Provided: ${p.costPrice.toStringAsFixed(2)}/${p.sellingPrice.toStringAsFixed(2)} • Included Tax: ${p.includeTax ? 'YES' : 'NO'}',
+                                        ),
+                                        children: [
+                                          Padding(
+                                            padding: const EdgeInsets.all(
+                                              AppSizes.paddingM,
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Wrap(
+                                                  spacing: AppSizes.paddingM,
+                                                  children: [
+                                                    Text(
+                                                      'Store Cost (excl): ${p.computedCostExcl.toStringAsFixed(2)}',
+                                                    ),
+                                                    Text(
+                                                      'Store Sell (excl): ${p.computedSellingExcl.toStringAsFixed(2)}',
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(
+                                                  height: AppSizes.paddingS,
+                                                ),
+                                                if (!p.valid &&
+                                                    p.invalidReason != null)
+                                                  Text(
+                                                    p.invalidReason!,
+                                                    style: const TextStyle(
+                                                      color: Colors.red,
+                                                    ),
+                                                  ),
+                                                if (p.suggestion != null)
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                          top:
+                                                              AppSizes.paddingS,
+                                                        ),
+                                                    child: Text(
+                                                      p.suggestion!,
+                                                      style: TextStyle(
+                                                        color: AppColors
+                                                            .textSecondary,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                const Divider(),
+                                                Text(
+                                                  'Planned DB values',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                                const SizedBox(
+                                                  height: AppSizes.paddingXS,
+                                                ),
+                                                Text(
+                                                  'Sub-category: ${p.plannedSubCategoryName ?? p.plannedSubCategoryId}',
+                                                ),
+                                                Text(
+                                                  'Manufacturer: ${p.plannedManufacturerName ?? p.plannedManufacturerId}',
+                                                ),
+                                                Text(
+                                                  'UQC: ${p.plannedUqcName ?? p.plannedUqcId}',
+                                                ),
+                                                Text(
+                                                  'isTaxable: ${p.plannedIsTaxable}  isEnabled: ${p.plannedIsEnabled}  negativeAllow: ${p.plannedNegativeAllow}',
+                                                ),
+                                                if (p.existingData != null) ...[
+                                                  const Divider(),
+                                                  Text(
+                                                    'Existing product data (DB)',
+                                                    style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(
+                                                    height: AppSizes.paddingXS,
+                                                  ),
+                                                  for (final entry
+                                                      in p
+                                                          .existingData!
+                                                          .entries)
+                                                    Text(
+                                                      '${entry.key}: ${entry.value}',
+                                                    ),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                     ],
