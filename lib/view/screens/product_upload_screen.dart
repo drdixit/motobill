@@ -34,7 +34,17 @@ class _ProductProposal {
   String? suggestion;
 
   bool approved = false;
-  bool selectable = true;
+  // display fields for DB / planned values
+  Map<String, dynamic>? existingData;
+  int? plannedSubCategoryId;
+  String? plannedSubCategoryName;
+  int? plannedManufacturerId;
+  String? plannedManufacturerName;
+  int? plannedUqcId;
+  String? plannedUqcName;
+  int? plannedIsTaxable;
+  int? plannedIsEnabled;
+  int? plannedNegativeAllow;
 
   _ProductProposal({
     required this.name,
@@ -231,6 +241,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         );
         if (prodRows.isNotEmpty) {
           p.existingProductId = prodRows.first['id'] as int;
+          p.existingData = prodRows.first.cast<String, dynamic>();
         }
 
         // find hsn code id
@@ -299,6 +310,72 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           // HSN not present -> mark invalid (user asked show diff and error)
           p.valid = false;
           p.invalidReason = 'HSN code ${p.hsnCode} not found in DB';
+        }
+        // For display: planned DB values for new inserts or existing values
+        const defaultSubCategoryId = 1;
+        const defaultManufacturerId = 1;
+        const defaultUqcId = 9;
+        const defaultIsTaxable = 0;
+        const defaultIsEnabled = 1;
+        const defaultNegativeAllow = 0;
+
+        if (p.existingData != null) {
+          // fill planned display values from existing product row
+          p.plannedSubCategoryId =
+              (p.existingData!['sub_category_id'] as num?)?.toInt() ??
+              defaultSubCategoryId;
+          p.plannedManufacturerId =
+              (p.existingData!['manufacturer_id'] as num?)?.toInt() ??
+              defaultManufacturerId;
+          p.plannedUqcId =
+              (p.existingData!['uqc_id'] as num?)?.toInt() ?? defaultUqcId;
+          p.plannedIsTaxable =
+              (p.existingData!['is_taxable'] as num?)?.toInt() ??
+              defaultIsTaxable;
+          p.plannedIsEnabled =
+              (p.existingData!['is_enabled'] as num?)?.toInt() ??
+              defaultIsEnabled;
+          p.plannedNegativeAllow =
+              (p.existingData!['negative_allow'] as num?)?.toInt() ??
+              defaultNegativeAllow;
+        } else {
+          // use defaults for new inserts
+          p.plannedSubCategoryId = defaultSubCategoryId;
+          p.plannedManufacturerId = defaultManufacturerId;
+          p.plannedUqcId = defaultUqcId;
+          p.plannedIsTaxable = defaultIsTaxable;
+          p.plannedIsEnabled = defaultIsEnabled;
+          p.plannedNegativeAllow = defaultNegativeAllow;
+        }
+
+        // Try to fetch names for subcategory/manufacturer/uqc (best-effort)
+        try {
+          if (p.plannedSubCategoryId != null) {
+            final rows = await db.rawQuery(
+              'SELECT name FROM sub_categories WHERE id = ? LIMIT 1',
+              [p.plannedSubCategoryId],
+            );
+            if (rows.isNotEmpty)
+              p.plannedSubCategoryName = rows.first['name']?.toString();
+          }
+          if (p.plannedManufacturerId != null) {
+            final rows = await db.rawQuery(
+              'SELECT name FROM manufacturers WHERE id = ? LIMIT 1',
+              [p.plannedManufacturerId],
+            );
+            if (rows.isNotEmpty)
+              p.plannedManufacturerName = rows.first['name']?.toString();
+          }
+          if (p.plannedUqcId != null) {
+            final rows = await db.rawQuery(
+              'SELECT name FROM uqcs WHERE id = ? LIMIT 1',
+              [p.plannedUqcId],
+            );
+            if (rows.isNotEmpty)
+              p.plannedUqcName = rows.first['name']?.toString();
+          }
+        } catch (_) {
+          // ignore lookup failures - display IDs if names not found
         }
       } catch (e) {
         p.valid = false;
@@ -501,22 +578,17 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                               // unapproved and disabled for selection.
                               final approvedFor = <String, bool>{};
                               setState(() {
+                                // reset approvals
                                 for (final p in _proposals) {
                                   p.approved = false;
-                                  p.selectable = p.valid;
                                 }
+                                // Approve first valid proposal per name (case-insensitive)
                                 for (final p in _proposals) {
                                   if (!p.valid) continue;
                                   final key = p.name.toLowerCase();
-                                  if (approvedFor[key] == true) {
-                                    // skip additional entries with same name
-                                    p.approved = false;
-                                    p.selectable = false;
-                                  } else {
-                                    p.approved = true;
-                                    p.selectable = true;
-                                    approvedFor[key] = true;
-                                  }
+                                  if (approvedFor[key] == true) continue;
+                                  p.approved = true;
+                                  approvedFor[key] = true;
                                 }
                               });
                             },
@@ -550,150 +622,144 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                 margin: const EdgeInsets.symmetric(
                                   vertical: AppSizes.paddingS,
                                 ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(
-                                    AppSizes.paddingM,
-                                  ),
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      // Checkbox: disable when invalid or when another
-                                      // proposal with the same name is already approved.
-                                      Checkbox(
-                                        value: p.approved,
-                                        onChanged:
-                                            (p.valid &&
-                                                (p.selectable || p.approved))
-                                            ? (v) {
-                                                setState(() {
-                                                  if (v == true) {
-                                                    // enforce one approved per name (case-insensitive)
-                                                    for (final other
-                                                        in _proposals) {
-                                                      if (other.name
-                                                              .toLowerCase() ==
-                                                          p.name
-                                                              .toLowerCase()) {
-                                                        other.approved = false;
-                                                        other.selectable =
-                                                            false;
-                                                      }
-                                                    }
-                                                    p.approved = true;
-                                                    p.selectable = true;
-                                                  } else {
-                                                    // deselecting: re-enable other proposals with same name
-                                                    p.approved = false;
-                                                    for (final other
-                                                        in _proposals) {
-                                                      if (other.name
-                                                              .toLowerCase() ==
-                                                          p.name
-                                                              .toLowerCase()) {
-                                                        other.selectable =
-                                                            other.valid;
-                                                      }
-                                                    }
+                                child: ExpansionTile(
+                                  initiallyExpanded: false,
+                                  leading: Checkbox(
+                                    value: p.approved,
+                                    onChanged: p.valid
+                                        ? (v) {
+                                            setState(() {
+                                              if (v == true) {
+                                                // selecting one variant unselects others with same name
+                                                for (final other
+                                                    in _proposals) {
+                                                  if (other.name
+                                                          .toLowerCase() ==
+                                                      p.name.toLowerCase()) {
+                                                    other.approved = false;
                                                   }
-                                                });
+                                                }
+                                                p.approved = true;
+                                              } else {
+                                                p.approved = false;
                                               }
-                                            : null,
+                                            });
+                                          }
+                                        : null,
+                                  ),
+                                  title: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          '${p.name}  (${p.partNumber})',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                       ),
-                                      const SizedBox(width: AppSizes.paddingS),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment
-                                                      .spaceBetween,
-                                              children: [
-                                                Text(
-                                                  '${p.name}  (${p.partNumber})',
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  p.existingProductId != null
-                                                      ? 'Existing'
-                                                      : 'New',
-                                                  style: TextStyle(
-                                                    color:
-                                                        AppColors.textSecondary,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(
-                                              height: AppSizes.paddingS,
-                                            ),
-                                            Text('HSN: ${p.hsnCode}'),
-                                            const SizedBox(
-                                              height: AppSizes.paddingXS,
-                                            ),
-                                            Wrap(
-                                              spacing: AppSizes.paddingM,
-                                              children: [
-                                                Text(
-                                                  'Provided Cost: ${p.costPrice.toStringAsFixed(2)}',
-                                                ),
-                                                Text(
-                                                  'Provided Sell: ${p.sellingPrice.toStringAsFixed(2)}',
-                                                ),
-                                                Text(
-                                                  'Included Tax: ${p.includeTax ? 'YES' : 'NO'}',
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(
-                                              height: AppSizes.paddingXS,
-                                            ),
-                                            Wrap(
-                                              spacing: AppSizes.paddingM,
-                                              children: [
-                                                Text(
-                                                  'Store Cost (excl): ${p.computedCostExcl.toStringAsFixed(2)}',
-                                                ),
-                                                Text(
-                                                  'Store Sell (excl): ${p.computedSellingExcl.toStringAsFixed(2)}',
-                                                ),
-                                              ],
-                                            ),
-                                            if (!p.valid &&
-                                                p.invalidReason != null)
-                                              Padding(
-                                                padding: const EdgeInsets.only(
-                                                  top: AppSizes.paddingS,
-                                                ),
-                                                child: Text(
-                                                  p.invalidReason!,
-                                                  style: const TextStyle(
-                                                    color: Colors.red,
-                                                  ),
-                                                ),
-                                              ),
-                                            if (p.suggestion != null)
-                                              Padding(
-                                                padding: const EdgeInsets.only(
-                                                  top: AppSizes.paddingS,
-                                                ),
-                                                child: Text(
-                                                  p.suggestion!,
-                                                  style: TextStyle(
-                                                    color:
-                                                        AppColors.textSecondary,
-                                                  ),
-                                                ),
-                                              ),
-                                          ],
+                                      Text(
+                                        p.existingProductId != null
+                                            ? 'Existing'
+                                            : 'New',
+                                        style: TextStyle(
+                                          color: AppColors.textSecondary,
                                         ),
                                       ),
                                     ],
                                   ),
+                                  subtitle: Text(
+                                    'HSN: ${p.hsnCode} • Provided: ${p.costPrice.toStringAsFixed(2)}/${p.sellingPrice.toStringAsFixed(2)} • Included Tax: ${p.includeTax ? 'YES' : 'NO'}',
+                                  ),
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.all(
+                                        AppSizes.paddingM,
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Wrap(
+                                            spacing: AppSizes.paddingM,
+                                            children: [
+                                              Text(
+                                                'Store Cost (excl): ${p.computedCostExcl.toStringAsFixed(2)}',
+                                              ),
+                                              Text(
+                                                'Store Sell (excl): ${p.computedSellingExcl.toStringAsFixed(2)}',
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(
+                                            height: AppSizes.paddingS,
+                                          ),
+                                          if (!p.valid &&
+                                              p.invalidReason != null)
+                                            Text(
+                                              p.invalidReason!,
+                                              style: const TextStyle(
+                                                color: Colors.red,
+                                              ),
+                                            ),
+                                          if (p.suggestion != null)
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: AppSizes.paddingS,
+                                              ),
+                                              child: Text(
+                                                p.suggestion!,
+                                                style: TextStyle(
+                                                  color:
+                                                      AppColors.textSecondary,
+                                                ),
+                                              ),
+                                            ),
+                                          const Divider(),
+                                          Text(
+                                            'Planned DB values',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          const SizedBox(
+                                            height: AppSizes.paddingXS,
+                                          ),
+                                          Text(
+                                            'Sub-category: ${p.plannedSubCategoryName ?? p.plannedSubCategoryId}',
+                                          ),
+                                          Text(
+                                            'Manufacturer: ${p.plannedManufacturerName ?? p.plannedManufacturerId}',
+                                          ),
+                                          Text(
+                                            'UQC: ${p.plannedUqcName ?? p.plannedUqcId}',
+                                          ),
+                                          Text(
+                                            'isTaxable: ${p.plannedIsTaxable}  isEnabled: ${p.plannedIsEnabled}  negativeAllow: ${p.plannedNegativeAllow}',
+                                          ),
+                                          if (p.existingData != null) ...[
+                                            const Divider(),
+                                            Text(
+                                              'Existing product data (DB)',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            const SizedBox(
+                                              height: AppSizes.paddingXS,
+                                            ),
+                                            for (final entry
+                                                in p.existingData!.entries)
+                                              Text(
+                                                '${entry.key}: ${entry.value}',
+                                              ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               );
                             },
