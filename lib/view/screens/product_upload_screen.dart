@@ -312,7 +312,14 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
   }
 
   Future<void> _applySelectedProductProposals() async {
-    final toApply = _proposals.where((p) => p.approved && p.valid).toList();
+    final rawToApply = _proposals.where((p) => p.approved && p.valid).toList();
+    // Ensure at most one proposal per product name is applied (defensive).
+    final Map<String, _ProductProposal> uniqueByName = {};
+    for (final p in rawToApply) {
+      final key = p.name.toLowerCase();
+      if (!uniqueByName.containsKey(key)) uniqueByName[key] = p;
+    }
+    final toApply = uniqueByName.values.toList();
     if (toApply.isEmpty) {
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
@@ -468,66 +475,77 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
             )
           else
             // Show first sheet content in a scrollable DataTable and proposals
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSizes.paddingM),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'Proposals prepared from sheet(s): ${_sheets.keys.join(', ')}',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: AppSizes.paddingS),
+            // Make this card take the remaining available height so the
+            // proposals list can expand and scroll as needed.
+            Expanded(
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSizes.paddingM),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Proposals prepared from sheet(s): ${_sheets.keys.join(', ')}',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: AppSizes.paddingS),
 
-                    // Actions for proposals
-                    Row(
-                      children: [
-                        ElevatedButton(
-                          onPressed: () {
-                            // Approve all valid proposals but ensure at most one per part_number
-                            final approvedFor = <String, bool>{};
-                            setState(() {
-                              for (final p in _proposals) {
-                                if (!p.valid) {
+                      // Actions for proposals
+                      Row(
+                        children: [
+                          ElevatedButton(
+                            onPressed: () {
+                              // Approve all valid proposals but ensure at most one per name
+                              // (case-insensitive). When one proposal for a name is
+                              // approved, other proposals with the same name are left
+                              // unapproved and disabled for selection.
+                              final approvedFor = <String, bool>{};
+                              setState(() {
+                                for (final p in _proposals) {
                                   p.approved = false;
-                                  continue;
+                                  p.selectable = p.valid;
                                 }
-                                if (approvedFor[p.partNumber] == true) {
-                                  p.approved = false;
-                                } else {
-                                  p.approved = true;
-                                  approvedFor[p.partNumber] = true;
+                                for (final p in _proposals) {
+                                  if (!p.valid) continue;
+                                  final key = p.name.toLowerCase();
+                                  if (approvedFor[key] == true) {
+                                    // skip additional entries with same name
+                                    p.approved = false;
+                                    p.selectable = false;
+                                  } else {
+                                    p.approved = true;
+                                    p.selectable = true;
+                                    approvedFor[key] = true;
+                                  }
                                 }
-                              }
-                            });
-                          },
-                          child: const Text('Approve All (valid only)'),
-                        ),
-                        const SizedBox(width: AppSizes.paddingM),
-                        ElevatedButton(
-                          onPressed: _applySelectedProductProposals,
-                          child: const Text('Apply Selected'),
-                        ),
-                        const SizedBox(width: AppSizes.paddingM),
-                        Text(
-                          'Valid: ${_proposals.where((p) => p.valid).length}  Selected: ${_proposals.where((p) => p.approved && p.valid).length}',
-                          style: TextStyle(color: AppColors.textSecondary),
-                        ),
-                      ],
-                    ),
+                              });
+                            },
+                            child: const Text('Approve All (valid only)'),
+                          ),
+                          const SizedBox(width: AppSizes.paddingM),
+                          ElevatedButton(
+                            onPressed: _applySelectedProductProposals,
+                            child: const Text('Apply Selected'),
+                          ),
+                          const SizedBox(width: AppSizes.paddingM),
+                          Text(
+                            'Valid: ${_proposals.where((p) => p.valid).length}  Selected: ${_proposals.where((p) => p.approved && p.valid).length}',
+                            style: TextStyle(color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
 
-                    const SizedBox(height: AppSizes.paddingS),
+                      const SizedBox(height: AppSizes.paddingS),
 
-                    // List proposals
-                    if (_proposals.isEmpty)
-                      const Text('No proposals prepared yet.')
-                    else
-                      SizedBox(
-                        height: MediaQuery.of(context).size.height * 0.25,
-                        child: SingleChildScrollView(
-                          child: Column(
-                            children: _proposals.map((p) {
+                      // List proposals - take available vertical space and scroll
+                      if (_proposals.isEmpty)
+                        const Text('No proposals prepared yet.')
+                      else
+                        Expanded(
+                          child: ListView.builder(
+                            itemCount: _proposals.length,
+                            itemBuilder: (context, index) {
+                              final p = _proposals[index];
                               return Card(
                                 margin: const EdgeInsets.symmetric(
                                   vertical: AppSizes.paddingS,
@@ -540,24 +558,47 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
+                                      // Checkbox: disable when invalid or when another
+                                      // proposal with the same name is already approved.
                                       Checkbox(
                                         value: p.approved,
-                                        onChanged: (v) {
-                                          setState(() {
-                                            if (v == true) {
-                                              // enforce one approved per partNumber
-                                              for (final other in _proposals) {
-                                                if (other.partNumber ==
-                                                    p.partNumber) {
-                                                  other.approved = false;
-                                                }
+                                        onChanged:
+                                            (p.valid &&
+                                                (p.selectable || p.approved))
+                                            ? (v) {
+                                                setState(() {
+                                                  if (v == true) {
+                                                    // enforce one approved per name (case-insensitive)
+                                                    for (final other
+                                                        in _proposals) {
+                                                      if (other.name
+                                                              .toLowerCase() ==
+                                                          p.name
+                                                              .toLowerCase()) {
+                                                        other.approved = false;
+                                                        other.selectable =
+                                                            false;
+                                                      }
+                                                    }
+                                                    p.approved = true;
+                                                    p.selectable = true;
+                                                  } else {
+                                                    // deselecting: re-enable other proposals with same name
+                                                    p.approved = false;
+                                                    for (final other
+                                                        in _proposals) {
+                                                      if (other.name
+                                                              .toLowerCase() ==
+                                                          p.name
+                                                              .toLowerCase()) {
+                                                        other.selectable =
+                                                            other.valid;
+                                                      }
+                                                    }
+                                                  }
+                                                });
                                               }
-                                              p.approved = true;
-                                            } else {
-                                              p.approved = false;
-                                            }
-                                          });
-                                        },
+                                            : null,
                                       ),
                                       const SizedBox(width: AppSizes.paddingS),
                                       Expanded(
@@ -655,11 +696,11 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                   ),
                                 ),
                               );
-                            }).toList(),
+                            },
                           ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
