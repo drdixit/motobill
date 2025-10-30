@@ -173,9 +173,9 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           (includeStr.toLowerCase() == 'yes' ||
               includeStr.toLowerCase().startsWith('y'));
 
-      // require name and part_number and hsn
-      if (name.isEmpty || part.isEmpty || hsn.isEmpty) {
-        // still add but mark invalid
+      // require name and hsn (part_number is optional)
+      if (name.isEmpty || hsn.isEmpty) {
+        // still add but mark invalid; keep part optional
         final p = _ProductProposal(
           name: name,
           partNumber: part,
@@ -184,9 +184,24 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           sellingPrice: sell,
           includeTax: includeTax,
         );
+        // ensure computed values default to provided values so UI is consistent
+        p.computedCostExcl = p.costPrice;
+        p.computedSellingExcl = p.sellingPrice;
         p.valid = false;
-        p.invalidReason =
-            'Missing required column(s): name, part_number, or hsn_code';
+        p.invalidReason = 'Missing required column(s): name or hsn_code';
+        // set planned defaults so UI doesn't show nulls
+        const defaultSubCategoryId = 1;
+        const defaultManufacturerId = 1;
+        const defaultUqcId = 9;
+        const defaultIsTaxable = 0;
+        const defaultIsEnabled = 1;
+        const defaultNegativeAllow = 0;
+        p.plannedSubCategoryId = defaultSubCategoryId;
+        p.plannedManufacturerId = defaultManufacturerId;
+        p.plannedUqcId = defaultUqcId;
+        p.plannedIsTaxable = defaultIsTaxable;
+        p.plannedIsEnabled = defaultIsEnabled;
+        p.plannedNegativeAllow = defaultNegativeAllow;
         _proposals.add(p);
         continue;
       }
@@ -201,8 +216,24 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           sellingPrice: sell,
           includeTax: includeTax,
         );
+        // keep provided values visible
+        p.computedCostExcl = p.costPrice;
+        p.computedSellingExcl = p.sellingPrice;
         p.valid = false;
         p.invalidReason = 'Missing or invalid cost_price or selling_price';
+        // set planned defaults to avoid nulls in UI
+        const defaultSubCategoryId = 1;
+        const defaultManufacturerId = 1;
+        const defaultUqcId = 9;
+        const defaultIsTaxable = 0;
+        const defaultIsEnabled = 1;
+        const defaultNegativeAllow = 0;
+        p.plannedSubCategoryId = defaultSubCategoryId;
+        p.plannedManufacturerId = defaultManufacturerId;
+        p.plannedUqcId = defaultUqcId;
+        p.plannedIsTaxable = defaultIsTaxable;
+        p.plannedIsEnabled = defaultIsEnabled;
+        p.plannedNegativeAllow = defaultNegativeAllow;
         _proposals.add(p);
         continue;
       }
@@ -217,8 +248,23 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           sellingPrice: sell,
           includeTax: includeTax,
         );
+        p.computedCostExcl = p.costPrice;
+        p.computedSellingExcl = p.sellingPrice;
         p.valid = false;
         p.invalidReason = 'include_tax column missing';
+        // set planned defaults to avoid null UI values
+        const defaultSubCategoryId = 1;
+        const defaultManufacturerId = 1;
+        const defaultUqcId = 9;
+        const defaultIsTaxable = 0;
+        const defaultIsEnabled = 1;
+        const defaultNegativeAllow = 0;
+        p.plannedSubCategoryId = defaultSubCategoryId;
+        p.plannedManufacturerId = defaultManufacturerId;
+        p.plannedUqcId = defaultUqcId;
+        p.plannedIsTaxable = defaultIsTaxable;
+        p.plannedIsEnabled = defaultIsEnabled;
+        p.plannedNegativeAllow = defaultNegativeAllow;
         _proposals.add(p);
         continue;
       }
@@ -231,6 +277,10 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         sellingPrice: sell,
         includeTax: includeTax,
       );
+
+      // default to showing provided values unless we reverse-calc using HSN GST
+      p.computedCostExcl = p.costPrice;
+      p.computedSellingExcl = p.sellingPrice;
 
       // Lookup existing product by part_number
       try {
@@ -307,9 +357,10 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
             p.invalidReason = 'No GST rates found for HSN code ${p.hsnCode}';
           }
         } else {
-          // HSN not present -> mark invalid (user asked show diff and error)
+          // HSN not present -> mark invalid (show a clear HSN problem message)
           p.valid = false;
-          p.invalidReason = 'HSN code ${p.hsnCode} not found in DB';
+          p.invalidReason =
+              'Problem with HSN code: ${p.hsnCode} not found in DB';
         }
         // For display: planned DB values for new inserts or existing values
         const defaultSubCategoryId = 1;
