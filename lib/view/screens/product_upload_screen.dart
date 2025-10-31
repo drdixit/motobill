@@ -457,13 +457,15 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
 
   Future<void> _applySelectedProductProposals() async {
     final rawToApply = _proposals.where((p) => p.approved && p.valid).toList();
-    // Ensure at most one proposal per product name is applied (defensive).
-    final Map<String, _ProductProposal> uniqueByName = {};
+    // Ensure at most one proposal per product is applied (defensive).
+    // Prefer deduping by part_number (case-insensitive) if present, otherwise by name.
+    final Map<String, _ProductProposal> uniqueByKey = {};
     for (final p in rawToApply) {
-      final key = p.name.toLowerCase();
-      if (!uniqueByName.containsKey(key)) uniqueByName[key] = p;
+      final part = p.partNumber.trim();
+      final key = part.isNotEmpty ? part.toLowerCase() : p.name.toLowerCase();
+      if (!uniqueByKey.containsKey(key)) uniqueByKey[key] = p;
     }
-    final toApply = uniqueByName.values.toList();
+    final toApply = uniqueByKey.values.toList();
     if (toApply.isEmpty) {
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
@@ -667,13 +669,22 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                 for (final p in _proposals) {
                                   p.approved = false;
                                 }
-                                // Approve first valid proposal per name (case-insensitive)
+                                // Approve first valid proposal per name AND per part-number (case-insensitive)
+                                final approvedForPart = <String, bool>{};
                                 for (final p in _proposals) {
                                   if (!p.valid) continue;
-                                  final key = p.name.toLowerCase();
-                                  if (approvedFor[key] == true) continue;
+                                  final nameKey = p.name.toLowerCase();
+                                  final partKey = p.partNumber.trim().isNotEmpty
+                                      ? p.partNumber.toLowerCase()
+                                      : null;
+                                  if (approvedFor[nameKey] == true) continue;
+                                  if (partKey != null &&
+                                      approvedForPart[partKey] == true)
+                                    continue;
                                   p.approved = true;
-                                  approvedFor[key] = true;
+                                  approvedFor[nameKey] = true;
+                                  if (partKey != null)
+                                    approvedForPart[partKey] = true;
                                 }
                               });
                             },
@@ -805,12 +816,29 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                                   setState(() {
                                                     if (v == true) {
                                                       // selecting one variant unselects others with same name
+                                                      // or same part-number (case-insensitive)
                                                       for (final other
                                                           in _proposals) {
-                                                        if (other.name
+                                                        final sameName =
+                                                            other.name
                                                                 .toLowerCase() ==
                                                             p.name
-                                                                .toLowerCase()) {
+                                                                .toLowerCase();
+                                                        final bothPartsPresent =
+                                                            other.partNumber
+                                                                .trim()
+                                                                .isNotEmpty &&
+                                                            p.partNumber
+                                                                .trim()
+                                                                .isNotEmpty;
+                                                        final samePart =
+                                                            bothPartsPresent &&
+                                                            other.partNumber
+                                                                    .toLowerCase() ==
+                                                                p.partNumber
+                                                                    .toLowerCase();
+                                                        if (sameName ||
+                                                            samePart) {
                                                           other.approved =
                                                               false;
                                                         }
