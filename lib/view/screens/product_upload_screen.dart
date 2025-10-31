@@ -301,7 +301,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
       try {
         final db = await ref.read(databaseProvider);
         final prodRows = await db.rawQuery(
-          'SELECT * FROM products WHERE part_number = ? AND is_deleted = 0 LIMIT 1',
+          'SELECT * FROM products WHERE LOWER(part_number) = LOWER(?) AND is_deleted = 0 LIMIT 1',
           [p.partNumber],
         );
         if (prodRows.isNotEmpty) {
@@ -490,11 +490,18 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           const defaultIsEnabled = 1;
 
           final existing = await txn.rawQuery(
-            'SELECT * FROM products WHERE part_number = ? AND is_deleted = 0 LIMIT 1',
+            'SELECT * FROM products WHERE LOWER(part_number) = LOWER(?) AND is_deleted = 0 LIMIT 1',
             [p.partNumber],
           );
           if (existing.isNotEmpty) {
             final id = existing.first['id'] as int;
+            // round prices to 2 decimal places before storing
+            final costToStore = double.parse(
+              p.computedCostExcl.toStringAsFixed(2),
+            );
+            final sellToStore = double.parse(
+              p.computedSellingExcl.toStringAsFixed(2),
+            );
             await txn.rawUpdate(
               '''
               UPDATE products SET
@@ -505,8 +512,8 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                 p.name,
                 hsnId,
                 defaultUqcId,
-                p.computedCostExcl,
-                p.computedSellingExcl,
+                costToStore,
+                sellToStore,
                 defaultSubCategoryId,
                 defaultManufacturerId,
                 defaultIsTaxable,
@@ -514,6 +521,13 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
               ],
             );
           } else {
+            // round prices to 2 decimal places before storing
+            final costToStore = double.parse(
+              p.computedCostExcl.toStringAsFixed(2),
+            );
+            final sellToStore = double.parse(
+              p.computedSellingExcl.toStringAsFixed(2),
+            );
             await txn.rawInsert(
               '''
               INSERT INTO products (name, part_number, hsn_code_id, uqc_id, cost_price, selling_price, sub_category_id, manufacturer_id, is_taxable, is_enabled, negative_allow, is_deleted, created_at, updated_at)
@@ -524,8 +538,8 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                 p.partNumber,
                 hsnId,
                 defaultUqcId,
-                p.computedCostExcl,
-                p.computedSellingExcl,
+                costToStore,
+                sellToStore,
                 defaultSubCategoryId,
                 defaultManufacturerId,
                 defaultIsTaxable,
