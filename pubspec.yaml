@@ -71,6 +71,7 @@ flutter:
   assets:
     - assets/products.xlsx
     - assets/hsn_codes.xlsx
+    - assets/logo.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

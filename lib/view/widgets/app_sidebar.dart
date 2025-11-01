@@ -84,11 +84,11 @@ class AppSidebar extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            'MotoBill',
+            'Umiya Auto Parts',
             style: TextStyle(
               color: AppColors.sidebarText,
-              fontSize: AppSizes.fontXL,
-              fontWeight: FontWeight.w600,
+              fontSize: AppSizes.fontL,
+              fontWeight: FontWeight.w500,
               fontFamily: 'Roboto',
             ),
           ),
