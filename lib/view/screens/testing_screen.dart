@@ -354,31 +354,29 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
               }
             }
           }
-          // validate no overlap only when effectiveFrom is provided
-          if (p.effectiveFrom != null) {
-            final newFrom = p.effectiveFrom!;
-            for (final r in rates) {
-              final from = DateTime.parse(r['effective_from'] as String);
-              final to = r['effective_to'] != null
-                  ? DateTime.parse(r['effective_to'] as String)
-                  : null;
-              if (to == null) {
-                // existing active interval [from .. NULL]
-                // allow newFrom only if strictly after 'from' (we will close the active to newFrom - 1)
-                if (newFrom.isAtSameMomentAs(from) || newFrom.isBefore(from)) {
-                  p.valid = false;
-                  p.invalidReason =
-                      'Effective date ${_formatDateForUi(newFrom)} conflicts with active DB rate starting ${_formatDateForUi(from)}';
-                  break;
-                }
-              } else {
-                // closed interval [from .. to] - newFrom must not fall inside this interval (inclusive)
-                if (!newFrom.isBefore(from) && !newFrom.isAfter(to)) {
-                  p.valid = false;
-                  p.invalidReason =
-                      'Effective date ${_formatDateForUi(newFrom)} falls inside existing DB interval ${_formatDateForUi(from)} - ${_formatDateForUi(to)} (id=${r['id']})';
-                  break;
-                }
+          // validate no overlap - use provided date or today's date
+          final newFrom = p.effectiveFrom ?? DateTime.now();
+          for (final r in rates) {
+            final from = DateTime.parse(r['effective_from'] as String);
+            final to = r['effective_to'] != null
+                ? DateTime.parse(r['effective_to'] as String)
+                : null;
+            if (to == null) {
+              // existing active interval [from .. NULL]
+              // allow newFrom only if strictly after 'from' (we will close the active to newFrom - 1)
+              if (newFrom.isAtSameMomentAs(from) || newFrom.isBefore(from)) {
+                p.valid = false;
+                p.invalidReason =
+                    'Effective date ${_formatDateForUi(newFrom)} conflicts with active DB rate starting ${_formatDateForUi(from)}';
+                break;
+              }
+            } else {
+              // closed interval [from .. to] - newFrom must not fall inside this interval (inclusive)
+              if (!newFrom.isBefore(from) && !newFrom.isAfter(to)) {
+                p.valid = false;
+                p.invalidReason =
+                    'Effective date ${_formatDateForUi(newFrom)} falls inside existing DB interval ${_formatDateForUi(from)} - ${_formatDateForUi(to)} (id=${r['id']})';
+                break;
               }
             }
           }
@@ -447,23 +445,39 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
       // ones and allow them (their effectiveFrom will be treated as today).
       final dated = group.where((p) => p.effectiveFrom != null).toList();
       final undated = group.where((p) => p.effectiveFrom == null).toList();
+
+      // Handle multiple undated proposals for the same HSN
+      // All valid undated entries should be selectable - the checkbox will enforce single selection
+      if (undated.length > 1) {
+        for (final p in undated) {
+          if (p.valid) {
+            p.selectable = true;
+          }
+        }
+      } else if (undated.length == 1) {
+        // Single undated entry - if valid, make it selectable
+        if (undated.first.valid) {
+          undated.first.selectable = true;
+        }
+      }
+
+      // Handle conflict between dated and undated proposals
       if (dated.isNotEmpty && undated.isNotEmpty) {
         final hasExistingHsn = group.any((p) => p.existingHsnId != null);
         if (hasExistingHsn) {
-          // If any proposal references an existing HSN in DB, keep the old
-          // conservative behavior and mark undated rows invalid so the user
-          // must provide dates to disambiguate.
+          // For existing HSNs with mixed dated/undated proposals, mark undated ones invalid
+          // to avoid ambiguity
           for (final p in undated) {
             p.valid = false;
             p.invalidReason =
                 'Conflicts with dated proposals for same HSN in this import. Provide effective_from or remove the dated rows.';
           }
         } else {
-          // All proposals are for a new HSN: allow undated rows. For UI and
-          // validation purposes they will be treated as if effectiveFrom == today.
+          // For new HSNs, allow all valid proposals
           for (final p in undated) {
-            // keep p.valid as-is (do not mark invalid)
-            p.selectable = true;
+            if (p.valid) {
+              p.selectable = true;
+            }
           }
         }
       }
@@ -543,29 +557,13 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
         }
       }
 
-      // --- Duplicate resolution: when multiple proposals reference the same HSN
-      // we should NOT automatically invalidate other valid proposals. Instead
-      // keep all valid proposals selectable and surface the choice to the user.
-      // If none of the group are valid, mark them all invalid so the user knows
-      // to fix the import.
-      final validCandidates = group.where((p) => p.valid).toList();
-      if (validCandidates.isEmpty) {
-        for (final p in group) {
-          p.valid = false;
+      // --- Final resolution: Set selectability for all proposals in the group
+      // Allow the user to select any valid proposal. Invalid proposals are not selectable.
+      for (final p in group) {
+        if (p.valid) {
+          p.selectable = true;
+        } else {
           p.selectable = false;
-          p.invalidReason =
-              'Multiple proposals for same HSN in import; none passed validation. Resolve and re-import.';
-        }
-      } else {
-        // Keep all valid candidates selectable and don't auto-disable any.
-        for (final p in group) {
-          if (p.valid) {
-            p.selectable = true;
-            // leave p.valid as true and let the user pick which one to approve
-          } else {
-            // invalid proposals remain non-selectable
-            p.selectable = false;
-          }
         }
       }
     }
