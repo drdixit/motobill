@@ -746,8 +746,7 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
             ),
             const SizedBox(height: AppSizes.paddingL),
             if (_proposals.isNotEmpty)
-              SizedBox(
-                width: double.infinity,
+              Expanded(
                 child: Card(
                   margin: EdgeInsets.zero,
                   color: AppColors.white,
@@ -763,14 +762,26 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                       children: [
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
                             Text(
-                              'Proposed changes from file: ${_fileName ?? ""} (${_proposals.length})',
-                              style: TextStyle(fontWeight: FontWeight.w600),
+                              'Purposed changes: ${_fileName ?? ""}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: AppSizes.fontL,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            Text(
+                              'Valid: ${_proposals.where((p) => p.valid).length}  Invalid: ${_proposals.where((p) => !p.valid).length}  Selected: ${_proposals.where((p) => p.approved).length}',
+                              style: TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: AppSizes.fontM,
+                              ),
                             ),
                             Row(
                               children: [
-                                TextButton(
+                                ElevatedButton(
                                   onPressed: () {
                                     setState(() {
                                       // Approve at most one proposal per HSN. We keep all
@@ -793,11 +804,21 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                       }
                                     });
                                   },
+                                  style: ElevatedButton.styleFrom(
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                  ),
                                   child: const Text('Approve All (valid only)'),
                                 ),
-                                const SizedBox(width: AppSizes.paddingS),
+                                const SizedBox(width: AppSizes.paddingM),
                                 ElevatedButton(
                                   onPressed: _applySelectedProposals,
+                                  style: ElevatedButton.styleFrom(
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                  ),
                                   child: const Text('Apply Selected'),
                                 ),
                               ],
@@ -805,9 +826,8 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                           ],
                         ),
                         const SizedBox(height: AppSizes.paddingM),
-                        // Bounded proposals area to avoid unbounded height errors in nested Columns
-                        SizedBox(
-                          height: MediaQuery.of(context).size.height * 0.5,
+                        // Proposals list that expands to fill available space
+                        Expanded(
                           child: SingleChildScrollView(
                             child: Column(
                               children: _proposals.map((p) {
@@ -868,8 +888,16 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                   margin: const EdgeInsets.only(
                                     bottom: AppSizes.paddingS,
                                   ),
+                                  color: AppColors.white,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    side: BorderSide.none,
+                                  ),
                                   child: ExpansionTile(
                                     initiallyExpanded: false,
+                                    backgroundColor: AppColors.white,
+                                    collapsedBackgroundColor: AppColors.white,
                                     leading: Checkbox(
                                       value: p.approved,
                                       onChanged: (p.valid && p.selectable)
@@ -893,6 +921,8 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                               });
                                             }
                                           : null,
+                                      activeColor: AppColors.primary,
+                                      checkColor: AppColors.white,
                                     ),
                                     // First line: compact summary — HSN | prev -> new | existence
                                     title: Builder(

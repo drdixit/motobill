@@ -661,20 +661,22 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                     ),
                   ),
                   const SizedBox(width: AppSizes.paddingM),
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _fileName = null;
-                        _sheets.clear();
-                      });
-                    },
-                    style: ElevatedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
+                  if (_sheets.isNotEmpty)
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _fileName = null;
+                          _sheets.clear();
+                          _proposals.clear();
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
                       ),
+                      child: const Text('Clear'),
                     ),
-                    child: const Text('Clear'),
-                  ),
                 ],
               ),
             ],
@@ -697,61 +699,78 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text(
-                        'Proposals prepared from file: ${_fileName ?? ""}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: AppSizes.fontL,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: AppSizes.paddingS),
-
-                      // Actions for proposals
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          ElevatedButton(
-                            onPressed: () {
-                              // Approve all valid proposals but ensure at most one per name
-                              // (case-insensitive). When one proposal for a name is
-                              // approved, other proposals with the same name are left
-                              // unapproved and disabled for selection.
-                              final approvedFor = <String, bool>{};
-                              setState(() {
-                                // reset approvals
-                                for (final p in _proposals) {
-                                  p.approved = false;
-                                }
-                                // Approve first valid proposal per name AND per part-number (case-insensitive)
-                                final approvedForPart = <String, bool>{};
-                                for (final p in _proposals) {
-                                  if (!p.valid) continue;
-                                  final nameKey = p.name.toLowerCase();
-                                  final partKey = p.partNumber.trim().isNotEmpty
-                                      ? p.partNumber.toLowerCase()
-                                      : null;
-                                  if (approvedFor[nameKey] == true) continue;
-                                  if (partKey != null &&
-                                      approvedForPart[partKey] == true)
-                                    continue;
-                                  p.approved = true;
-                                  approvedFor[nameKey] = true;
-                                  if (partKey != null)
-                                    approvedForPart[partKey] = true;
-                                }
-                              });
-                            },
-                            child: const Text('Approve All (valid only)'),
+                          Text(
+                            'Purposed changes: ${_fileName ?? ""}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: AppSizes.fontL,
+                              color: AppColors.textPrimary,
+                            ),
                           ),
-                          const SizedBox(width: AppSizes.paddingM),
-                          ElevatedButton(
-                            onPressed: _applySelectedProductProposals,
-                            child: const Text('Apply Selected'),
-                          ),
-                          const SizedBox(width: AppSizes.paddingM),
                           Text(
                             'Valid: ${_proposals.where((p) => p.valid).length}  Invalid: ${_proposals.where((p) => !p.valid).length}  Selected: ${_proposals.where((p) => p.approved && p.valid).length}',
-                            style: TextStyle(color: AppColors.textSecondary),
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: AppSizes.fontM,
+                            ),
+                          ),
+                          Row(
+                            children: [
+                              ElevatedButton(
+                                onPressed: () {
+                                  // Approve all valid proposals but ensure at most one per name
+                                  // (case-insensitive). When one proposal for a name is
+                                  // approved, other proposals with the same name are left
+                                  // unapproved and disabled for selection.
+                                  final approvedFor = <String, bool>{};
+                                  setState(() {
+                                    // reset approvals
+                                    for (final p in _proposals) {
+                                      p.approved = false;
+                                    }
+                                    // Approve first valid proposal per name AND per part-number (case-insensitive)
+                                    final approvedForPart = <String, bool>{};
+                                    for (final p in _proposals) {
+                                      if (!p.valid) continue;
+                                      final nameKey = p.name.toLowerCase();
+                                      final partKey =
+                                          p.partNumber.trim().isNotEmpty
+                                          ? p.partNumber.toLowerCase()
+                                          : null;
+                                      if (approvedFor[nameKey] == true)
+                                        continue;
+                                      if (partKey != null &&
+                                          approvedForPart[partKey] == true)
+                                        continue;
+                                      p.approved = true;
+                                      approvedFor[nameKey] = true;
+                                      if (partKey != null)
+                                        approvedForPart[partKey] = true;
+                                    }
+                                  });
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                ),
+                                child: const Text('Approve All (valid only)'),
+                              ),
+                              const SizedBox(width: AppSizes.paddingM),
+                              ElevatedButton(
+                                onPressed: _applySelectedProductProposals,
+                                style: ElevatedButton.styleFrom(
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                ),
+                                child: const Text('Apply Selected'),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -767,99 +786,109 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               // Header row (tabular look)
-                              Container(
+                              Padding(
                                 padding: const EdgeInsets.symmetric(
-                                  vertical: AppSizes.paddingS,
                                   horizontal: AppSizes.paddingM,
                                 ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.backgroundSecondary,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Row(
-                                  children: const [
-                                    SizedBox(width: 40), // Space for checkbox
-                                    Expanded(
-                                      flex: 2,
-                                      child: Text(
-                                        'Name (Part#)',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: AppSizes.paddingS,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.backgroundSecondary,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const SizedBox(
+                                        width: 16,
+                                      ), // Leading padding
+                                      const SizedBox(
+                                        width: 40,
+                                      ), // Checkbox space
+                                      const SizedBox(
+                                        width: 16,
+                                      ), // Space between leading and title
+                                      Expanded(
+                                        flex: 2,
+                                        child: const Text(
+                                          'Name (Part#)',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    Expanded(
-                                      flex: 1,
-                                      child: Padding(
-                                        padding: const EdgeInsets.only(
-                                          left: AppSizes.paddingM,
-                                        ),
-                                        child: Text(
+                                      Expanded(
+                                        flex: 1,
+                                        child: const Text(
                                           'HSN',
                                           style: TextStyle(
                                             fontWeight: FontWeight.w600,
                                           ),
                                         ),
                                       ),
-                                    ),
-                                    Expanded(
-                                      flex: 1,
-                                      child: Text(
-                                        'Provided Cost',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
+                                      Expanded(
+                                        flex: 1,
+                                        child: const Text(
+                                          'Provided Cost',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    Expanded(
-                                      flex: 1,
-                                      child: Text(
-                                        'Provided Sell',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
+                                      Expanded(
+                                        flex: 1,
+                                        child: const Text(
+                                          'Provided Sell',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    Expanded(
-                                      flex: 1,
-                                      child: Text(
-                                        'Incl Tax',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
+                                      Expanded(
+                                        flex: 1,
+                                        child: const Text(
+                                          'Incl Tax',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    Expanded(
-                                      flex: 1,
-                                      child: Text(
-                                        'Store Cost (excl)',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
+                                      Expanded(
+                                        flex: 1,
+                                        child: const Text(
+                                          'Store Cost (excl)',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    Expanded(
-                                      flex: 1,
-                                      child: Text(
-                                        'Store Sell (excl)',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
+                                      Expanded(
+                                        flex: 1,
+                                        child: const Text(
+                                          'Store Sell (excl)',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    SizedBox(
-                                      width: 64,
-                                      child: Text(
-                                        'Status',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
+                                      const SizedBox(
+                                        width: 112,
+                                        child: Padding(
+                                          padding: EdgeInsets.only(left: 24),
+                                          child: Text(
+                                            'Status',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    SizedBox(
-                                      width: 48,
-                                    ), // Space for expand icon
-                                  ],
+                                      const SizedBox(
+                                        width: 16,
+                                      ), // Trailing padding
+                                    ],
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: AppSizes.paddingXS),
@@ -883,6 +912,9 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                         backgroundColor: AppColors.white,
                                         collapsedBackgroundColor:
                                             AppColors.white,
+                                        tilePadding: const EdgeInsets.symmetric(
+                                          horizontal: AppSizes.paddingM,
+                                        ),
                                         leading: Checkbox(
                                           value: p.approved,
                                           onChanged: p.valid
@@ -960,12 +992,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                             ),
                                             Expanded(
                                               flex: 1,
-                                              child: Padding(
-                                                padding: const EdgeInsets.only(
-                                                  left: AppSizes.paddingM,
-                                                ),
-                                                child: Text(p.hsnCode),
-                                              ),
+                                              child: Text(p.hsnCode),
                                             ),
                                             Expanded(
                                               flex: 1,
