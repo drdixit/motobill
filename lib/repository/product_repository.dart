@@ -44,9 +44,9 @@ class ProductRepository {
         '''
         INSERT INTO products (
           name, part_number, hsn_code_id, uqc_id,
-          cost_price, selling_price, sub_category_id, manufacturer_id,
-          is_taxable, is_enabled, is_deleted, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'), datetime('now'))
+          cost_price, selling_price, mrp, sub_category_id, manufacturer_id,
+          is_taxable, negative_allow, is_enabled, is_deleted, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'), datetime('now'))
       ''',
         [
           product.name,
@@ -55,9 +55,11 @@ class ProductRepository {
           product.uqcId,
           product.costPrice,
           product.sellingPrice,
+          product.mrp,
           product.subCategoryId,
           product.manufacturerId,
           product.isTaxable ? 1 : 0,
+          product.negativeAllow ? 1 : 0,
           product.isEnabled ? 1 : 0,
         ],
       );
@@ -83,8 +85,8 @@ class ProductRepository {
         '''
         UPDATE products SET
           name = ?, part_number = ?, hsn_code_id = ?, uqc_id = ?,
-          cost_price = ?, selling_price = ?, sub_category_id = ?, manufacturer_id = ?,
-          is_taxable = ?, is_enabled = ?, updated_at = datetime('now')
+          cost_price = ?, selling_price = ?, mrp = ?, sub_category_id = ?, manufacturer_id = ?,
+          is_taxable = ?, negative_allow = ?, is_enabled = ?, updated_at = datetime('now')
         WHERE id = ?
       ''',
         [
@@ -94,9 +96,11 @@ class ProductRepository {
           product.uqcId,
           product.costPrice,
           product.sellingPrice,
+          product.mrp,
           product.subCategoryId,
           product.manufacturerId,
           product.isTaxable ? 1 : 0,
+          product.negativeAllow ? 1 : 0,
           product.isEnabled ? 1 : 0,
           product.id,
         ],

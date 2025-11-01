@@ -27,6 +27,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
   late TextEditingController _partNumberController;
   late TextEditingController _costPriceController;
   late TextEditingController _sellingPriceController;
+  late TextEditingController _mrpController;
   late bool _isEnabled;
   late bool _isTaxable;
   late bool _negativeAllow;
@@ -55,6 +56,9 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
     );
     _sellingPriceController = TextEditingController(
       text: widget.product?.sellingPrice.toString() ?? '',
+    );
+    _mrpController = TextEditingController(
+      text: widget.product?.mrp?.toString() ?? '',
     );
     _isEnabled = widget.product?.isEnabled ?? true;
     _isTaxable = widget.product?.isTaxable ?? false;
@@ -99,6 +103,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
     _partNumberController.dispose();
     _costPriceController.dispose();
     _sellingPriceController.dispose();
+    _mrpController.dispose();
     super.dispose();
   }
 
@@ -294,6 +299,9 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
   }
 
   void _saveProduct() {
+    final mrpText = _mrpController.text.trim();
+    final mrp = mrpText.isEmpty ? null : double.tryParse(mrpText);
+
     final product = Product(
       id: widget.product?.id,
       name: _nameController.text.trim(),
@@ -304,6 +312,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
       uqcId: _selectedUqcId!,
       costPrice: double.parse(_costPriceController.text),
       sellingPrice: double.parse(_sellingPriceController.text),
+      mrp: mrp,
       subCategoryId: _selectedSubCategoryId!,
       manufacturerId: _selectedManufacturerId!,
       isTaxable: _isTaxable,
@@ -795,6 +804,41 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                             ),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: AppSizes.paddingM),
+                      const Text(
+                        'MRP (Optional)',
+                        style: TextStyle(fontSize: AppSizes.fontL),
+                      ),
+                      const SizedBox(height: AppSizes.paddingS),
+                      TextFormField(
+                        controller: _mrpController,
+                        decoration: InputDecoration(
+                          hintText: '0.00',
+                          prefixText: '₹ ',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppSizes.radiusS,
+                            ),
+                          ),
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                            RegExp(r'^\d+\.?\d{0,2}'),
+                          ),
+                        ],
+                        validator: (value) {
+                          if (value != null && value.trim().isNotEmpty) {
+                            final price = double.tryParse(value);
+                            if (price == null || price <= 0) {
+                              return 'Invalid MRP';
+                            }
+                          }
+                          return null;
+                        },
                       ),
                       const SizedBox(height: AppSizes.paddingM),
                       Row(

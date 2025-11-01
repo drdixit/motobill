@@ -304,6 +304,17 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                         fontFamily: 'Roboto',
                       ),
                     ),
+                    if (product.mrp != null)
+                      const SizedBox(width: AppSizes.paddingM),
+                    if (product.mrp != null)
+                      Text(
+                        'MRP: ₹${product.mrp!.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: AppSizes.fontM,
+                          color: AppColors.textSecondary,
+                          fontFamily: 'Roboto',
+                        ),
+                      ),
                     if (product.isTaxable)
                       const Padding(
                         padding: EdgeInsets.only(left: AppSizes.paddingM),
