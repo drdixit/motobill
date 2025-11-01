@@ -614,55 +614,82 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(AppSizes.paddingL),
+      padding: const EdgeInsets.only(
+        left: AppSizes.paddingL,
+        right: AppSizes.paddingL,
+        bottom: AppSizes.paddingL,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'Product Upload',
-            style: TextStyle(
-              fontSize: AppSizes.fontXXL,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: AppSizes.paddingS),
-          Text(
-            _fileName == null
-                ? 'Upload a product .xlsx file to import products'
-                : 'Selected: $_fileName',
-            style: TextStyle(
-              fontSize: AppSizes.fontM,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: AppSizes.paddingL),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              ElevatedButton.icon(
-                onPressed: _downloadTemplate,
-                icon: const Icon(Icons.download),
-                label: const Text('Download Template'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.white,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Product Upload',
+                    style: TextStyle(
+                      fontSize: AppSizes.fontXXL,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: AppSizes.paddingS),
+                  Text(
+                    _fileName == null
+                        ? 'Upload a product .xlsx file to import products'
+                        : 'Selected: $_fileName',
+                    style: TextStyle(
+                      fontSize: AppSizes.fontM,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: AppSizes.paddingM),
-              ElevatedButton.icon(
-                onPressed: _pickFile,
-                icon: const Icon(Icons.upload_file),
-                label: const Text('Upload .xlsx'),
-              ),
-              const SizedBox(width: AppSizes.paddingM),
-              ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    _fileName = null;
-                    _sheets.clear();
-                  });
-                },
-                child: const Text('Clear'),
+              Row(
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: _downloadTemplate,
+                    icon: const Icon(Icons.download),
+                    label: const Text('Download Template'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSizes.paddingM),
+                  ElevatedButton.icon(
+                    onPressed: _pickFile,
+                    icon: const Icon(Icons.upload_file),
+                    label: const Text('Upload .xlsx'),
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSizes.paddingM),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _fileName = null;
+                        _sheets.clear();
+                      });
+                    },
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    child: const Text('Clear'),
+                  ),
+                ],
               ),
             ],
           ),
@@ -863,14 +890,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                       elevation: 0,
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(8),
-                                        side: BorderSide(
-                                          color: p.valid
-                                              ? AppColors.border
-                                              : AppColors.error.withOpacity(
-                                                  0.3,
-                                                ),
-                                          width: 1,
-                                        ),
+                                        side: BorderSide.none,
                                       ),
                                       child: ExpansionTile(
                                         initiallyExpanded: false,

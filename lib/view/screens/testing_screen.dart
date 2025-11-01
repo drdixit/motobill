@@ -677,58 +677,85 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
       backgroundColor: AppColors.background,
       body: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(AppSizes.paddingL),
+        padding: const EdgeInsets.only(
+          left: AppSizes.paddingL,
+          right: AppSizes.paddingL,
+          bottom: AppSizes.paddingL,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'Testing',
-              style: TextStyle(
-                fontSize: AppSizes.fontXXL,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: AppSizes.paddingS),
-            Text(
-              _fileName == null
-                  ? 'Upload an .xlsx file to display its contents'
-                  : 'Showing: $_fileName',
-              style: TextStyle(
-                fontSize: AppSizes.fontM,
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: AppSizes.paddingL),
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                ElevatedButton.icon(
-                  onPressed: _downloadTemplate,
-                  icon: const Icon(Icons.download),
-                  label: const Text('Download Template'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: AppColors.white,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Testing',
+                      style: TextStyle(
+                        fontSize: AppSizes.fontXXL,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: AppSizes.paddingS),
+                    Text(
+                      _fileName == null
+                          ? 'Upload an .xlsx file to display its contents'
+                          : 'Showing: $_fileName',
+                      style: TextStyle(
+                        fontSize: AppSizes.fontM,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: AppSizes.paddingM),
-                ElevatedButton.icon(
-                  onPressed: _pickAndLoadExcel,
-                  icon: const Icon(Icons.upload_file),
-                  label: const Text('Upload .xlsx'),
+                Row(
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: _downloadTemplate,
+                      icon: const Icon(Icons.download),
+                      label: const Text('Download Template'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: AppColors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppSizes.paddingM),
+                    ElevatedButton.icon(
+                      onPressed: _pickAndLoadExcel,
+                      icon: const Icon(Icons.upload_file),
+                      label: const Text('Upload .xlsx'),
+                      style: ElevatedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppSizes.paddingM),
+                    if (_sheets.isNotEmpty)
+                      ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            _sheets.clear();
+                            _fileName = null;
+                            _proposals.clear();
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                        child: const Text('Clear'),
+                      ),
+                  ],
                 ),
-                const SizedBox(width: AppSizes.paddingM),
-                if (_sheets.isNotEmpty)
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _sheets.clear();
-                        _fileName = null;
-                        _proposals.clear();
-                      });
-                    },
-                    child: const Text('Clear'),
-                  ),
               ],
             ),
             const SizedBox(height: AppSizes.paddingL),
