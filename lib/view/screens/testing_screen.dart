@@ -678,6 +678,7 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
       body: Container(
         width: double.infinity,
         padding: const EdgeInsets.only(
+          top: AppSizes.paddingM,
           left: AppSizes.paddingL,
           right: AppSizes.paddingL,
           bottom: AppSizes.paddingL,
@@ -689,28 +690,13 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Testing',
-                      style: TextStyle(
-                        fontSize: AppSizes.fontXXL,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: AppSizes.paddingS),
-                    Text(
-                      _fileName == null
-                          ? 'Upload an .xlsx file to display its contents'
-                          : 'Showing: $_fileName',
-                      style: TextStyle(
-                        fontSize: AppSizes.fontM,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
+                Text(
+                  'Testing',
+                  style: TextStyle(
+                    fontSize: AppSizes.fontXXL,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
                 Row(
                   children: [
@@ -759,14 +745,17 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
               ],
             ),
             const SizedBox(height: AppSizes.paddingL),
-            // Sheet preview removed — we only show proposals below. The uploaded file is parsed into proposals.
-            const SizedBox.shrink(),
-            const SizedBox(height: AppSizes.paddingL),
             if (_proposals.isNotEmpty)
               SizedBox(
                 width: double.infinity,
                 child: Card(
                   margin: EdgeInsets.zero,
+                  color: AppColors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: BorderSide(color: AppColors.border, width: 1),
+                  ),
                   child: Padding(
                     padding: const EdgeInsets.all(AppSizes.paddingM),
                     child: Column(
@@ -776,7 +765,7 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Proposed changes (${_proposals.length})',
+                              'Proposed changes from file: ${_fileName ?? ""} (${_proposals.length})',
                               style: TextStyle(fontWeight: FontWeight.w600),
                             ),
                             Row(

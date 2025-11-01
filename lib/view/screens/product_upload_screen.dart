@@ -615,6 +615,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.only(
+        top: AppSizes.paddingM,
         left: AppSizes.paddingL,
         right: AppSizes.paddingL,
         bottom: AppSizes.paddingL,
@@ -626,28 +627,13 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Product Upload',
-                    style: TextStyle(
-                      fontSize: AppSizes.fontXXL,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: AppSizes.paddingS),
-                  Text(
-                    _fileName == null
-                        ? 'Upload a product .xlsx file to import products'
-                        : 'Selected: $_fileName',
-                    style: TextStyle(
-                      fontSize: AppSizes.fontM,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
+              Text(
+                'Product Upload',
+                style: TextStyle(
+                  fontSize: AppSizes.fontXXL,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
               ),
               Row(
                 children: [
@@ -712,7 +698,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
-                        'Proposals prepared from sheet(s): ${_sheets.keys.join(', ')}',
+                        'Proposals prepared from file: ${_fileName ?? ""}',
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: AppSizes.fontL,
