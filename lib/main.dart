@@ -5,6 +5,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'core/constants/app_colors.dart';
 import 'view/widgets/app_sidebar.dart';
 import 'view/widgets/date_picker_dialog.dart';
+import 'view/screens/login_screen.dart';
 import 'view/screens/dashboard_screen.dart';
 import 'view/screens/pos_screen.dart';
 import 'view/screens/transactions_screen.dart';
@@ -45,7 +46,11 @@ class MyApp extends StatelessWidget {
         fontFamily: 'Roboto',
         useMaterial3: true,
       ),
-      home: const HomeScreen(),
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const LoginScreen(),
+        '/home': (context) => const HomeScreen(),
+      },
     );
   }
 }
