@@ -26,6 +26,7 @@ class _Proposal {
   bool valid = true;
   String? invalidReason;
   String? suggestion;
+  String? warning;
 
   bool approved = false;
   bool selectable = true; // only one proposal per HSN may be selectable
@@ -259,6 +260,7 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
       // If cgst & sgst provided but igst missing, compute igst = cgst + sgst
       // If igst provided but cgst & sgst missing, split igst equally into cgst/sgst
       String? suggestion;
+      String? warning;
       if ((cgst > 0 || sgst > 0) && igst == 0) {
         // Only compute if both cgst and sgst present (non-zero). If one is zero, prefer provided values.
         if (cgst > 0 && sgst > 0) {
@@ -271,19 +273,29 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
         cgst = half;
         sgst = half;
         suggestion = 'Computed CGST=${cgst} and SGST=${sgst} as IGST/2';
+      } else if (cgst > 0 && sgst > 0 && igst > 0) {
+        // All three values provided - check if CGST + SGST equals IGST
+        final sum = cgst + sgst;
+        if ((sum - igst).abs() > 0.0001) {
+          // Use small epsilon for floating point comparison
+          warning =
+              'Warning: CGST ($cgst) + SGST ($sgst) = $sum does not equal IGST ($igst)';
+        }
       }
 
       // allow missing effectiveFrom (user may choose to update active rate)
       _proposals.add(
         _Proposal(
-          hsnCode: hsn,
-          description: desc,
-          cgst: cgst,
-          sgst: sgst,
-          igst: igst,
-          utgst: utgst,
-          effectiveFrom: eff,
-        )..suggestion = suggestion,
+            hsnCode: hsn,
+            description: desc,
+            cgst: cgst,
+            sgst: sgst,
+            igst: igst,
+            utgst: utgst,
+            effectiveFrom: eff,
+          )
+          ..suggestion = suggestion
+          ..warning = warning,
       );
     }
 
@@ -304,9 +316,9 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
           );
           p.existingRates = rates;
           // Edge-case check: if user did NOT provide effectiveFrom (null) but the
-          // existing active rate starts today, then applying with today's date
-          // would be a no-op start-date collision. Disallow such updates — require
-          // an explicit effectiveFrom > active start.
+          // existing active rate starts today with IDENTICAL rates, then applying
+          // with today's date would be a no-op. Disallow such updates.
+          // However, if rates are different, allow the update (it will modify the active rate in-place).
           if (p.effectiveFrom == null && p.existingRates.isNotEmpty) {
             for (final r in p.existingRates) {
               if (r['effective_to'] == null) {
@@ -317,11 +329,23 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                       afrom.year == now.year &&
                       afrom.month == now.month &&
                       afrom.day == now.day;
-                  if (sameDate &&
-                      (p.cgst > 0 || p.sgst > 0 || p.igst > 0 || p.utgst > 0)) {
+
+                  // Check if rates are identical to existing active rate
+                  final ratesCgst = (r['cgst'] as num).toDouble();
+                  final ratesSgst = (r['sgst'] as num).toDouble();
+                  final ratesIgst = (r['igst'] as num).toDouble();
+                  final ratesUtgst = (r['utgst'] as num).toDouble();
+
+                  final identicalRates =
+                      (p.cgst - ratesCgst).abs() < 0.0001 &&
+                      (p.sgst - ratesSgst).abs() < 0.0001 &&
+                      (p.igst - ratesIgst).abs() < 0.0001 &&
+                      (p.utgst - ratesUtgst).abs() < 0.0001;
+
+                  if (sameDate && identicalRates) {
                     p.valid = false;
                     p.invalidReason =
-                        'No effective_from provided; existing active rate starts today (${_formatDateForUi(afrom)}). Provide an explicit effective_from > today to change rates.';
+                        'No effective_from provided; existing active rate starts today (${_formatDateForUi(afrom)}) with identical rates. No change needed.';
                   }
                 } catch (_) {
                   // ignore parse issues
@@ -985,7 +1009,10 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                       },
                                     ),
                                     // Second line: show problem (if any) and suggestions
-                                    subtitle: (p.valid && p.suggestion == null)
+                                    subtitle:
+                                        (p.valid &&
+                                            p.suggestion == null &&
+                                            p.warning == null)
                                         ? null
                                         : Padding(
                                             padding: const EdgeInsets.only(
@@ -1001,6 +1028,22 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                                         'Invalid proposal',
                                                     style: const TextStyle(
                                                       color: Colors.red,
+                                                    ),
+                                                  ),
+                                                if (p.warning != null)
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                          top: 4.0,
+                                                        ),
+                                                    child: Text(
+                                                      p.warning!,
+                                                      style: TextStyle(
+                                                        color:
+                                                            Colors.orange[700],
+                                                        fontSize:
+                                                            AppSizes.fontS,
+                                                      ),
                                                     ),
                                                   ),
                                                 if (p.suggestion != null)

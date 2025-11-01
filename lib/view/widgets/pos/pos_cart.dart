@@ -933,7 +933,7 @@ extension on PosCart {
                   builder: (context, consumerRef, child) {
                     final state = consumerRef.watch(posViewModelProvider);
 
-                    return OutlinedButton.icon(
+                    return OutlinedButton(
                       onPressed:
                           state.cartItems.isEmpty ||
                               state.selectedCustomer == null ||
@@ -941,8 +941,7 @@ extension on PosCart {
                                   state.selectedCustomer!.phone!.isEmpty)
                           ? null
                           : () => _sendWhatsAppMessage(context, state),
-                      icon: Icon(Icons.message, size: AppSizes.iconS),
-                      label: Text(
+                      child: Text(
                         'WhatsApp',
                         style: TextStyle(
                           fontSize: AppSizes.fontM,
@@ -992,31 +991,33 @@ extension on PosCart {
                       onPressed: state.selectedCustomer == null
                           ? null
                           : () async {
-                              // Show confirmation dialog
-                              final confirm = await showDialog<bool>(
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  title: const Text('Confirm Checkout'),
-                                  content: const Text(
-                                    'Are you sure you want to proceed with checkout?',
+                              // Show confirmation dialog only if flag is true
+                              if (state.showCheckoutConfirmation) {
+                                final confirm = await showDialog<bool>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: const Text('Confirm Checkout'),
+                                    content: const Text(
+                                      'Are you sure you want to proceed with checkout?',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, false),
+                                        child: const Text('Cancel'),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, true),
+                                        child: const Text('Confirm'),
+                                      ),
+                                    ],
                                   ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(context, false),
-                                      child: const Text('Cancel'),
-                                    ),
-                                    ElevatedButton(
-                                      onPressed: () =>
-                                          Navigator.pop(context, true),
-                                      child: const Text('Confirm'),
-                                    ),
-                                  ],
-                                ),
-                              );
+                                );
 
-                              // If user didn't confirm, return
-                              if (confirm != true) return;
+                                // If user didn't confirm, return
+                                if (confirm != true) return;
+                              }
 
                               final billNumber = await viewModel.checkout();
                               if (billNumber != null && context.mounted) {
@@ -1072,6 +1073,24 @@ extension on PosCart {
                     );
                   },
                 ),
+              ),
+              const SizedBox(width: AppSizes.paddingM),
+              // Confirmation Switch
+              Consumer(
+                builder: (context, consumerRef, child) {
+                  final state = consumerRef.watch(posViewModelProvider);
+                  final viewModel = consumerRef.read(
+                    posViewModelProvider.notifier,
+                  );
+
+                  return Switch(
+                    value: state.showCheckoutConfirmation,
+                    onChanged: (value) {
+                      viewModel.toggleCheckoutConfirmation(value);
+                    },
+                    activeColor: AppColors.primary,
+                  );
+                },
               ),
             ],
           ),

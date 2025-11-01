@@ -44,6 +44,7 @@ class PosState {
   final String searchQuery;
   final bool isLoading;
   final String? error;
+  final bool showCheckoutConfirmation; // Always true by default on app launch
 
   PosState({
     this.allProducts = const [],
@@ -62,6 +63,7 @@ class PosState {
     this.searchQuery = '',
     this.isLoading = false,
     this.error,
+    this.showCheckoutConfirmation = true, // Default to true
   });
 
   double get subtotal {
@@ -102,6 +104,7 @@ class PosState {
     bool? isLoading,
     String? error,
     bool clearError = false,
+    bool? showCheckoutConfirmation,
   }) {
     return PosState(
       allProducts: allProducts ?? this.allProducts,
@@ -128,6 +131,8 @@ class PosState {
       searchQuery: searchQuery ?? this.searchQuery,
       isLoading: isLoading ?? this.isLoading,
       error: clearError ? null : (error ?? this.error),
+      showCheckoutConfirmation:
+          showCheckoutConfirmation ?? this.showCheckoutConfirmation,
     );
   }
 }
@@ -460,6 +465,10 @@ class PosViewModel extends StateNotifier<PosState> {
 
   void clearError() {
     state = state.copyWith(clearError: true);
+  }
+
+  void toggleCheckoutConfirmation(bool value) {
+    state = state.copyWith(showCheckoutConfirmation: value);
   }
 
   void selectCustomer(Customer? customer) async {

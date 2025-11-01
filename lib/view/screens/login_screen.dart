@@ -55,64 +55,115 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSizes.paddingXL),
           child: Container(
-            constraints: const BoxConstraints(maxWidth: 400),
+            constraints: const BoxConstraints(maxWidth: 420),
             child: Card(
-              elevation: 4,
+              elevation: 0,
+              color: Colors.white,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(24),
+                side: BorderSide(color: Colors.grey.shade200, width: 1),
               ),
               child: Padding(
-                padding: const EdgeInsets.all(AppSizes.paddingXL),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 48,
+                  vertical: 56,
+                ),
                 child: Form(
                   key: _formKey,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Logo
-                      Image.asset(
-                        'assets/logo.png',
-                        height: 100,
-                        width: 100,
-                        fit: BoxFit.contain,
+                      // Logo with subtle shadow
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Image.asset(
+                          'assets/logo.png',
+                          height: 80,
+                          width: 80,
+                          fit: BoxFit.contain,
+                        ),
                       ),
-                      const SizedBox(height: AppSizes.paddingL),
+                      const SizedBox(height: 32),
                       // Company Name
                       Text(
                         'Umiya Auto Parts',
                         style: TextStyle(
-                          fontSize: 24,
+                          fontSize: 28,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
+                          color: Colors.blue.shade700,
+                          letterSpacing: 0.5,
                         ),
                       ),
-                      const SizedBox(height: AppSizes.paddingXL),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Sign in to continue',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      const SizedBox(height: 48),
                       // Username Field
                       TextFormField(
                         controller: _usernameController,
                         decoration: InputDecoration(
                           labelText: 'Username',
-                          prefixIcon: Icon(
-                            Icons.person,
-                            color: AppColors.primary,
+                          labelStyle: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w400,
                           ),
+                          prefixIcon: Icon(
+                            Icons.person_outline,
+                            color: Colors.blue.shade600,
+                            size: 22,
+                          ),
+                          filled: true,
+                          fillColor: Colors.blue.shade50.withOpacity(0.3),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
                           ),
                           enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: AppColors.border),
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: Colors.grey.shade200,
+                              width: 1,
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide(
-                              color: AppColors.primary,
-                              width: 2,
+                              color: Colors.blue.shade400,
+                              width: 1.5,
                             ),
+                          ),
+                          errorBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: Colors.grey.shade400,
+                              width: 1,
+                            ),
+                          ),
+                          focusedErrorBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: Colors.grey.shade400,
+                              width: 1.5,
+                            ),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 16,
                           ),
                         ),
                         validator: (value) {
@@ -124,23 +175,29 @@ class _LoginScreenState extends State<LoginScreen> {
                         enabled: !_isLoading,
                         textInputAction: TextInputAction.next,
                       ),
-                      const SizedBox(height: AppSizes.paddingL),
+                      const SizedBox(height: 20),
                       // Password Field
                       TextFormField(
                         controller: _passwordController,
                         obscureText: _obscurePassword,
                         decoration: InputDecoration(
                           labelText: 'Password',
+                          labelStyle: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w400,
+                          ),
                           prefixIcon: Icon(
-                            Icons.lock,
-                            color: AppColors.primary,
+                            Icons.lock_outline,
+                            color: Colors.blue.shade600,
+                            size: 22,
                           ),
                           suffixIcon: IconButton(
                             icon: Icon(
                               _obscurePassword
-                                  ? Icons.visibility_off
-                                  : Icons.visibility,
-                              color: AppColors.textSecondary,
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
+                              color: Colors.blue.shade600,
+                              size: 22,
                             ),
                             onPressed: () {
                               setState(
@@ -148,19 +205,43 @@ class _LoginScreenState extends State<LoginScreen> {
                               );
                             },
                           ),
+                          filled: true,
+                          fillColor: Colors.blue.shade50.withOpacity(0.3),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
                           ),
                           enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: AppColors.border),
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: Colors.grey.shade200,
+                              width: 1,
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide(
-                              color: AppColors.primary,
-                              width: 2,
+                              color: Colors.blue.shade400,
+                              width: 1.5,
                             ),
+                          ),
+                          errorBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: Colors.grey.shade400,
+                              width: 1,
+                            ),
+                          ),
+                          focusedErrorBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: Colors.grey.shade400,
+                              width: 1.5,
+                            ),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 16,
                           ),
                         ),
                         validator: (value) {
@@ -173,23 +254,24 @@ class _LoginScreenState extends State<LoginScreen> {
                         textInputAction: TextInputAction.done,
                         onFieldSubmitted: (_) => _handleLogin(),
                       ),
-                      const SizedBox(height: AppSizes.paddingXL),
+                      const SizedBox(height: 40),
                       // Login Button
                       SizedBox(
                         width: double.infinity,
-                        height: 48,
+                        height: 52,
                         child: ElevatedButton(
                           onPressed: _isLoading ? null : _handleLogin,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
+                            backgroundColor: Colors.blue.shade600,
                             foregroundColor: Colors.white,
+                            disabledBackgroundColor: Colors.blue.shade200,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            elevation: 2,
+                            elevation: 0,
                           ),
                           child: _isLoading
-                              ? const SizedBox(
+                              ? SizedBox(
                                   height: 20,
                                   width: 20,
                                   child: CircularProgressIndicator(
@@ -203,7 +285,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                   'Login',
                                   style: TextStyle(
                                     fontSize: 16,
-                                    fontWeight: FontWeight.w600,
+                                    fontWeight: FontWeight.w500,
+                                    letterSpacing: 0.5,
                                   ),
                                 ),
                         ),

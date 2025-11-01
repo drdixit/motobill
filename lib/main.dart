@@ -30,7 +30,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Umiya Auto Parts',
+      title: 'Motobill',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -160,7 +160,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             onPressed: _toggleSidebar,
           ),
           Text(
-            'Umiya Auto Parts',
+            'Motobill',
             style: TextStyle(
               color: AppColors.appBarText,
               fontSize: 18,
