@@ -898,6 +898,7 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
                                     initiallyExpanded: false,
                                     backgroundColor: AppColors.white,
                                     collapsedBackgroundColor: AppColors.white,
+                                    trailing: const SizedBox.shrink(),
                                     leading: Checkbox(
                                       value: p.approved,
                                       onChanged: (p.valid && p.selectable)

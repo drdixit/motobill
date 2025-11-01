@@ -915,6 +915,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                         tilePadding: const EdgeInsets.symmetric(
                                           horizontal: AppSizes.paddingM,
                                         ),
+                                        trailing: const SizedBox.shrink(),
                                         leading: Checkbox(
                                           value: p.approved,
                                           onChanged: p.valid
