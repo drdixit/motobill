@@ -6,12 +6,45 @@ import '../../../model/customer.dart';
 import '../../../view_model/customer_viewmodel.dart';
 import '../../widgets/customer_form_dialog.dart';
 
-class CustomersScreen extends ConsumerWidget {
+class CustomersScreen extends ConsumerStatefulWidget {
   const CustomersScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CustomersScreen> createState() => _CustomersScreenState();
+}
+
+class _CustomersScreenState extends ConsumerState<CustomersScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<Customer> _filterCustomers(List<Customer> customers) {
+    if (_searchQuery.isEmpty) return customers;
+
+    final query = _searchQuery.toLowerCase();
+    return customers.where((customer) {
+      final name = customer.name.toLowerCase();
+      final legalName = customer.legalName?.toLowerCase() ?? '';
+      final phone = customer.phone?.toLowerCase() ?? '';
+      final email = customer.email?.toLowerCase() ?? '';
+      final gstNumber = customer.gstNumber?.toLowerCase() ?? '';
+      return name.contains(query) ||
+          legalName.contains(query) ||
+          phone.contains(query) ||
+          email.contains(query) ||
+          gstNumber.contains(query);
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(customerProvider);
+    final filteredCustomers = _filterCustomers(state.customers);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -31,9 +64,9 @@ class CustomersScreen extends ConsumerWidget {
                 ? Center(
                     child: CircularProgressIndicator(color: AppColors.primary),
                   )
-                : state.customers.isEmpty
+                : filteredCustomers.isEmpty
                 ? _buildEmptyState()
-                : _buildCustomerList(context, ref, state.customers),
+                : _buildCustomerList(context, ref, filteredCustomers),
           ),
         ],
       ),
@@ -48,17 +81,56 @@ class CustomersScreen extends ConsumerWidget {
         border: Border(bottom: BorderSide(color: AppColors.border, width: 1)),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text(
-            'Customers',
-            style: TextStyle(
-              fontSize: AppSizes.fontXXL,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-              fontFamily: 'Roboto',
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                });
+              },
+              decoration: InputDecoration(
+                hintText: 'Search by name, mobile, email or GST...',
+                hintStyle: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: AppSizes.fontM,
+                ),
+                prefixIcon: Icon(Icons.search, color: AppColors.textSecondary),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: Icon(Icons.clear, color: AppColors.textSecondary),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {
+                            _searchQuery = '';
+                          });
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: AppColors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                  borderSide: BorderSide(color: AppColors.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                  borderSide: BorderSide(color: AppColors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                  borderSide: BorderSide(color: AppColors.primary, width: 2),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: AppSizes.paddingM,
+                  vertical: AppSizes.paddingM,
+                ),
+              ),
             ),
           ),
+          const SizedBox(width: AppSizes.paddingL),
           ElevatedButton.icon(
             onPressed: () => _showCustomerDialog(context, ref, null),
             icon: const Icon(Icons.add, size: 20),
@@ -92,22 +164,25 @@ class CustomersScreen extends ConsumerWidget {
           ),
           const SizedBox(height: AppSizes.paddingL),
           Text(
-            'No customers found',
+            _searchQuery.isEmpty
+                ? 'No customers found'
+                : 'No customers match your search',
             style: TextStyle(
               fontSize: AppSizes.fontXL,
               color: AppColors.textSecondary,
               fontFamily: 'Roboto',
             ),
           ),
-          const SizedBox(height: AppSizes.paddingM),
-          Text(
-            'Click "New Customer" to add your first customer',
-            style: TextStyle(
-              fontSize: AppSizes.fontM,
-              color: AppColors.textTertiary,
-              fontFamily: 'Roboto',
+          if (_searchQuery.isEmpty) const SizedBox(height: AppSizes.paddingM),
+          if (_searchQuery.isEmpty)
+            Text(
+              'Click "New Customer" to add your first customer',
+              style: TextStyle(
+                fontSize: AppSizes.fontM,
+                color: AppColors.textTertiary,
+                fontFamily: 'Roboto',
+              ),
             ),
-          ),
         ],
       ),
     );

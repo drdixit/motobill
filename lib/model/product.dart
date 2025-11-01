@@ -6,6 +6,7 @@ class Product {
   final int uqcId;
   final double costPrice;
   final double sellingPrice;
+  final double? mrp;
   final int subCategoryId;
   final int manufacturerId;
   final bool isTaxable;
@@ -23,6 +24,7 @@ class Product {
     required this.uqcId,
     required this.costPrice,
     required this.sellingPrice,
+    this.mrp,
     required this.subCategoryId,
     required this.manufacturerId,
     this.isTaxable = false,
@@ -42,6 +44,7 @@ class Product {
       uqcId: json['uqc_id'] as int,
       costPrice: (json['cost_price'] as num).toDouble(),
       sellingPrice: (json['selling_price'] as num).toDouble(),
+      mrp: json['mrp'] != null ? (json['mrp'] as num).toDouble() : null,
       subCategoryId: json['sub_category_id'] as int,
       manufacturerId: json['manufacturer_id'] as int,
       isTaxable: (json['is_taxable'] as int) == 1,
@@ -66,6 +69,7 @@ class Product {
       'uqc_id': uqcId,
       'cost_price': costPrice,
       'selling_price': sellingPrice,
+      if (mrp != null) 'mrp': mrp,
       'sub_category_id': subCategoryId,
       'manufacturer_id': manufacturerId,
       'is_taxable': isTaxable ? 1 : 0,
@@ -83,6 +87,7 @@ class Product {
     int? uqcId,
     double? costPrice,
     double? sellingPrice,
+    double? mrp,
     int? subCategoryId,
     int? manufacturerId,
     bool? isTaxable,
@@ -100,6 +105,7 @@ class Product {
       uqcId: uqcId ?? this.uqcId,
       costPrice: costPrice ?? this.costPrice,
       sellingPrice: sellingPrice ?? this.sellingPrice,
+      mrp: mrp ?? this.mrp,
       subCategoryId: subCategoryId ?? this.subCategoryId,
       manufacturerId: manufacturerId ?? this.manufacturerId,
       isTaxable: isTaxable ?? this.isTaxable,

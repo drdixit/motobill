@@ -15,6 +15,9 @@ class ProductsScreen extends ConsumerStatefulWidget {
 }
 
 class _ProductsScreenState extends ConsumerState<ProductsScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
@@ -24,8 +27,26 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
   }
 
   @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<Product> _filterProducts(List<Product> products) {
+    if (_searchQuery.isEmpty) return products;
+
+    final query = _searchQuery.toLowerCase();
+    return products.where((product) {
+      final name = product.name.toLowerCase();
+      final partNumber = product.partNumber?.toLowerCase() ?? '';
+      return name.contains(query) || partNumber.contains(query);
+    }).toList();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final productState = ref.watch(productViewModelProvider);
+    final filteredProducts = _filterProducts(productState.products);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -40,17 +61,65 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
               ),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(
-                  'Products',
-                  style: TextStyle(
-                    fontSize: AppSizes.fontXXL,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                    fontFamily: 'Roboto',
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value;
+                      });
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Search by name or part number...',
+                      hintStyle: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: AppSizes.fontM,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search,
+                        color: AppColors.textSecondary,
+                      ),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: Icon(
+                                Icons.clear,
+                                color: AppColors.textSecondary,
+                              ),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {
+                                  _searchQuery = '';
+                                });
+                              },
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: AppColors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                        borderSide: BorderSide(color: AppColors.border),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                        borderSide: BorderSide(color: AppColors.border),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                        borderSide: BorderSide(
+                          color: AppColors.primary,
+                          width: 2,
+                        ),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: AppSizes.paddingM,
+                        vertical: AppSizes.paddingM,
+                      ),
+                    ),
                   ),
                 ),
+                const SizedBox(width: AppSizes.paddingL),
                 ElevatedButton.icon(
                   onPressed: () => _showProductDialog(context, ref, null),
                   icon: const Icon(Icons.add, size: 20),
@@ -80,10 +149,12 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                       style: TextStyle(color: AppColors.error),
                     ),
                   )
-                : productState.products.isEmpty
+                : filteredProducts.isEmpty
                 ? Center(
                     child: Text(
-                      'No products found',
+                      _searchQuery.isEmpty
+                          ? 'No products found'
+                          : 'No products match your search',
                       style: TextStyle(
                         fontSize: AppSizes.fontL,
                         color: AppColors.textSecondary,
@@ -92,11 +163,11 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                   )
                 : ListView.separated(
                     padding: const EdgeInsets.all(AppSizes.paddingL),
-                    itemCount: productState.products.length,
+                    itemCount: filteredProducts.length,
                     separatorBuilder: (context, index) =>
                         const SizedBox(height: AppSizes.paddingM),
                     itemBuilder: (context, index) {
-                      final product = productState.products[index];
+                      final product = filteredProducts[index];
                       return _buildProductCard(context, ref, product);
                     },
                   ),

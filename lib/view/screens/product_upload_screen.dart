@@ -24,6 +24,7 @@ class _ProductProposal {
   final String hsnCode;
   final double costPrice; // provided in sheet
   final double sellingPrice; // provided in sheet
+  final double? mrp; // provided in sheet (optional)
   final bool includeTax; // whether provided prices include tax (YES/NO column)
   bool includeProvided =
       false; // whether include_tax column was provided in the sheet
@@ -56,6 +57,7 @@ class _ProductProposal {
     required this.hsnCode,
     required this.costPrice,
     required this.sellingPrice,
+    this.mrp,
     required this.includeTax,
   });
 }
@@ -212,6 +214,8 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           includeProvided &&
           (includeStr.toLowerCase() == 'yes' ||
               includeStr.toLowerCase().startsWith('y'));
+      final mrpValue = row.length > 6 ? parseDouble(row[6]) : null;
+      final mrp = (mrpValue != null && mrpValue > 0) ? mrpValue : null;
 
       // require name and hsn (part_number is optional)
       if (name.isEmpty || hsn.isEmpty) {
@@ -222,6 +226,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           hsnCode: hsn,
           costPrice: cost,
           sellingPrice: sell,
+          mrp: mrp,
           includeTax: includeTax,
         );
         // ensure computed values default to provided values so UI is consistent
@@ -259,6 +264,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           hsnCode: hsn,
           costPrice: cost,
           sellingPrice: sell,
+          mrp: mrp,
           includeTax: includeTax,
         );
         p.includeProvided = includeProvided;
@@ -296,6 +302,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           hsnCode: hsn,
           costPrice: cost,
           sellingPrice: sell,
+          mrp: mrp,
           includeTax: includeTax,
         );
         p.includeProvided = includeProvided;
@@ -327,6 +334,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         hsnCode: hsn,
         costPrice: cost,
         sellingPrice: sell,
+        mrp: mrp,
         includeTax: includeTax,
       );
       p.includeProvided = includeProvided;
@@ -542,10 +550,13 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
             final sellToStore = double.parse(
               p.computedSellingExcl.toStringAsFixed(2),
             );
+            final mrpToStore = p.mrp != null
+                ? double.parse(p.mrp!.toStringAsFixed(2))
+                : null;
             await txn.rawUpdate(
               '''
               UPDATE products SET
-                name = ?, hsn_code_id = ?, uqc_id = ?, cost_price = ?, selling_price = ?, sub_category_id = ?, manufacturer_id = ?, is_taxable = ?, updated_at = datetime('now')
+                name = ?, hsn_code_id = ?, uqc_id = ?, cost_price = ?, selling_price = ?, mrp = ?, sub_category_id = ?, manufacturer_id = ?, is_taxable = ?, updated_at = datetime('now')
               WHERE id = ?
               ''',
               [
@@ -554,6 +565,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                 defaultUqcId,
                 costToStore,
                 sellToStore,
+                mrpToStore,
                 defaultSubCategoryId,
                 defaultManufacturerId,
                 defaultIsTaxable,
@@ -568,10 +580,13 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
             final sellToStore = double.parse(
               p.computedSellingExcl.toStringAsFixed(2),
             );
+            final mrpToStore = p.mrp != null
+                ? double.parse(p.mrp!.toStringAsFixed(2))
+                : null;
             await txn.rawInsert(
               '''
-              INSERT INTO products (name, part_number, hsn_code_id, uqc_id, cost_price, selling_price, sub_category_id, manufacturer_id, is_taxable, is_enabled, negative_allow, is_deleted, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'), datetime('now'))
+              INSERT INTO products (name, part_number, hsn_code_id, uqc_id, cost_price, selling_price, mrp, sub_category_id, manufacturer_id, is_taxable, is_enabled, negative_allow, is_deleted, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'), datetime('now'))
               ''',
               [
                 p.name,
@@ -580,6 +595,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                 defaultUqcId,
                 costToStore,
                 sellToStore,
+                mrpToStore,
                 defaultSubCategoryId,
                 defaultManufacturerId,
                 defaultIsTaxable,
@@ -1092,6 +1108,18 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                                             .textPrimary,
                                                       ),
                                                     ),
+                                                    if (p.mrp != null)
+                                                      Text(
+                                                        'MRP: ${p.mrp!.toStringAsFixed(2)}',
+                                                        style: TextStyle(
+                                                          fontSize:
+                                                              AppSizes.fontM,
+                                                          color: AppColors
+                                                              .textPrimary,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                        ),
+                                                      ),
                                                   ],
                                                 ),
                                                 const SizedBox(

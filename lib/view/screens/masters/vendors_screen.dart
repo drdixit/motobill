@@ -6,12 +6,48 @@ import '../../../model/vendor.dart';
 import '../../../view_model/vendor_viewmodel.dart';
 import '../../widgets/vendor_form_dialog.dart';
 
-class VendorsScreen extends ConsumerWidget {
+class VendorsScreen extends ConsumerStatefulWidget {
   const VendorsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<VendorsScreen> createState() => _VendorsScreenState();
+}
+
+class _VendorsScreenState extends ConsumerState<VendorsScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<Vendor> _filterVendors(List<Vendor> vendors) {
+    // Filter out AUTO-STOCK-ADJUSTMENT vendor (id: 7)
+    final filteredBySystem = vendors.where((vendor) => vendor.id != 7).toList();
+
+    if (_searchQuery.isEmpty) return filteredBySystem;
+
+    final query = _searchQuery.toLowerCase();
+    return filteredBySystem.where((vendor) {
+      final name = vendor.name.toLowerCase();
+      final legalName = vendor.legalName?.toLowerCase() ?? '';
+      final phone = vendor.phone?.toLowerCase() ?? '';
+      final email = vendor.email?.toLowerCase() ?? '';
+      final gstNumber = vendor.gstNumber?.toLowerCase() ?? '';
+      return name.contains(query) ||
+          legalName.contains(query) ||
+          phone.contains(query) ||
+          email.contains(query) ||
+          gstNumber.contains(query);
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final vendorState = ref.watch(vendorProvider);
+    final filteredVendors = _filterVendors(vendorState.vendors);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -27,17 +63,65 @@ class VendorsScreen extends ConsumerWidget {
               ),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(
-                  'Vendors',
-                  style: TextStyle(
-                    fontSize: AppSizes.fontXXL,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                    fontFamily: 'Roboto',
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value;
+                      });
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Search by name, mobile, email or GST...',
+                      hintStyle: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: AppSizes.fontM,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search,
+                        color: AppColors.textSecondary,
+                      ),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: Icon(
+                                Icons.clear,
+                                color: AppColors.textSecondary,
+                              ),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {
+                                  _searchQuery = '';
+                                });
+                              },
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: AppColors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                        borderSide: BorderSide(color: AppColors.border),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                        borderSide: BorderSide(color: AppColors.border),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                        borderSide: BorderSide(
+                          color: AppColors.primary,
+                          width: 2,
+                        ),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: AppSizes.paddingM,
+                        vertical: AppSizes.paddingM,
+                      ),
+                    ),
                   ),
                 ),
+                const SizedBox(width: AppSizes.paddingL),
                 ElevatedButton.icon(
                   onPressed: () => _showVendorDialog(context, ref, null),
                   icon: const Icon(Icons.add, size: 20),
@@ -68,45 +152,26 @@ class VendorsScreen extends ConsumerWidget {
                       style: TextStyle(color: AppColors.error),
                     ),
                   )
-                : vendorState.vendors.isEmpty
+                : filteredVendors.isEmpty
                 ? Center(
                     child: Text(
-                      'No vendors found',
+                      _searchQuery.isEmpty
+                          ? 'No vendors found'
+                          : 'No vendors match your search',
                       style: TextStyle(
                         fontSize: AppSizes.fontL,
                         color: AppColors.textSecondary,
                       ),
                     ),
                   )
-                : Builder(
-                    builder: (context) {
-                      // Filter out AUTO-STOCK-ADJUSTMENT vendor (id: 7)
-                      final filteredVendors = vendorState.vendors
-                          .where((vendor) => vendor.id != 7)
-                          .toList();
-
-                      if (filteredVendors.isEmpty) {
-                        return Center(
-                          child: Text(
-                            'No vendors found',
-                            style: TextStyle(
-                              fontSize: AppSizes.fontL,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        );
-                      }
-
-                      return ListView.separated(
-                        padding: const EdgeInsets.all(AppSizes.paddingL),
-                        itemCount: filteredVendors.length,
-                        separatorBuilder: (context, index) =>
-                            const SizedBox(height: AppSizes.paddingM),
-                        itemBuilder: (context, index) {
-                          final vendor = filteredVendors[index];
-                          return _buildVendorCard(context, ref, vendor);
-                        },
-                      );
+                : ListView.separated(
+                    padding: const EdgeInsets.all(AppSizes.paddingL),
+                    itemCount: filteredVendors.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: AppSizes.paddingM),
+                    itemBuilder: (context, index) {
+                      final vendor = filteredVendors[index];
+                      return _buildVendorCard(context, ref, vendor);
                     },
                   ),
           ),

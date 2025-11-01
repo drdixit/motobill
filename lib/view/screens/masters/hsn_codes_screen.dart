@@ -8,12 +8,38 @@ import '../../../model/gst_rate.dart';
 import '../../../view_model/gst_rate_viewmodel.dart';
 import '../../widgets/hsn_code_form_dialog.dart';
 
-class HsnCodesScreen extends ConsumerWidget {
+class HsnCodesScreen extends ConsumerStatefulWidget {
   const HsnCodesScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HsnCodesScreen> createState() => _HsnCodesScreenState();
+}
+
+class _HsnCodesScreenState extends ConsumerState<HsnCodesScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<HsnCode> _filterHsnCodes(List<HsnCode> hsnCodes) {
+    if (_searchQuery.isEmpty) return hsnCodes;
+
+    final query = _searchQuery.toLowerCase();
+    return hsnCodes.where((hsnCode) {
+      final code = hsnCode.code.toLowerCase();
+      final description = hsnCode.description?.toLowerCase() ?? '';
+      return code.contains(query) || description.contains(query);
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final hsnCodeState = ref.watch(hsnCodeViewModelProvider);
+    final filteredHsnCodes = _filterHsnCodes(hsnCodeState.hsnCodes);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -29,17 +55,65 @@ class HsnCodesScreen extends ConsumerWidget {
               ),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(
-                  'HSN Codes',
-                  style: TextStyle(
-                    fontSize: AppSizes.fontXXL,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                    fontFamily: 'Roboto',
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value;
+                      });
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Search by HSN code or description...',
+                      hintStyle: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: AppSizes.fontM,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search,
+                        color: AppColors.textSecondary,
+                      ),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: Icon(
+                                Icons.clear,
+                                color: AppColors.textSecondary,
+                              ),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {
+                                  _searchQuery = '';
+                                });
+                              },
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: AppColors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                        borderSide: BorderSide(color: AppColors.border),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                        borderSide: BorderSide(color: AppColors.border),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                        borderSide: BorderSide(
+                          color: AppColors.primary,
+                          width: 2,
+                        ),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: AppSizes.paddingM,
+                        vertical: AppSizes.paddingM,
+                      ),
+                    ),
                   ),
                 ),
+                const SizedBox(width: AppSizes.paddingL),
                 ElevatedButton.icon(
                   onPressed: () => _showHsnCodeDialog(context, ref, null),
                   icon: const Icon(Icons.add, size: 20),
@@ -70,10 +144,12 @@ class HsnCodesScreen extends ConsumerWidget {
                       style: TextStyle(color: AppColors.error),
                     ),
                   )
-                : hsnCodeState.hsnCodes.isEmpty
+                : filteredHsnCodes.isEmpty
                 ? Center(
                     child: Text(
-                      'No HSN codes found',
+                      _searchQuery.isEmpty
+                          ? 'No HSN codes found'
+                          : 'No HSN codes match your search',
                       style: TextStyle(
                         fontSize: AppSizes.fontL,
                         color: AppColors.textSecondary,
@@ -82,11 +158,11 @@ class HsnCodesScreen extends ConsumerWidget {
                   )
                 : ListView.separated(
                     padding: const EdgeInsets.all(AppSizes.paddingL),
-                    itemCount: hsnCodeState.hsnCodes.length,
+                    itemCount: filteredHsnCodes.length,
                     separatorBuilder: (context, index) =>
                         const SizedBox(height: AppSizes.paddingM),
                     itemBuilder: (context, index) {
-                      final hsnCode = hsnCodeState.hsnCodes[index];
+                      final hsnCode = filteredHsnCodes[index];
                       return _buildHsnCodeCard(context, ref, hsnCode);
                     },
                   ),
