@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 
-import 'package:excel/excel.dart';
+import 'package:excel/excel.dart' hide Border;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
@@ -667,30 +667,18 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
             ],
           ),
           const SizedBox(height: AppSizes.paddingL),
-          if (_sheets.isEmpty)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSizes.paddingM),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: const [
-                    Text(
-                      'This screen is a placeholder for the Product Upload flow.',
-                    ),
-                    SizedBox(height: AppSizes.paddingS),
-                    Text(
-                      'You can upload an .xlsx, preview parsed rows, validate, and apply changes to DB.',
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else
+          if (_sheets.isNotEmpty)
             // Show first sheet content in a scrollable DataTable and proposals
             // Make this card take the remaining available height so the
             // proposals list can expand and scroll as needed.
             Expanded(
               child: Card(
+                color: AppColors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(color: AppColors.border, width: 1),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(AppSizes.paddingM),
                   child: Column(
@@ -698,7 +686,11 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                     children: [
                       Text(
                         'Proposals prepared from sheet(s): ${_sheets.keys.join(', ')}',
-                        style: TextStyle(fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: AppSizes.fontL,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                       const SizedBox(height: AppSizes.paddingS),
 
@@ -764,12 +756,16 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                               // Header row (tabular look)
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                  vertical: AppSizes.paddingXS,
-                                  horizontal: AppSizes.paddingS,
+                                  vertical: AppSizes.paddingS,
+                                  horizontal: AppSizes.paddingM,
                                 ),
-                                color: Colors.grey.shade100,
+                                decoration: BoxDecoration(
+                                  color: AppColors.backgroundSecondary,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
                                 child: Row(
                                   children: const [
+                                    SizedBox(width: 40), // Space for checkbox
                                     Expanded(
                                       flex: 2,
                                       child: Text(
@@ -781,10 +777,15 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                     ),
                                     Expanded(
                                       flex: 1,
-                                      child: Text(
-                                        'HSN',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(
+                                          left: AppSizes.paddingM,
+                                        ),
+                                        child: Text(
+                                          'HSN',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -842,6 +843,9 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                         ),
                                       ),
                                     ),
+                                    SizedBox(
+                                      width: 48,
+                                    ), // Space for expand icon
                                   ],
                                 ),
                               ),
@@ -855,8 +859,24 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                       margin: const EdgeInsets.symmetric(
                                         vertical: AppSizes.paddingS,
                                       ),
+                                      color: AppColors.white,
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        side: BorderSide(
+                                          color: p.valid
+                                              ? AppColors.border
+                                              : AppColors.error.withOpacity(
+                                                  0.3,
+                                                ),
+                                          width: 1,
+                                        ),
+                                      ),
                                       child: ExpansionTile(
                                         initiallyExpanded: false,
+                                        backgroundColor: AppColors.white,
+                                        collapsedBackgroundColor:
+                                            AppColors.white,
                                         leading: Checkbox(
                                           value: p.approved,
                                           onChanged: p.valid
@@ -934,7 +954,12 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                             ),
                                             Expanded(
                                               flex: 1,
-                                              child: Text(p.hsnCode),
+                                              child: Padding(
+                                                padding: const EdgeInsets.only(
+                                                  left: AppSizes.paddingM,
+                                                ),
+                                                child: Text(p.hsnCode),
+                                              ),
                                             ),
                                             Expanded(
                                               flex: 1,
@@ -1001,7 +1026,8 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                           ],
                                         ),
                                         children: [
-                                          Padding(
+                                          Container(
+                                            color: AppColors.white,
                                             padding: const EdgeInsets.all(
                                               AppSizes.paddingM,
                                             ),
@@ -1011,12 +1037,26 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                               children: [
                                                 Wrap(
                                                   spacing: AppSizes.paddingM,
+                                                  runSpacing:
+                                                      AppSizes.paddingXS,
                                                   children: [
                                                     Text(
                                                       'Store Cost (excl): ${p.computedCostExcl.toStringAsFixed(2)}',
+                                                      style: TextStyle(
+                                                        fontSize:
+                                                            AppSizes.fontM,
+                                                        color: AppColors
+                                                            .textPrimary,
+                                                      ),
                                                     ),
                                                     Text(
                                                       'Store Sell (excl): ${p.computedSellingExcl.toStringAsFixed(2)}',
+                                                      style: TextStyle(
+                                                        fontSize:
+                                                            AppSizes.fontM,
+                                                        color: AppColors
+                                                            .textPrimary,
+                                                      ),
                                                     ),
                                                   ],
                                                 ),
@@ -1025,10 +1065,30 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                                 ),
                                                 if (!p.valid &&
                                                     p.invalidReason != null)
-                                                  Text(
-                                                    p.invalidReason!,
-                                                    style: const TextStyle(
-                                                      color: Colors.red,
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                          AppSizes.paddingS,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color: AppColors.error
+                                                          .withOpacity(0.1),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            6,
+                                                          ),
+                                                      border: Border.all(
+                                                        color: AppColors.error
+                                                            .withOpacity(0.3),
+                                                      ),
+                                                    ),
+                                                    child: Text(
+                                                      p.invalidReason!,
+                                                      style: TextStyle(
+                                                        color: AppColors.error,
+                                                        fontSize:
+                                                            AppSizes.fontM,
+                                                      ),
                                                     ),
                                                   ),
                                                 if (p.suggestion != null)
@@ -1038,56 +1098,220 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                                           top:
                                                               AppSizes.paddingS,
                                                         ),
-                                                    child: Text(
-                                                      p.suggestion!,
-                                                      style: TextStyle(
-                                                        color: AppColors
-                                                            .textSecondary,
+                                                    child: Container(
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                            AppSizes.paddingS,
+                                                          ),
+                                                      decoration: BoxDecoration(
+                                                        color: AppColors.info
+                                                            .withOpacity(0.1),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              6,
+                                                            ),
+                                                      ),
+                                                      child: Text(
+                                                        p.suggestion!,
+                                                        style: TextStyle(
+                                                          color: AppColors
+                                                              .textSecondary,
+                                                          fontSize:
+                                                              AppSizes.fontM,
+                                                        ),
                                                       ),
                                                     ),
                                                   ),
-                                                const Divider(),
-                                                Text(
-                                                  'Planned DB values',
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
+                                                const SizedBox(
+                                                  height: AppSizes.paddingM,
+                                                ),
+                                                Divider(
+                                                  color: AppColors.border,
                                                 ),
                                                 const SizedBox(
-                                                  height: AppSizes.paddingXS,
+                                                  height: AppSizes.paddingS,
                                                 ),
-                                                Text(
-                                                  'Sub-category: ${p.plannedSubCategoryName ?? p.plannedSubCategoryId}',
-                                                ),
-                                                Text(
-                                                  'Manufacturer: ${p.plannedManufacturerName ?? p.plannedManufacturerId}',
-                                                ),
-                                                Text(
-                                                  'UQC: ${p.plannedUqcName ?? p.plannedUqcId}',
-                                                ),
-                                                Text(
-                                                  'isTaxable: ${p.plannedIsTaxable}  isEnabled: ${p.plannedIsEnabled}  negativeAllow: ${p.plannedNegativeAllow}',
-                                                ),
-                                                if (p.existingData != null) ...[
-                                                  const Divider(),
-                                                  Text(
-                                                    'Existing product data (DB)',
-                                                    style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.w600,
+                                                Row(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    // Planned DB values - Left side
+                                                    Expanded(
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          Text(
+                                                            'Planned DB values',
+                                                            style: TextStyle(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                              fontSize: AppSizes
+                                                                  .fontL,
+                                                              color: AppColors
+                                                                  .textPrimary,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(
+                                                            height: AppSizes
+                                                                .paddingS,
+                                                          ),
+                                                          Container(
+                                                            padding:
+                                                                const EdgeInsets.all(
+                                                                  AppSizes
+                                                                      .paddingM,
+                                                                ),
+                                                            decoration: BoxDecoration(
+                                                              color: AppColors
+                                                                  .backgroundSecondary,
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    6,
+                                                                  ),
+                                                            ),
+                                                            child: Column(
+                                                              crossAxisAlignment:
+                                                                  CrossAxisAlignment
+                                                                      .start,
+                                                              children: [
+                                                                Text(
+                                                                  'Sub-category: ${p.plannedSubCategoryName ?? p.plannedSubCategoryId}',
+                                                                  style: TextStyle(
+                                                                    fontSize:
+                                                                        AppSizes
+                                                                            .fontM,
+                                                                    color: AppColors
+                                                                        .textPrimary,
+                                                                  ),
+                                                                ),
+                                                                const SizedBox(
+                                                                  height: AppSizes
+                                                                      .paddingXS,
+                                                                ),
+                                                                Text(
+                                                                  'Manufacturer: ${p.plannedManufacturerName ?? p.plannedManufacturerId}',
+                                                                  style: TextStyle(
+                                                                    fontSize:
+                                                                        AppSizes
+                                                                            .fontM,
+                                                                    color: AppColors
+                                                                        .textPrimary,
+                                                                  ),
+                                                                ),
+                                                                const SizedBox(
+                                                                  height: AppSizes
+                                                                      .paddingXS,
+                                                                ),
+                                                                Text(
+                                                                  'UQC: ${p.plannedUqcName ?? p.plannedUqcId}',
+                                                                  style: TextStyle(
+                                                                    fontSize:
+                                                                        AppSizes
+                                                                            .fontM,
+                                                                    color: AppColors
+                                                                        .textPrimary,
+                                                                  ),
+                                                                ),
+                                                                const SizedBox(
+                                                                  height: AppSizes
+                                                                      .paddingXS,
+                                                                ),
+                                                                Text(
+                                                                  'isTaxable: ${p.plannedIsTaxable}  isEnabled: ${p.plannedIsEnabled}  negativeAllow: ${p.plannedNegativeAllow}',
+                                                                  style: TextStyle(
+                                                                    fontSize:
+                                                                        AppSizes
+                                                                            .fontM,
+                                                                    color: AppColors
+                                                                        .textPrimary,
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
                                                     ),
-                                                  ),
-                                                  const SizedBox(
-                                                    height: AppSizes.paddingXS,
-                                                  ),
-                                                  for (final entry
-                                                      in p
-                                                          .existingData!
-                                                          .entries)
-                                                    Text(
-                                                      '${entry.key}: ${entry.value}',
-                                                    ),
-                                                ],
+                                                    // Spacing between columns
+                                                    if (p.existingData != null)
+                                                      const SizedBox(
+                                                        width:
+                                                            AppSizes.paddingM,
+                                                      ),
+                                                    // Existing product data - Right side
+                                                    if (p.existingData != null)
+                                                      Expanded(
+                                                        child: Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .start,
+                                                          children: [
+                                                            Text(
+                                                              'Existing product data (DB)',
+                                                              style: TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                                fontSize:
+                                                                    AppSizes
+                                                                        .fontL,
+                                                                color: AppColors
+                                                                    .textPrimary,
+                                                              ),
+                                                            ),
+                                                            const SizedBox(
+                                                              height: AppSizes
+                                                                  .paddingS,
+                                                            ),
+                                                            Container(
+                                                              padding:
+                                                                  const EdgeInsets.all(
+                                                                    AppSizes
+                                                                        .paddingM,
+                                                                  ),
+                                                              decoration: BoxDecoration(
+                                                                color: AppColors
+                                                                    .backgroundTertiary,
+                                                                borderRadius:
+                                                                    BorderRadius.circular(
+                                                                      6,
+                                                                    ),
+                                                              ),
+                                                              child: Column(
+                                                                crossAxisAlignment:
+                                                                    CrossAxisAlignment
+                                                                        .start,
+                                                                children: [
+                                                                  for (final entry
+                                                                      in p
+                                                                          .existingData!
+                                                                          .entries)
+                                                                    Padding(
+                                                                      padding: const EdgeInsets.only(
+                                                                        bottom:
+                                                                            AppSizes.paddingXS,
+                                                                      ),
+                                                                      child: Text(
+                                                                        '${entry.key}: ${entry.value}',
+                                                                        style: TextStyle(
+                                                                          fontSize:
+                                                                              AppSizes.fontM,
+                                                                          color:
+                                                                              AppColors.textPrimary,
+                                                                        ),
+                                                                      ),
+                                                                    ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
                                               ],
                                             ),
                                           ),
