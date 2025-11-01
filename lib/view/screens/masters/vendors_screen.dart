@@ -30,18 +30,80 @@ class _VendorsScreenState extends ConsumerState<VendorsScreen> {
     if (_searchQuery.isEmpty) return filteredBySystem;
 
     final query = _searchQuery.toLowerCase();
-    return filteredBySystem.where((vendor) {
-      final name = vendor.name.toLowerCase();
-      final legalName = vendor.legalName?.toLowerCase() ?? '';
-      final phone = vendor.phone?.toLowerCase() ?? '';
-      final email = vendor.email?.toLowerCase() ?? '';
-      final gstNumber = vendor.gstNumber?.toLowerCase() ?? '';
-      return name.contains(query) ||
-          legalName.contains(query) ||
-          phone.contains(query) ||
-          email.contains(query) ||
-          gstNumber.contains(query);
-    }).toList();
+
+    // Score each vendor and filter
+    final scored = filteredBySystem
+        .map((vendor) {
+          final name = vendor.name.toLowerCase();
+          final legalName = vendor.legalName?.toLowerCase() ?? '';
+          final phone = vendor.phone?.toLowerCase() ?? '';
+          final email = vendor.email?.toLowerCase() ?? '';
+          final gstNumber = vendor.gstNumber?.toLowerCase() ?? '';
+
+          final nameScore = _fuzzyMatch(query, name);
+          final legalNameScore = _fuzzyMatch(query, legalName);
+          final phoneScore = _fuzzyMatch(query, phone);
+          final emailScore = _fuzzyMatch(query, email);
+          final gstScore = _fuzzyMatch(query, gstNumber);
+
+          final maxScore = [
+            nameScore,
+            legalNameScore,
+            phoneScore,
+            emailScore,
+            gstScore,
+          ].reduce((a, b) => a > b ? a : b);
+
+          return {'vendor': vendor, 'score': maxScore};
+        })
+        .where((item) => (item['score'] as double) > 0)
+        .toList();
+
+    // Sort by score descending
+    scored.sort(
+      (a, b) => (b['score'] as double).compareTo(a['score'] as double),
+    );
+
+    return scored.map((item) => item['vendor'] as Vendor).toList();
+  }
+
+  double _fuzzyMatch(String query, String text) {
+    if (text.isEmpty) return 0;
+    if (query.isEmpty) return 0;
+
+    // Exact match gets highest score
+    if (text.contains(query)) return 1.0;
+
+    // Calculate fuzzy score
+    int queryIndex = 0;
+    int lastMatchIndex = -1;
+    double score = 0;
+    int consecutiveMatches = 0;
+
+    for (int i = 0; i < text.length && queryIndex < query.length; i++) {
+      if (text[i] == query[queryIndex]) {
+        // Boost score for consecutive matches
+        if (i == lastMatchIndex + 1) {
+          consecutiveMatches++;
+          score += 1.0 + (consecutiveMatches * 0.5);
+        } else {
+          consecutiveMatches = 0;
+          score += 1.0;
+        }
+        lastMatchIndex = i;
+        queryIndex++;
+      }
+    }
+
+    // Return 0 if not all query characters found
+    if (queryIndex < query.length) return 0;
+
+    // Normalize score: penalize by text length and gap between matches
+    final matchRatio = queryIndex / query.length;
+    final lengthPenalty = query.length / text.length;
+    final gapPenalty = query.length / (lastMatchIndex + 1);
+
+    return score * matchRatio * lengthPenalty * gapPenalty;
   }
 
   @override

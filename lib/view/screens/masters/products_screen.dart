@@ -36,11 +36,87 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     if (_searchQuery.isEmpty) return products;
 
     final query = _searchQuery.toLowerCase();
-    return products.where((product) {
+
+    // Early exit optimization: if query is too short, use simple contains
+    if (query.length < 2) {
+      return products.where((product) {
+        final name = product.name.toLowerCase();
+        final partNumber = product.partNumber?.toLowerCase() ?? '';
+        return name.contains(query) || partNumber.contains(query);
+      }).toList();
+    }
+
+    // For larger datasets, use optimized fuzzy matching with early termination
+    final results = <Map<String, dynamic>>[];
+
+    for (final product in products) {
       final name = product.name.toLowerCase();
       final partNumber = product.partNumber?.toLowerCase() ?? '';
-      return name.contains(query) || partNumber.contains(query);
-    }).toList();
+
+      // Check exact matches first (highest priority)
+      if (name.contains(query) || partNumber.contains(query)) {
+        results.add({'product': product, 'score': 1.0});
+        continue;
+      }
+
+      // Fuzzy match on name and part number
+      final nameScore = _fuzzyMatchOptimized(query, name);
+      final partScore = _fuzzyMatchOptimized(query, partNumber);
+      final maxScore = nameScore > partScore ? nameScore : partScore;
+
+      if (maxScore > 0) {
+        results.add({'product': product, 'score': maxScore});
+      }
+
+      // Limit results to top 1000 for performance
+      if (results.length >= 1000) break;
+    }
+
+    // Sort by score descending, limit to top 500 results
+    results.sort(
+      (a, b) => (b['score'] as double).compareTo(a['score'] as double),
+    );
+
+    return results.take(500).map((item) => item['product'] as Product).toList();
+  }
+
+  double _fuzzyMatchOptimized(String query, String text) {
+    if (text.isEmpty || query.isEmpty) return 0;
+
+    // Early termination if text is too short
+    if (text.length < query.length) return 0;
+
+    int queryIndex = 0;
+    int lastMatchIndex = -1;
+    int consecutiveMatches = 0;
+    double score = 0;
+
+    // Find all query characters in order
+    for (int i = 0; i < text.length && queryIndex < query.length; i++) {
+      if (text[i] == query[queryIndex]) {
+        // Boost for consecutive matches
+        if (i == lastMatchIndex + 1) {
+          consecutiveMatches++;
+          score += 1.5 + (consecutiveMatches * 0.3);
+        } else {
+          consecutiveMatches = 0;
+          score += 1.0;
+        }
+        lastMatchIndex = i;
+        queryIndex++;
+      }
+    }
+
+    // Return 0 if not all characters found
+    if (queryIndex < query.length) return 0;
+
+    // Optimize scoring: favor matches near start of text
+    final startBonus = lastMatchIndex < query.length * 2 ? 0.2 : 0;
+
+    // Simple normalized score
+    final baseScore = score / text.length;
+
+    return baseScore + startBonus;
   }
 
   @override
