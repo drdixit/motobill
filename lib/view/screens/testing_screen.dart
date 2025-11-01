@@ -4,6 +4,8 @@ import 'package:excel/excel.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
+import 'package:path/path.dart' as path;
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
 import '../../core/providers/database_provider.dart';
@@ -52,6 +54,42 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
   // Map of sheetName -> rows (each row is List<String>)
   final Map<String, List<List<String>>> _sheets = {};
   String? _fileName;
+
+  Future<void> _downloadTemplate() async {
+    try {
+      // Load the template from assets
+      final byteData = await rootBundle.load('assets/hsn_codes.xlsx');
+      final bytes = byteData.buffer.asUint8List();
+
+      // Let user pick a save location
+      final result = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save HSN Code Template',
+        fileName: 'hsn_code_template.xlsx',
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+      );
+
+      if (result == null) return;
+
+      // Write the file
+      final file = File(result);
+      await file.writeAsBytes(bytes);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Template downloaded to: ${path.basename(result)}'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to download template: $e')),
+        );
+      }
+    }
+  }
 
   // UI date formatting helper: MM/DD/YYYY
   String _formatDateForUi(dynamic d) {
@@ -664,6 +702,16 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
             const SizedBox(height: AppSizes.paddingL),
             Row(
               children: [
+                ElevatedButton.icon(
+                  onPressed: _downloadTemplate,
+                  icon: const Icon(Icons.download),
+                  label: const Text('Download Template'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.white,
+                  ),
+                ),
+                const SizedBox(width: AppSizes.paddingM),
                 ElevatedButton.icon(
                   onPressed: _pickAndLoadExcel,
                   icon: const Icon(Icons.upload_file),

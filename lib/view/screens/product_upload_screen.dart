@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:excel/excel.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
+import 'package:path/path.dart' as path;
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
 import '../../core/providers/database_provider.dart';
@@ -62,6 +64,42 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
   String? _fileName;
   final Map<String, List<List<String>>> _sheets = {};
   final List<_ProductProposal> _proposals = [];
+
+  Future<void> _downloadTemplate() async {
+    try {
+      // Load the template from assets
+      final byteData = await rootBundle.load('assets/products.xlsx');
+      final bytes = byteData.buffer.asUint8List();
+
+      // Let user pick a save location
+      final result = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Product Template',
+        fileName: 'product_template.xlsx',
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+      );
+
+      if (result == null) return;
+
+      // Write the file
+      final file = File(result);
+      await file.writeAsBytes(bytes);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Template downloaded to: ${path.basename(result)}'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to download template: $e')),
+        );
+      }
+    }
+  }
 
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles(
@@ -602,6 +640,16 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           Row(
             children: [
               ElevatedButton.icon(
+                onPressed: _downloadTemplate,
+                icon: const Icon(Icons.download),
+                label: const Text('Download Template'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.white,
+                ),
+              ),
+              const SizedBox(width: AppSizes.paddingM),
+              ElevatedButton.icon(
                 onPressed: _pickFile,
                 icon: const Icon(Icons.upload_file),
                 label: const Text('Upload .xlsx'),
@@ -850,6 +898,8 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                                   });
                                                 }
                                               : null,
+                                          activeColor: AppColors.primary,
+                                          checkColor: AppColors.white,
                                         ),
                                         title: Row(
                                           children: [
