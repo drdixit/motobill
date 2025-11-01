@@ -992,6 +992,32 @@ extension on PosCart {
                       onPressed: state.selectedCustomer == null
                           ? null
                           : () async {
+                              // Show confirmation dialog
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('Confirm Checkout'),
+                                  content: const Text(
+                                    'Are you sure you want to proceed with checkout?',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, false),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, true),
+                                      child: const Text('Confirm'),
+                                    ),
+                                  ],
+                                ),
+                              );
+
+                              // If user didn't confirm, return
+                              if (confirm != true) return;
+
                               final billNumber = await viewModel.checkout();
                               if (billNumber != null && context.mounted) {
                                 // Invalidate bills list so it refreshes in Sales screen
