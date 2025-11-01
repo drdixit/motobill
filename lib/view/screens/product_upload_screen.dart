@@ -67,6 +67,9 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
   String? _fileName;
   final Map<String, List<List<String>>> _sheets = {};
   final List<_ProductProposal> _proposals = [];
+  bool _isProcessing = false;
+  double _progress = 0.0;
+  String _progressMessage = '';
 
   Future<void> _downloadTemplate() async {
     try {
@@ -174,6 +177,11 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         _fileName = result.files.single.name;
       });
       // Prepare proposals for preview
+      setState(() {
+        _isProcessing = true;
+        _progress = 0.0;
+        _progressMessage = 'Analyzing products...';
+      });
       await _prepareProductProposalsFromLoaded();
     } catch (e) {
       if (mounted) {
@@ -191,7 +199,24 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
     if (_sheets.isEmpty) return;
     final first = _sheets.entries.first.value;
 
+    setState(() {
+      _isProcessing = true;
+      _progress = 0.0;
+      _progressMessage = 'Analyzing products...';
+    });
+
+    final totalRows = first.length;
     for (var rowIndex = 0; rowIndex < first.length; rowIndex++) {
+      // Update progress every 100 rows
+      if (rowIndex % 100 == 0) {
+        setState(() {
+          _progress = rowIndex / totalRows;
+          _progressMessage = 'Analyzing products... ($rowIndex/$totalRows)';
+        });
+        // Allow UI to update
+        await Future.delayed(Duration.zero);
+      }
+
       final row = first[rowIndex];
       // first row is header; skip it
       if (rowIndex == 0) continue;
@@ -211,10 +236,13 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
       final includeRaw = row.length > 5 ? row[5] : null;
       final includeStr = includeRaw == null ? '' : includeRaw.toString().trim();
       final includeProvided = includeStr.isNotEmpty;
+      // Parse include_tax: YES/Yes/yes/Y/y = true, NO/No/no/N/n = false
       final includeTax =
           includeProvided &&
           (includeStr.toLowerCase() == 'yes' ||
-              includeStr.toLowerCase().startsWith('y'));
+              includeStr.toLowerCase() == 'y' ||
+              includeStr.toLowerCase() == '1' ||
+              includeStr.toLowerCase() == 'true');
       final mrpValue = row.length > 6 ? parseDouble(row[6]) : null;
       final mrp = (mrpValue != null && mrpValue > 0) ? mrpValue : null;
 
@@ -515,10 +543,20 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
       _proposals.add(p);
     }
 
-    setState(() {});
+    setState(() {
+      _isProcessing = false;
+      _progress = 1.0;
+      _progressMessage = '';
+    });
   }
 
   Future<void> _applySelectedProductProposals() async {
+    setState(() {
+      _isProcessing = true;
+      _progress = 0.0;
+      _progressMessage = 'Preparing to save products...';
+    });
+
     final rawToApply = _proposals.where((p) => p.approved && p.valid).toList();
     // Ensure at most one proposal per product is applied (defensive).
     // Prefer deduping by part_number (case-insensitive) if present, otherwise by name.
@@ -539,8 +577,18 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
 
     final db = await ref.read(databaseProvider);
     try {
+      final totalToApply = toApply.length;
       await db.transaction((txn) async {
-        for (final p in toApply) {
+        for (var i = 0; i < toApply.length; i++) {
+          // Update progress every 20 products
+          if (i % 20 == 0) {
+            setState(() {
+              _progress = i / totalToApply;
+              _progressMessage = 'Saving products... ($i/$totalToApply)';
+            });
+          }
+
+          final p = toApply[i];
           // Require HSN to exist (we do not auto-create HSNs during product import)
           if (p.hsnCodeId == null) {
             throw Exception('HSN code missing for product ${p.partNumber}');
@@ -633,9 +681,17 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           _fileName = null;
           _sheets.clear();
           _proposals.clear();
+          _isProcessing = false;
+          _progress = 0.0;
+          _progressMessage = '';
         });
       }
     } catch (e) {
+      setState(() {
+        _isProcessing = false;
+        _progress = 0.0;
+        _progressMessage = '';
+      });
       if (mounted)
         ScaffoldMessenger.of(
           context,
@@ -684,7 +740,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                   ),
                   const SizedBox(width: AppSizes.paddingM),
                   ElevatedButton.icon(
-                    onPressed: _pickFile,
+                    onPressed: _isProcessing ? null : _pickFile,
                     icon: const Icon(Icons.upload_file),
                     label: const Text('Upload .xlsx'),
                     style: ElevatedButton.styleFrom(
@@ -696,13 +752,15 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                   const SizedBox(width: AppSizes.paddingM),
                   if (_sheets.isNotEmpty)
                     ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          _fileName = null;
-                          _sheets.clear();
-                          _proposals.clear();
-                        });
-                      },
+                      onPressed: _isProcessing
+                          ? null
+                          : () {
+                              setState(() {
+                                _fileName = null;
+                                _sheets.clear();
+                                _proposals.clear();
+                              });
+                            },
                       style: ElevatedButton.styleFrom(
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(6),
@@ -715,6 +773,72 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
             ],
           ),
           const SizedBox(height: AppSizes.paddingL),
+          if (_isProcessing)
+            Card(
+              color: AppColors.white,
+              elevation: 0,
+              margin: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: BorderSide(color: AppColors.border, width: 1),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(AppSizes.paddingL),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        const SizedBox(width: AppSizes.paddingM),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _progressMessage,
+                                style: TextStyle(
+                                  fontSize: AppSizes.fontM,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: AppSizes.paddingS),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: LinearProgressIndicator(
+                                  value: _progress,
+                                  minHeight: 8,
+                                  backgroundColor: AppColors.border,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: AppSizes.paddingM),
+                        Text(
+                          '${(_progress * 100).toStringAsFixed(0)}%',
+                          style: TextStyle(
+                            fontSize: AppSizes.fontM,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          if (_isProcessing) const SizedBox(height: AppSizes.paddingL),
           if (_sheets.isNotEmpty)
             // Show first sheet content in a scrollable DataTable and proposals
             // Make this card take the remaining available height so the
@@ -754,38 +878,43 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                           Row(
                             children: [
                               ElevatedButton(
-                                onPressed: () {
-                                  // Approve all valid proposals but ensure at most one per name
-                                  // (case-insensitive). When one proposal for a name is
-                                  // approved, other proposals with the same name are left
-                                  // unapproved and disabled for selection.
-                                  final approvedFor = <String, bool>{};
-                                  setState(() {
-                                    // reset approvals
-                                    for (final p in _proposals) {
-                                      p.approved = false;
-                                    }
-                                    // Approve first valid proposal per name AND per part-number (case-insensitive)
-                                    final approvedForPart = <String, bool>{};
-                                    for (final p in _proposals) {
-                                      if (!p.valid) continue;
-                                      final nameKey = p.name.toLowerCase();
-                                      final partKey =
-                                          p.partNumber.trim().isNotEmpty
-                                          ? p.partNumber.toLowerCase()
-                                          : null;
-                                      if (approvedFor[nameKey] == true)
-                                        continue;
-                                      if (partKey != null &&
-                                          approvedForPart[partKey] == true)
-                                        continue;
-                                      p.approved = true;
-                                      approvedFor[nameKey] = true;
-                                      if (partKey != null)
-                                        approvedForPart[partKey] = true;
-                                    }
-                                  });
-                                },
+                                onPressed: _isProcessing
+                                    ? null
+                                    : () {
+                                        // Approve all valid proposals but ensure at most one per name
+                                        // (case-insensitive). When one proposal for a name is
+                                        // approved, other proposals with the same name are left
+                                        // unapproved and disabled for selection.
+                                        final approvedFor = <String, bool>{};
+                                        setState(() {
+                                          // reset approvals
+                                          for (final p in _proposals) {
+                                            p.approved = false;
+                                          }
+                                          // Approve first valid proposal per name AND per part-number (case-insensitive)
+                                          final approvedForPart =
+                                              <String, bool>{};
+                                          for (final p in _proposals) {
+                                            if (!p.valid) continue;
+                                            final nameKey = p.name
+                                                .toLowerCase();
+                                            final partKey =
+                                                p.partNumber.trim().isNotEmpty
+                                                ? p.partNumber.toLowerCase()
+                                                : null;
+                                            if (approvedFor[nameKey] == true)
+                                              continue;
+                                            if (partKey != null &&
+                                                approvedForPart[partKey] ==
+                                                    true)
+                                              continue;
+                                            p.approved = true;
+                                            approvedFor[nameKey] = true;
+                                            if (partKey != null)
+                                              approvedForPart[partKey] = true;
+                                          }
+                                        });
+                                      },
                                 style: ElevatedButton.styleFrom(
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(6),
@@ -795,7 +924,9 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                               ),
                               const SizedBox(width: AppSizes.paddingM),
                               ElevatedButton(
-                                onPressed: _applySelectedProductProposals,
+                                onPressed: _isProcessing
+                                    ? null
+                                    : _applySelectedProductProposals,
                                 style: ElevatedButton.styleFrom(
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(6),
