@@ -41,6 +41,7 @@ class _ProductProposal {
   bool approved = false;
   // display fields for DB / planned values
   Map<String, dynamic>? existingData;
+  String? existingUqcCode; // Store UQC code for existing product display
   int? plannedSubCategoryId;
   String? plannedSubCategoryName;
   int? plannedManufacturerId;
@@ -353,6 +354,22 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         if (prodRows.isNotEmpty) {
           p.existingProductId = prodRows.first['id'] as int;
           p.existingData = prodRows.first.cast<String, dynamic>();
+
+          // Fetch UQC code for existing product
+          try {
+            final uqcId = p.existingData!['uqc_id'];
+            if (uqcId != null) {
+              final uqcRows = await db.rawQuery(
+                'SELECT code FROM uqcs WHERE id = ? LIMIT 1',
+                [uqcId],
+              );
+              if (uqcRows.isNotEmpty) {
+                p.existingUqcCode = uqcRows.first['code']?.toString();
+              }
+            }
+          } catch (_) {
+            // ignore lookup failures
+          }
         }
 
         // find hsn code id
@@ -481,11 +498,11 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           }
           if (p.plannedUqcId != null) {
             final rows = await db.rawQuery(
-              'SELECT name FROM uqcs WHERE id = ? LIMIT 1',
+              'SELECT code FROM uqcs WHERE id = ? LIMIT 1',
               [p.plannedUqcId],
             );
             if (rows.isNotEmpty)
-              p.plannedUqcName = rows.first['name']?.toString();
+              p.plannedUqcName = rows.first['code']?.toString();
           }
         } catch (_) {
           // ignore lookup failures - display IDs if names not found
@@ -1116,8 +1133,6 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                                               AppSizes.fontM,
                                                           color: AppColors
                                                               .textPrimary,
-                                                          fontWeight:
-                                                              FontWeight.w600,
                                                         ),
                                                       ),
                                                   ],
@@ -1268,7 +1283,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                                                       .paddingXS,
                                                                 ),
                                                                 Text(
-                                                                  'UQC: ${p.plannedUqcName ?? p.plannedUqcId}',
+                                                                  'UQC Code: ${p.plannedUqcName ?? p.plannedUqcId}',
                                                                   style: TextStyle(
                                                                     fontSize:
                                                                         AppSizes
@@ -1281,6 +1296,24 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                                                   height: AppSizes
                                                                       .paddingXS,
                                                                 ),
+                                                                if (p.mrp !=
+                                                                    null)
+                                                                  Text(
+                                                                    'MRP: ${p.mrp!.toStringAsFixed(2)}',
+                                                                    style: TextStyle(
+                                                                      fontSize:
+                                                                          AppSizes
+                                                                              .fontM,
+                                                                      color: AppColors
+                                                                          .textPrimary,
+                                                                    ),
+                                                                  ),
+                                                                if (p.mrp !=
+                                                                    null)
+                                                                  const SizedBox(
+                                                                    height: AppSizes
+                                                                        .paddingXS,
+                                                                  ),
                                                                 Text(
                                                                   'isTaxable: ${p.plannedIsTaxable}  isEnabled: ${p.plannedIsEnabled}  negativeAllow: ${p.plannedNegativeAllow}',
                                                                   style: TextStyle(
@@ -1351,13 +1384,33 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                                                       in p
                                                                           .existingData!
                                                                           .entries)
+                                                                    if (entry
+                                                                            .key !=
+                                                                        'uqc_id')
+                                                                      Padding(
+                                                                        padding: const EdgeInsets.only(
+                                                                          bottom:
+                                                                              AppSizes.paddingXS,
+                                                                        ),
+                                                                        child: Text(
+                                                                          '${entry.key}: ${entry.value}',
+                                                                          style: TextStyle(
+                                                                            fontSize:
+                                                                                AppSizes.fontM,
+                                                                            color:
+                                                                                AppColors.textPrimary,
+                                                                          ),
+                                                                        ),
+                                                                      ),
+                                                                  if (p.existingUqcCode !=
+                                                                      null)
                                                                     Padding(
                                                                       padding: const EdgeInsets.only(
                                                                         bottom:
                                                                             AppSizes.paddingXS,
                                                                       ),
                                                                       child: Text(
-                                                                        '${entry.key}: ${entry.value}',
+                                                                        'uqc_code: ${p.existingUqcCode}',
                                                                         style: TextStyle(
                                                                           fontSize:
                                                                               AppSizes.fontM,
