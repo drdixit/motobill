@@ -77,9 +77,9 @@ class PosProductCard extends StatelessWidget {
                               ),
                             ),
 
-                          // Price
+                          // Price (with tax for taxable products)
                           Text(
-                            '₹${product.sellingPrice.toStringAsFixed(0)}',
+                            _getPriceText(),
                             style: TextStyle(
                               fontSize: AppSizes.fontM,
                               fontWeight: FontWeight.w600,
@@ -144,6 +144,18 @@ class PosProductCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _getPriceText() {
+    if (product.isTaxable) {
+      // Calculate price with tax (CGST + SGST)
+      final cgstRate = product.cgstRate ?? 0.0;
+      final sgstRate = product.sgstRate ?? 0.0;
+      final totalTaxRate = cgstRate + sgstRate;
+      final priceWithTax = product.sellingPrice * (1 + totalTaxRate / 100);
+      return '₹${priceWithTax.toStringAsFixed(0)}';
+    }
+    return '₹${product.sellingPrice.toStringAsFixed(0)}';
   }
 
   Widget _buildProductImage() {

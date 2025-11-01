@@ -1012,7 +1012,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                       Expanded(
                                         flex: 1,
                                         child: const Text(
-                                          'Incl Tax',
+                                          'Included Tax',
                                           style: TextStyle(
                                             fontWeight: FontWeight.w600,
                                           ),
@@ -1021,7 +1021,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                       Expanded(
                                         flex: 1,
                                         child: const Text(
-                                          'Store Cost (excl)',
+                                          'Store Cost',
                                           style: TextStyle(
                                             fontWeight: FontWeight.w600,
                                           ),
@@ -1030,7 +1030,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                       Expanded(
                                         flex: 1,
                                         child: const Text(
-                                          'Store Sell (excl)',
+                                          'Store Sell',
                                           style: TextStyle(
                                             fontWeight: FontWeight.w600,
                                           ),

@@ -713,7 +713,7 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text(
-                  'Testing',
+                  'HSN Upload',
                   style: TextStyle(
                     fontSize: AppSizes.fontXXL,
                     fontWeight: FontWeight.w600,

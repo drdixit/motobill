@@ -57,7 +57,11 @@ class AppSidebar extends StatelessWidget {
                   icon: Icons.settings,
                   title: 'Settings',
                 ),
-                _buildMenuItem(index: 5, icon: Icons.science, title: 'Testing'),
+                _buildMenuItem(
+                  index: 5,
+                  icon: Icons.science,
+                  title: 'HSN Upload',
+                ),
                 _buildMenuItem(
                   index: 6,
                   icon: Icons.cloud_upload,
