@@ -222,7 +222,6 @@ class PosViewModel extends StateNotifier<PosState> {
       selectedMainCategoryId: categoryId,
       clearMainCategory: categoryId == null,
       clearSubCategory: true,
-      isLoading: true,
     );
 
     try {
@@ -233,14 +232,12 @@ class PosViewModel extends StateNotifier<PosState> {
         );
       }
 
-      state = state.copyWith(subCategories: subCategories, isLoading: false);
+      state = state.copyWith(subCategories: subCategories);
 
-      await _applyFilters();
+      // Apply filters in-memory (no database call)
+      _applyFiltersInMemory();
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: 'Failed to load sub categories: $e',
-      );
+      state = state.copyWith(error: 'Failed to load sub categories: $e');
     }
   }
 
@@ -254,7 +251,8 @@ class PosViewModel extends StateNotifier<PosState> {
       selectedSubCategoryId: subCategoryId,
       clearSubCategory: subCategoryId == null,
     );
-    _applyFilters();
+    // Apply filters in-memory (no database call)
+    _applyFiltersInMemory();
   }
 
   void selectManufacturer(int? manufacturerId) {
@@ -268,12 +266,14 @@ class PosViewModel extends StateNotifier<PosState> {
       selectedManufacturerId: manufacturerId,
       clearManufacturer: manufacturerId == null,
     );
-    _applyFilters();
+    // Apply filters in-memory (no database call)
+    _applyFiltersInMemory();
   }
 
   void setSearchQuery(String query) {
     state = state.copyWith(searchQuery: query);
-    _applySearchFilter();
+    // Apply filters in-memory (no database call)
+    _applyFiltersInMemory();
   }
 
   void clearFilters() {
@@ -284,7 +284,8 @@ class PosViewModel extends StateNotifier<PosState> {
       searchQuery: '',
       subCategories: [],
     );
-    _applyFilters();
+    // Apply filters in-memory (no database call)
+    _applyFiltersInMemory();
   }
 
   /// Fuzzy search helper that checks if searchText matches targetText
@@ -324,69 +325,47 @@ class PosViewModel extends StateNotifier<PosState> {
     return false;
   }
 
-  /// Apply search filter in-memory without querying database
-  void _applySearchFilter() {
-    // Get the currently filtered products (after category/manufacturer filters)
-    // and apply search on them in-memory
-    final baseProducts = state.allProducts.where((product) {
-      // Apply category filters
-      if (state.selectedMainCategoryId != null) {
-        // Check if product belongs to selected main category
-        final matchesMain = state.subCategories.any(
+  /// Apply all filters (category, manufacturer, search) in-memory
+  /// This method does NOT query the database - it filters allProducts in-memory
+  void _applyFiltersInMemory() {
+    // Start with all products
+    var filteredProducts = state.allProducts;
+
+    // Apply main category filter
+    if (state.selectedMainCategoryId != null) {
+      filteredProducts = filteredProducts.where((product) {
+        // Check if product belongs to selected main category via sub-category
+        return state.subCategories.any(
           (sub) =>
               sub.mainCategoryId == state.selectedMainCategoryId &&
               sub.id == product.subCategoryId,
         );
-        if (!matchesMain) return false;
-      }
-
-      if (state.selectedSubCategoryId != null &&
-          product.subCategoryId != state.selectedSubCategoryId) {
-        return false;
-      }
-
-      if (state.selectedManufacturerId != null &&
-          product.manufacturerId != state.selectedManufacturerId) {
-        return false;
-      }
-
-      return true;
-    }).toList();
-
-    // Apply search filter in memory
-    final filteredProducts = state.searchQuery.isEmpty
-        ? baseProducts
-        : baseProducts
-              .where((p) => _matchesSearchQuery(p, state.searchQuery))
-              .toList();
-
-    state = state.copyWith(filteredProducts: filteredProducts);
-  }
-
-  Future<void> _applyFilters() async {
-    if (_repository == null) return;
-
-    state = state.copyWith(isLoading: true);
-    try {
-      // Get products from database with category/manufacturer filters
-      final products = await _repository.getProductsForPos(
-        mainCategoryId: state.selectedMainCategoryId,
-        subCategoryId: state.selectedSubCategoryId,
-        manufacturerId: state.selectedManufacturerId,
-        searchQuery: null, // Don't use DB search, we do it in-memory
-      );
-
-      // Update allProducts with filtered results from DB
-      state = state.copyWith(allProducts: products, isLoading: false);
-
-      // Now apply search filter in-memory
-      _applySearchFilter();
-    } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: 'Failed to filter products: $e',
-      );
+      }).toList();
     }
+
+    // Apply sub-category filter
+    if (state.selectedSubCategoryId != null) {
+      filteredProducts = filteredProducts.where((product) {
+        return product.subCategoryId == state.selectedSubCategoryId;
+      }).toList();
+    }
+
+    // Apply manufacturer filter
+    if (state.selectedManufacturerId != null) {
+      filteredProducts = filteredProducts.where((product) {
+        return product.manufacturerId == state.selectedManufacturerId;
+      }).toList();
+    }
+
+    // Apply search query filter
+    if (state.searchQuery.isNotEmpty) {
+      filteredProducts = filteredProducts.where((product) {
+        return _matchesSearchQuery(product, state.searchQuery);
+      }).toList();
+    }
+
+    // Update state with filtered products
+    state = state.copyWith(filteredProducts: filteredProducts);
   }
 
   void addToCart(PosProduct product) {
