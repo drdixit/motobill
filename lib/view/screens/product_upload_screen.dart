@@ -675,7 +675,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Please select at least one valid product to apply'),
-            backgroundColor: Colors.orange,
+            backgroundColor: Colors.grey,
           ),
         );
       }
