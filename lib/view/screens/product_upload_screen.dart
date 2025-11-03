@@ -9,6 +9,8 @@ import 'package:path/path.dart' as path;
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
 import '../../core/providers/database_provider.dart';
+import '../../model/manufacturer.dart';
+import '../../repository/manufacturer_repository.dart';
 
 class ProductUploadScreen extends ConsumerStatefulWidget {
   const ProductUploadScreen({super.key});
@@ -28,6 +30,7 @@ class _ProductProposal {
   final bool includeTax; // whether provided prices include tax (YES/NO column)
   bool includeProvided =
       false; // whether include_tax column was provided in the sheet
+  final String manufacturerNameFromExcel; // manufacturer name from Excel
 
   // computed
   int? existingProductId;
@@ -60,6 +63,7 @@ class _ProductProposal {
     required this.sellingPrice,
     this.mrp,
     required this.includeTax,
+    this.manufacturerNameFromExcel = '',
   });
 }
 
@@ -70,6 +74,29 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
   bool _isProcessing = false;
   double _progress = 0.0;
   String _progressMessage = '';
+
+  // Manufacturer dropdown state
+  List<Manufacturer> _manufacturers = [];
+  int _selectedDefaultManufacturerId = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadManufacturers();
+  }
+
+  Future<void> _loadManufacturers() async {
+    try {
+      final db = await ref.read(databaseProvider);
+      final repository = ManufacturerRepository(db);
+      final manufacturers = await repository.getAllManufacturers();
+      setState(() {
+        _manufacturers = manufacturers;
+      });
+    } catch (e) {
+      // Handle error silently
+    }
+  }
 
   Future<void> _downloadTemplate() async {
     try {
@@ -245,6 +272,8 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
               includeStr.toLowerCase() == 'true');
       final mrpValue = row.length > 6 ? parseDouble(row[6]) : null;
       final mrp = (mrpValue != null && mrpValue > 0) ? mrpValue : null;
+      // Read manufacturer name from column H (index 7)
+      final manufacturerName = row.length > 7 ? row[7].trim() : '';
 
       // require name and hsn (part_number is optional)
       if (name.isEmpty || hsn.isEmpty) {
@@ -257,6 +286,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           sellingPrice: sell,
           mrp: mrp,
           includeTax: includeTax,
+          manufacturerNameFromExcel: manufacturerName,
         );
         // ensure computed values default to provided values so UI is consistent
         p.computedCostExcl = p.costPrice;
@@ -295,6 +325,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           sellingPrice: sell,
           mrp: mrp,
           includeTax: includeTax,
+          manufacturerNameFromExcel: manufacturerName,
         );
         p.includeProvided = includeProvided;
         // keep provided values visible
@@ -333,6 +364,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           sellingPrice: sell,
           mrp: mrp,
           includeTax: includeTax,
+          manufacturerNameFromExcel: manufacturerName,
         );
         p.includeProvided = includeProvided;
         p.computedCostExcl = p.costPrice;
@@ -365,6 +397,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         sellingPrice: sell,
         mrp: mrp,
         includeTax: includeTax,
+        manufacturerNameFromExcel: manufacturerName,
       );
       p.includeProvided = includeProvided;
 
@@ -482,9 +515,28 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           p.plannedSubCategoryId =
               (p.existingData!['sub_category_id'] as num?)?.toInt() ??
               defaultSubCategoryId;
-          p.plannedManufacturerId =
-              (p.existingData!['manufacturer_id'] as num?)?.toInt() ??
-              defaultManufacturerId;
+          // For existing products, also try to match manufacturer from Excel if provided
+          if (p.manufacturerNameFromExcel.isNotEmpty) {
+            final matchedManufacturer = _manufacturers.firstWhere(
+              (m) =>
+                  m.name.toLowerCase() ==
+                  p.manufacturerNameFromExcel.toLowerCase(),
+              orElse: () => _manufacturers.firstWhere(
+                (m) =>
+                    m.id ==
+                    ((p.existingData!['manufacturer_id'] as num?)?.toInt() ??
+                        defaultManufacturerId),
+                orElse: () => _manufacturers.first,
+              ),
+            );
+            p.plannedManufacturerId =
+                matchedManufacturer.id ?? defaultManufacturerId;
+          } else {
+            // Use existing manufacturer or dropdown default
+            p.plannedManufacturerId =
+                (p.existingData!['manufacturer_id'] as num?)?.toInt() ??
+                _selectedDefaultManufacturerId;
+          }
           p.plannedUqcId =
               (p.existingData!['uqc_id'] as num?)?.toInt() ?? defaultUqcId;
           p.plannedIsTaxable =
@@ -499,7 +551,24 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         } else {
           // use defaults for new inserts
           p.plannedSubCategoryId = defaultSubCategoryId;
-          p.plannedManufacturerId = defaultManufacturerId;
+          // Match manufacturer from Excel or use dropdown default
+          if (p.manufacturerNameFromExcel.isNotEmpty) {
+            // Try to match manufacturer case-insensitively
+            final matchedManufacturer = _manufacturers.firstWhere(
+              (m) =>
+                  m.name.toLowerCase() ==
+                  p.manufacturerNameFromExcel.toLowerCase(),
+              orElse: () => _manufacturers.firstWhere(
+                (m) => m.id == _selectedDefaultManufacturerId,
+                orElse: () => _manufacturers.first,
+              ),
+            );
+            p.plannedManufacturerId =
+                matchedManufacturer.id ?? defaultManufacturerId;
+          } else {
+            // Use dropdown selected manufacturer
+            p.plannedManufacturerId = _selectedDefaultManufacturerId;
+          }
           p.plannedUqcId = defaultUqcId;
           p.plannedIsTaxable = defaultIsTaxable;
           p.plannedIsEnabled = defaultIsEnabled;
@@ -597,10 +666,12 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
 
           // Defaults per user instructions
           const defaultSubCategoryId = 1; // assumption: exists
-          const defaultManufacturerId = 1; // assumption: exists
           const defaultUqcId = 9; // as requested
           const defaultIsTaxable = 0; // 0
           const defaultIsEnabled = 1;
+
+          // Use planned manufacturer ID (resolved from Excel or dropdown)
+          final manufacturerId = p.plannedManufacturerId ?? 1;
 
           final existing = await txn.rawQuery(
             'SELECT * FROM products WHERE LOWER(part_number) = LOWER(?) AND is_deleted = 0 LIMIT 1',
@@ -632,7 +703,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                 sellToStore,
                 mrpToStore,
                 defaultSubCategoryId,
-                defaultManufacturerId,
+                manufacturerId,
                 defaultIsTaxable,
                 id,
               ],
@@ -662,7 +733,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                 sellToStore,
                 mrpToStore,
                 defaultSubCategoryId,
-                defaultManufacturerId,
+                manufacturerId,
                 defaultIsTaxable,
                 defaultIsEnabled,
                 0, // negative_allow default false
@@ -726,6 +797,50 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
               ),
               Row(
                 children: [
+                  // Show manufacturer dropdown only if Excel is uploaded
+                  if (_sheets.isNotEmpty) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSizes.paddingM,
+                        vertical: AppSizes.paddingXS,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppColors.border),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Default Manufacturer:',
+                            style: TextStyle(
+                              fontSize: AppSizes.fontM,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(width: AppSizes.paddingS),
+                          DropdownButton<int>(
+                            value: _selectedDefaultManufacturerId,
+                            underline: const SizedBox(),
+                            items: _manufacturers.map((manufacturer) {
+                              return DropdownMenuItem<int>(
+                                value: manufacturer.id,
+                                child: Text(manufacturer.name),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() {
+                                  _selectedDefaultManufacturerId = value;
+                                });
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: AppSizes.paddingM),
+                  ],
                   ElevatedButton.icon(
                     onPressed: _downloadTemplate,
                     icon: const Icon(Icons.download),
