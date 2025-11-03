@@ -98,6 +98,25 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
     }
   }
 
+  // Helper method to resolve manufacturer ID from Excel name or use dropdown default
+  int _resolveManufacturerId(String manufacturerNameFromExcel) {
+    if (manufacturerNameFromExcel.isEmpty) {
+      return _selectedDefaultManufacturerId;
+    }
+
+    // Try to match manufacturer case-insensitively
+    final matchedManufacturer = _manufacturers.firstWhere(
+      (m) => m.name.toLowerCase() == manufacturerNameFromExcel.toLowerCase(),
+      orElse: () => _manufacturers.firstWhere(
+        (m) => m.id == _selectedDefaultManufacturerId,
+        orElse: () => _manufacturers.isNotEmpty
+            ? _manufacturers.first
+            : Manufacturer(id: 1, name: 'Default'),
+      ),
+    );
+    return matchedManufacturer.id ?? 1;
+  }
+
   Future<void> _downloadTemplate() async {
     try {
       // Load the template from assets
@@ -299,13 +318,12 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         p.invalidReason = missing.join(', ');
         // set planned defaults so UI doesn't show nulls
         const defaultSubCategoryId = 1;
-        const defaultManufacturerId = 1;
         const defaultUqcId = 9;
         const defaultIsTaxable = 0;
         const defaultIsEnabled = 1;
         const defaultNegativeAllow = 0;
         p.plannedSubCategoryId = defaultSubCategoryId;
-        p.plannedManufacturerId = defaultManufacturerId;
+        p.plannedManufacturerId = _resolveManufacturerId(manufacturerName);
         p.plannedUqcId = defaultUqcId;
         p.plannedIsTaxable = defaultIsTaxable;
         p.plannedIsEnabled = defaultIsEnabled;
@@ -339,13 +357,12 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         p.invalidReason = missingPrice.join(', ');
         // set planned defaults to avoid nulls in UI
         const defaultSubCategoryId = 1;
-        const defaultManufacturerId = 1;
         const defaultUqcId = 9;
         const defaultIsTaxable = 0;
         const defaultIsEnabled = 1;
         const defaultNegativeAllow = 0;
         p.plannedSubCategoryId = defaultSubCategoryId;
-        p.plannedManufacturerId = defaultManufacturerId;
+        p.plannedManufacturerId = _resolveManufacturerId(manufacturerName);
         p.plannedUqcId = defaultUqcId;
         p.plannedIsTaxable = defaultIsTaxable;
         p.plannedIsEnabled = defaultIsEnabled;
@@ -374,13 +391,12 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         p.invalidReason = 'include_tax';
         // set planned defaults to avoid null UI values
         const defaultSubCategoryId = 1;
-        const defaultManufacturerId = 1;
         const defaultUqcId = 9;
         const defaultIsTaxable = 0;
         const defaultIsEnabled = 1;
         const defaultNegativeAllow = 0;
         p.plannedSubCategoryId = defaultSubCategoryId;
-        p.plannedManufacturerId = defaultManufacturerId;
+        p.plannedManufacturerId = _resolveManufacturerId(manufacturerName);
         p.plannedUqcId = defaultUqcId;
         p.plannedIsTaxable = defaultIsTaxable;
         p.plannedIsEnabled = defaultIsEnabled;
@@ -504,7 +520,6 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         }
         // For display: planned DB values for new inserts or existing values
         const defaultSubCategoryId = 1;
-        const defaultManufacturerId = 1;
         const defaultUqcId = 9;
         const defaultIsTaxable = 0;
         const defaultIsEnabled = 1;
@@ -515,28 +530,10 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           p.plannedSubCategoryId =
               (p.existingData!['sub_category_id'] as num?)?.toInt() ??
               defaultSubCategoryId;
-          // For existing products, also try to match manufacturer from Excel if provided
-          if (p.manufacturerNameFromExcel.isNotEmpty) {
-            final matchedManufacturer = _manufacturers.firstWhere(
-              (m) =>
-                  m.name.toLowerCase() ==
-                  p.manufacturerNameFromExcel.toLowerCase(),
-              orElse: () => _manufacturers.firstWhere(
-                (m) =>
-                    m.id ==
-                    ((p.existingData!['manufacturer_id'] as num?)?.toInt() ??
-                        defaultManufacturerId),
-                orElse: () => _manufacturers.first,
-              ),
-            );
-            p.plannedManufacturerId =
-                matchedManufacturer.id ?? defaultManufacturerId;
-          } else {
-            // Use existing manufacturer or dropdown default
-            p.plannedManufacturerId =
-                (p.existingData!['manufacturer_id'] as num?)?.toInt() ??
-                _selectedDefaultManufacturerId;
-          }
+          // For existing products, use existing manufacturer (don't override with Excel/dropdown)
+          p.plannedManufacturerId =
+              (p.existingData!['manufacturer_id'] as num?)?.toInt() ??
+              _resolveManufacturerId(p.manufacturerNameFromExcel);
           p.plannedUqcId =
               (p.existingData!['uqc_id'] as num?)?.toInt() ?? defaultUqcId;
           p.plannedIsTaxable =
@@ -552,23 +549,9 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           // use defaults for new inserts
           p.plannedSubCategoryId = defaultSubCategoryId;
           // Match manufacturer from Excel or use dropdown default
-          if (p.manufacturerNameFromExcel.isNotEmpty) {
-            // Try to match manufacturer case-insensitively
-            final matchedManufacturer = _manufacturers.firstWhere(
-              (m) =>
-                  m.name.toLowerCase() ==
-                  p.manufacturerNameFromExcel.toLowerCase(),
-              orElse: () => _manufacturers.firstWhere(
-                (m) => m.id == _selectedDefaultManufacturerId,
-                orElse: () => _manufacturers.first,
-              ),
-            );
-            p.plannedManufacturerId =
-                matchedManufacturer.id ?? defaultManufacturerId;
-          } else {
-            // Use dropdown selected manufacturer
-            p.plannedManufacturerId = _selectedDefaultManufacturerId;
-          }
+          p.plannedManufacturerId = _resolveManufacturerId(
+            p.manufacturerNameFromExcel,
+          );
           p.plannedUqcId = defaultUqcId;
           p.plannedIsTaxable = defaultIsTaxable;
           p.plannedIsEnabled = defaultIsEnabled;
@@ -617,6 +600,38 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
       _progress = 1.0;
       _progressMessage = '';
     });
+  }
+
+  // Update manufacturer names for all proposals
+  Future<void> _updateManufacturerNames() async {
+    if (_proposals.isEmpty) return;
+
+    try {
+      final db = await ref.read(databaseProvider);
+      for (final p in _proposals) {
+        // Re-resolve manufacturer ID based on current dropdown selection
+        if (p.existingData == null) {
+          // Only update for new products (not existing ones)
+          p.plannedManufacturerId = _resolveManufacturerId(
+            p.manufacturerNameFromExcel,
+          );
+        }
+
+        // Fetch manufacturer name
+        if (p.plannedManufacturerId != null) {
+          final rows = await db.rawQuery(
+            'SELECT name FROM manufacturers WHERE id = ? LIMIT 1',
+            [p.plannedManufacturerId],
+          );
+          if (rows.isNotEmpty) {
+            p.plannedManufacturerName = rows.first['name']?.toString();
+          }
+        }
+      }
+      setState(() {}); // Trigger UI update
+    } catch (e) {
+      // Ignore errors
+    }
   }
 
   Future<void> _applySelectedProductProposals() async {
@@ -828,11 +843,13 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                 child: Text(manufacturer.name),
                               );
                             }).toList(),
-                            onChanged: (value) {
+                            onChanged: (value) async {
                               if (value != null) {
                                 setState(() {
                                   _selectedDefaultManufacturerId = value;
                                 });
+                                // Update all proposals with new default manufacturer
+                                await _updateManufacturerNames();
                               }
                             },
                           ),
@@ -1090,75 +1107,103 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                       ), // Space between leading and title
                                       Expanded(
                                         flex: 2,
-                                        child: const Text(
+                                        child: Text(
                                           'Name (Part#)',
                                           style: TextStyle(
                                             fontWeight: FontWeight.w600,
+                                            fontSize: 12,
                                           ),
                                         ),
                                       ),
                                       Expanded(
                                         flex: 1,
-                                        child: const Text(
+                                        child: Text(
                                           'HSN',
                                           style: TextStyle(
                                             fontWeight: FontWeight.w600,
+                                            fontSize: 12,
                                           ),
                                         ),
                                       ),
                                       Expanded(
                                         flex: 1,
-                                        child: const Text(
+                                        child: Text(
                                           'Provided Cost',
                                           style: TextStyle(
                                             fontWeight: FontWeight.w600,
+                                            fontSize: 12,
                                           ),
                                         ),
                                       ),
                                       Expanded(
                                         flex: 1,
-                                        child: const Text(
+                                        child: Text(
                                           'Provided Sell',
                                           style: TextStyle(
                                             fontWeight: FontWeight.w600,
+                                            fontSize: 12,
                                           ),
                                         ),
                                       ),
                                       Expanded(
                                         flex: 1,
-                                        child: const Text(
-                                          'Included Tax',
+                                        child: Text(
+                                          'Tax',
                                           style: TextStyle(
                                             fontWeight: FontWeight.w600,
+                                            fontSize: 12,
                                           ),
                                         ),
                                       ),
                                       Expanded(
                                         flex: 1,
-                                        child: const Text(
+                                        child: Text(
                                           'Store Cost',
                                           style: TextStyle(
                                             fontWeight: FontWeight.w600,
+                                            fontSize: 12,
                                           ),
                                         ),
                                       ),
                                       Expanded(
                                         flex: 1,
-                                        child: const Text(
+                                        child: Text(
                                           'Store Sell',
                                           style: TextStyle(
                                             fontWeight: FontWeight.w600,
+                                            fontSize: 12,
                                           ),
                                         ),
                                       ),
-                                      const SizedBox(
-                                        width: 112,
+                                      Expanded(
+                                        flex: 1,
+                                        child: Text(
+                                          'Excel Mfr',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        flex: 1,
+                                        child: Text(
+                                          'DB Mfr',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: 80,
                                         child: Padding(
-                                          padding: EdgeInsets.only(left: 24),
+                                          padding: EdgeInsets.only(left: 16),
                                           child: Text(
                                             'Status',
                                             style: TextStyle(
                                               fontWeight: FontWeight.w600,
+                                              fontSize: 12,
                                             ),
                                           ),
                                         ),
@@ -1251,9 +1296,10 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                                     '${p.name} (${p.partNumber})',
                                                     overflow:
                                                         TextOverflow.ellipsis,
-                                                    style: const TextStyle(
+                                                    style: TextStyle(
                                                       fontWeight:
                                                           FontWeight.w600,
+                                                      fontSize: 12,
                                                     ),
                                                   ),
                                                   if (!p.valid &&
@@ -1262,9 +1308,9 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                                       p.invalidReason!,
                                                       overflow:
                                                           TextOverflow.ellipsis,
-                                                      style: const TextStyle(
+                                                      style: TextStyle(
                                                         color: Colors.red,
-                                                        fontSize: 12,
+                                                        fontSize: 11,
                                                       ),
                                                     ),
                                                 ],
@@ -1272,7 +1318,10 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                             ),
                                             Expanded(
                                               flex: 1,
-                                              child: Text(p.hsnCode),
+                                              child: Text(
+                                                p.hsnCode,
+                                                style: TextStyle(fontSize: 12),
+                                              ),
                                             ),
                                             Expanded(
                                               flex: 1,
@@ -1281,6 +1330,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                                     ? p.costPrice
                                                           .toStringAsFixed(2)
                                                     : '',
+                                                style: TextStyle(fontSize: 12),
                                               ),
                                             ),
                                             Expanded(
@@ -1290,6 +1340,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                                     ? p.sellingPrice
                                                           .toStringAsFixed(2)
                                                     : '',
+                                                style: TextStyle(fontSize: 12),
                                               ),
                                             ),
                                             Expanded(
@@ -1300,6 +1351,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                                           ? 'YES'
                                                           : 'NO')
                                                     : '',
+                                                style: TextStyle(fontSize: 12),
                                               ),
                                             ),
                                             Expanded(
@@ -1309,6 +1361,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                                     ? p.computedCostExcl
                                                           .toStringAsFixed(2)
                                                     : '',
+                                                style: TextStyle(fontSize: 12),
                                               ),
                                             ),
                                             Expanded(
@@ -1318,10 +1371,34 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                                     ? p.computedSellingExcl
                                                           .toStringAsFixed(2)
                                                     : '',
+                                                style: TextStyle(fontSize: 12),
+                                              ),
+                                            ),
+                                            Expanded(
+                                              flex: 1,
+                                              child: Text(
+                                                p
+                                                        .manufacturerNameFromExcel
+                                                        .isNotEmpty
+                                                    ? p.manufacturerNameFromExcel
+                                                    : '-',
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(fontSize: 12),
+                                              ),
+                                            ),
+                                            Expanded(
+                                              flex: 1,
+                                              child: Text(
+                                                p.plannedManufacturerName ??
+                                                    (p.plannedManufacturerId
+                                                            ?.toString() ??
+                                                        '-'),
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(fontSize: 12),
                                               ),
                                             ),
                                             SizedBox(
-                                              width: 64,
+                                              width: 80,
                                               child: Text(
                                                 p.valid
                                                     ? (p.existingProductId !=
@@ -1333,6 +1410,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                                   color: p.valid
                                                       ? AppColors.textSecondary
                                                       : Colors.red,
+                                                  fontSize: 12,
                                                 ),
                                               ),
                                             ),
