@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
 import '../../core/providers/database_provider.dart';
@@ -100,21 +101,43 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
 
   // Helper method to resolve manufacturer ID from Excel name or use dropdown default
   int _resolveManufacturerId(String manufacturerNameFromExcel) {
+    // If Excel has no manufacturer name, use dropdown default
     if (manufacturerNameFromExcel.isEmpty) {
       return _selectedDefaultManufacturerId;
     }
 
     // Try to match manufacturer case-insensitively
-    final matchedManufacturer = _manufacturers.firstWhere(
-      (m) => m.name.toLowerCase() == manufacturerNameFromExcel.toLowerCase(),
-      orElse: () => _manufacturers.firstWhere(
-        (m) => m.id == _selectedDefaultManufacturerId,
-        orElse: () => _manufacturers.isNotEmpty
-            ? _manufacturers.first
-            : Manufacturer(id: 1, name: 'Default'),
-      ),
-    );
-    return matchedManufacturer.id ?? 1;
+    final matchedManufacturer = _manufacturers
+        .where(
+          (m) =>
+              m.name.toLowerCase() == manufacturerNameFromExcel.toLowerCase(),
+        )
+        .firstOrNull;
+
+    if (matchedManufacturer != null) {
+      // Found a match, use it
+      return matchedManufacturer.id ?? _selectedDefaultManufacturerId;
+    }
+
+    // No match found, use dropdown default
+    return _selectedDefaultManufacturerId;
+  }
+
+  // Helper method to fetch and set manufacturer name for a proposal
+  Future<void> _fetchManufacturerName(_ProductProposal p, Database db) async {
+    if (p.plannedManufacturerId != null) {
+      try {
+        final rows = await db.rawQuery(
+          'SELECT name FROM manufacturers WHERE id = ? LIMIT 1',
+          [p.plannedManufacturerId],
+        );
+        if (rows.isNotEmpty) {
+          p.plannedManufacturerName = rows.first['name']?.toString();
+        }
+      } catch (_) {
+        // ignore lookup failures
+      }
+    }
   }
 
   Future<void> _downloadTemplate() async {
@@ -329,6 +352,11 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         p.plannedIsEnabled = defaultIsEnabled;
         p.plannedNegativeAllow = defaultNegativeAllow;
         p.includeProvided = includeProvided;
+
+        // Fetch manufacturer name for display
+        final db = await ref.read(databaseProvider);
+        await _fetchManufacturerName(p, db);
+
         _proposals.add(p);
         continue;
       }
@@ -367,6 +395,11 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         p.plannedIsTaxable = defaultIsTaxable;
         p.plannedIsEnabled = defaultIsEnabled;
         p.plannedNegativeAllow = defaultNegativeAllow;
+
+        // Fetch manufacturer name for display
+        final db = await ref.read(databaseProvider);
+        await _fetchManufacturerName(p, db);
+
         _proposals.add(p);
         continue;
       }
@@ -401,6 +434,11 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         p.plannedIsTaxable = defaultIsTaxable;
         p.plannedIsEnabled = defaultIsEnabled;
         p.plannedNegativeAllow = defaultNegativeAllow;
+
+        // Fetch manufacturer name for display
+        final db = await ref.read(databaseProvider);
+        await _fetchManufacturerName(p, db);
+
         _proposals.add(p);
         continue;
       }
@@ -530,10 +568,11 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           p.plannedSubCategoryId =
               (p.existingData!['sub_category_id'] as num?)?.toInt() ??
               defaultSubCategoryId;
-          // For existing products, use existing manufacturer (don't override with Excel/dropdown)
-          p.plannedManufacturerId =
-              (p.existingData!['manufacturer_id'] as num?)?.toInt() ??
-              _resolveManufacturerId(p.manufacturerNameFromExcel);
+          // For existing products: Use Excel manufacturer if provided and valid,
+          // otherwise use dropdown default (don't keep old manufacturer)
+          p.plannedManufacturerId = _resolveManufacturerId(
+            p.manufacturerNameFromExcel,
+          );
           p.plannedUqcId =
               (p.existingData!['uqc_id'] as num?)?.toInt() ?? defaultUqcId;
           p.plannedIsTaxable =
@@ -568,14 +607,8 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
             if (rows.isNotEmpty)
               p.plannedSubCategoryName = rows.first['name']?.toString();
           }
-          if (p.plannedManufacturerId != null) {
-            final rows = await db.rawQuery(
-              'SELECT name FROM manufacturers WHERE id = ? LIMIT 1',
-              [p.plannedManufacturerId],
-            );
-            if (rows.isNotEmpty)
-              p.plannedManufacturerName = rows.first['name']?.toString();
-          }
+          // Fetch manufacturer name using helper method
+          await _fetchManufacturerName(p, db);
           if (p.plannedUqcId != null) {
             final rows = await db.rawQuery(
               'SELECT code FROM uqcs WHERE id = ? LIMIT 1',
@@ -609,24 +642,14 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
     try {
       final db = await ref.read(databaseProvider);
       for (final p in _proposals) {
-        // Re-resolve manufacturer ID based on current dropdown selection
-        if (p.existingData == null) {
-          // Only update for new products (not existing ones)
-          p.plannedManufacturerId = _resolveManufacturerId(
-            p.manufacturerNameFromExcel,
-          );
-        }
+        // Re-resolve manufacturer ID for ALL products (new and existing)
+        // Use Excel manufacturer if valid, otherwise use dropdown default
+        p.plannedManufacturerId = _resolveManufacturerId(
+          p.manufacturerNameFromExcel,
+        );
 
-        // Fetch manufacturer name
-        if (p.plannedManufacturerId != null) {
-          final rows = await db.rawQuery(
-            'SELECT name FROM manufacturers WHERE id = ? LIMIT 1',
-            [p.plannedManufacturerId],
-          );
-          if (rows.isNotEmpty) {
-            p.plannedManufacturerName = rows.first['name']?.toString();
-          }
-        }
+        // Fetch manufacturer name using helper method
+        await _fetchManufacturerName(p, db);
       }
       setState(() {}); // Trigger UI update
     } catch (e) {
