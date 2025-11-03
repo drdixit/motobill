@@ -56,6 +56,11 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
   final Map<String, List<List<String>>> _sheets = {};
   String? _fileName;
 
+  // Progress tracking state
+  bool _isProcessing = false;
+  double _progress = 0.0;
+  String _progressMessage = '';
+
   Future<void> _downloadTemplate() async {
     try {
       // Load the template from assets
@@ -203,8 +208,27 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
     _proposals.clear();
     // Read rows from first sheet if available
     if (_sheets.isEmpty) return;
+
+    setState(() {
+      _isProcessing = true;
+      _progress = 0.0;
+      _progressMessage = 'Analyzing HSN codes...';
+    });
+
     final first = _sheets.entries.first.value;
+    final totalRows = first.length;
+
     for (var rowIndex = 0; rowIndex < first.length; rowIndex++) {
+      // Update progress every 50 rows
+      if (rowIndex % 50 == 0) {
+        setState(() {
+          _progress = rowIndex / totalRows;
+          _progressMessage = 'Analyzing HSN codes... ($rowIndex/$totalRows)';
+        });
+        // Allow UI to update
+        await Future.delayed(Duration.zero);
+      }
+
       final row = first[rowIndex];
       // skip header row if it looks like one (contains hsn/hsn code/cgst/sgst/etc)
       if (rowIndex == 0 && row.isNotEmpty) {
@@ -568,7 +592,11 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
       }
     }
 
-    setState(() {});
+    setState(() {
+      _isProcessing = false;
+      _progress = 1.0;
+      _progressMessage = '';
+    });
   }
 
   Future<void> _applySelectedProposals() async {
@@ -767,6 +795,72 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
               ],
             ),
             const SizedBox(height: AppSizes.paddingL),
+            if (_isProcessing)
+              Card(
+                color: AppColors.white,
+                elevation: 0,
+                margin: EdgeInsets.zero,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(color: AppColors.border, width: 1),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSizes.paddingL),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          const SizedBox(width: AppSizes.paddingM),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _progressMessage,
+                                  style: TextStyle(
+                                    fontSize: AppSizes.fontM,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: AppSizes.paddingS),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: LinearProgressIndicator(
+                                    value: _progress,
+                                    minHeight: 8,
+                                    backgroundColor: AppColors.border,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: AppSizes.paddingM),
+                          Text(
+                            '${(_progress * 100).toStringAsFixed(0)}%',
+                            style: TextStyle(
+                              fontSize: AppSizes.fontM,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            if (_isProcessing) const SizedBox(height: AppSizes.paddingL),
             if (_proposals.isNotEmpty)
               Expanded(
                 child: Card(
