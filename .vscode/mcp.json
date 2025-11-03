@@ -1,0 +1,21 @@
+{
+    "servers": {
+        "mcp-sqlite": {
+            "type": "stdio",
+            "command": "npx",
+            "args": [
+                "-y",
+                "mcp-sqlite@1.0.7",
+                "${input:sqlite_db_path}"
+            ],
+            "env": {}
+        }
+    },
+    "inputs": [
+        {
+            "id": "sqlite_db_path",
+            "type": "promptString",
+            "description": "Path to your SQLite database file"
+        }
+    ]
+}
