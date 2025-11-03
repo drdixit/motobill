@@ -658,12 +658,6 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
   }
 
   Future<void> _applySelectedProductProposals() async {
-    setState(() {
-      _isProcessing = true;
-      _progress = 0.0;
-      _progressMessage = 'Preparing to save products...';
-    });
-
     final rawToApply = _proposals.where((p) => p.approved && p.valid).toList();
     // Ensure at most one proposal per product is applied (defensive).
     // Prefer deduping by part_number (case-insensitive) if present, otherwise by name.
@@ -674,13 +668,25 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
       if (!uniqueByKey.containsKey(key)) uniqueByKey[key] = p;
     }
     final toApply = uniqueByKey.values.toList();
+
+    // Check if there are any selected products BEFORE setting processing state
     if (toApply.isEmpty) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No proposals selected or valid')),
+          const SnackBar(
+            content: Text('Please select at least one valid product to apply'),
+            backgroundColor: Colors.orange,
+          ),
         );
+      }
       return;
     }
+
+    setState(() {
+      _isProcessing = true;
+      _progress = 0.0;
+      _progressMessage = 'Preparing to save products...';
+    });
 
     final db = await ref.read(databaseProvider);
     try {
@@ -835,52 +841,6 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
               ),
               Row(
                 children: [
-                  // Show manufacturer dropdown only if Excel is uploaded
-                  if (_sheets.isNotEmpty) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSizes.paddingM,
-                        vertical: AppSizes.paddingXS,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: AppColors.border),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Default Manufacturer:',
-                            style: TextStyle(
-                              fontSize: AppSizes.fontM,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(width: AppSizes.paddingS),
-                          DropdownButton<int>(
-                            value: _selectedDefaultManufacturerId,
-                            underline: const SizedBox(),
-                            items: _manufacturers.map((manufacturer) {
-                              return DropdownMenuItem<int>(
-                                value: manufacturer.id,
-                                child: Text(manufacturer.name),
-                              );
-                            }).toList(),
-                            onChanged: (value) async {
-                              if (value != null) {
-                                setState(() {
-                                  _selectedDefaultManufacturerId = value;
-                                });
-                                // Update all proposals with new default manufacturer
-                                await _updateManufacturerNames();
-                              }
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: AppSizes.paddingM),
-                  ],
                   ElevatedButton.icon(
                     onPressed: _downloadTemplate,
                     icon: const Icon(Icons.download),
@@ -1030,6 +990,54 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                               fontSize: AppSizes.fontM,
                             ),
                           ),
+                          // Show manufacturer dropdown only if Excel is uploaded
+                          if (_sheets.isNotEmpty) ...[
+                            const SizedBox(width: AppSizes.paddingL),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSizes.paddingM,
+                                vertical: AppSizes.paddingXS,
+                              ),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: AppColors.border),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'Default OEM:',
+                                    style: TextStyle(
+                                      fontSize: AppSizes.fontM,
+                                      color: AppColors.textSecondary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(width: AppSizes.paddingS),
+                                  DropdownButton<int>(
+                                    value: _selectedDefaultManufacturerId,
+                                    underline: const SizedBox(),
+                                    items: _manufacturers.map((manufacturer) {
+                                      return DropdownMenuItem<int>(
+                                        value: manufacturer.id,
+                                        child: Text(manufacturer.name),
+                                      );
+                                    }).toList(),
+                                    onChanged: (value) async {
+                                      if (value != null) {
+                                        setState(() {
+                                          _selectedDefaultManufacturerId =
+                                              value;
+                                        });
+                                        // Update all proposals with new default manufacturer
+                                        await _updateManufacturerNames();
+                                      }
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                           Row(
                             children: [
                               ElevatedButton(
