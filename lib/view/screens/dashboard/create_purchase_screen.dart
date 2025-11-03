@@ -1195,7 +1195,7 @@ class PurchaseRow {
             },
             decoration: InputDecoration(
               border: InputBorder.none,
-              hintText: 'Search product...',
+              hintText: 'Search by name or part number...',
               hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
               isDense: true,
               contentPadding: const EdgeInsets.symmetric(
