@@ -170,8 +170,27 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
     final path = result.files.single.path;
     if (path == null) return;
 
+    // Show loading UI immediately before heavy operations
+    setState(() {
+      _isProcessing = true;
+      _progress = 0.0;
+      _progressMessage = 'Loading Excel file...';
+      _fileName = result.files.single.name;
+    });
+
     try {
+      // Allow UI to update before starting heavy work
+      await Future.delayed(const Duration(milliseconds: 50));
+
       final bytes = File(path).readAsBytesSync();
+
+      // Update progress
+      setState(() {
+        _progressMessage = 'Parsing Excel data...';
+        _progress = 0.1;
+      });
+      await Future.delayed(const Duration(milliseconds: 10));
+
       final excel = Excel.decodeBytes(bytes);
 
       // Validate I1 (column I, row 1) of the first sheet: it MUST contain
@@ -190,6 +209,11 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           }
 
           if (h1Val != '    ') {
+            setState(() {
+              _isProcessing = false;
+              _progress = 0.0;
+              _progressMessage = '';
+            });
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -204,12 +228,40 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         }
       }
 
+      // Update progress
+      setState(() {
+        _progressMessage = 'Converting data...';
+        _progress = 0.2;
+      });
+      await Future.delayed(const Duration(milliseconds: 10));
+
       final Map<String, List<List<String>>> parsed = {};
+      var sheetIndex = 0;
+      final totalSheets = excel.tables.keys.length;
+
       for (final sheetName in excel.tables.keys) {
         final table = excel.tables[sheetName];
         if (table == null) continue;
+
         final rows = <List<String>>[];
+        var rowIndex = 0;
+        final totalRows = table.rows.length;
+
         for (final row in table.rows) {
+          // Update progress periodically for large sheets
+          if (rowIndex % 5000 == 0 && rowIndex > 0) {
+            final sheetProgress = rowIndex / totalRows;
+            final overallProgress =
+                0.2 + (0.1 * (sheetIndex + sheetProgress) / totalSheets);
+            setState(() {
+              _progressMessage =
+                  'Converting data... ($rowIndex/$totalRows rows)';
+              _progress = overallProgress;
+            });
+            // Allow UI to update
+            await Future.delayed(const Duration(milliseconds: 5));
+          }
+
           final cells = row
               .map((cell) {
                 if (cell == null) return '';
@@ -218,25 +270,32 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
               })
               .toList(growable: false);
           rows.add(cells);
+          rowIndex++;
         }
         parsed[sheetName] = rows;
+        sheetIndex++;
       }
 
       setState(() {
         _sheets
           ..clear()
           ..addAll(parsed);
-        _fileName = result.files.single.name;
         _uploadedFilePath = path; // Store path for copying after apply
-      });
-      // Prepare proposals for preview
-      setState(() {
-        _isProcessing = true;
-        _progress = 0.0;
         _progressMessage = 'Analyzing products...';
+        _progress = 0.3;
       });
+
+      // Allow UI to update before starting analysis
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      // Prepare proposals for preview
       await _prepareProductProposalsFromLoaded();
     } catch (e) {
+      setState(() {
+        _isProcessing = false;
+        _progress = 0.0;
+        _progressMessage = '';
+      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to read Excel file: $e')),
@@ -252,10 +311,10 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
     if (_sheets.isEmpty) return;
     final first = _sheets.entries.first.value;
 
+    // Don't reset progress - continue from where _pickFile left off (0.3)
+    // Only update message
     setState(() {
-      _isProcessing = true;
-      _progress = 0.0;
-      _progressMessage = 'Analyzing products...';
+      _progressMessage = 'Pre-loading database...';
     });
 
     // Pre-load all manufacturers once instead of querying in loop
@@ -352,8 +411,10 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
     for (var rowIndex = 0; rowIndex < first.length; rowIndex++) {
       // Update progress every batch
       if (rowIndex % batchSize == 0) {
+        // Progress from 0.3 (after parsing) to 1.0 (analysis complete)
+        final analysisProgress = rowIndex / totalRows;
         setState(() {
-          _progress = rowIndex / totalRows;
+          _progress = 0.3 + (analysisProgress * 0.7); // 0.3 to 1.0 range
           _progressMessage = 'Analyzing products... ($rowIndex/$totalRows)';
         });
         // Allow UI to update
@@ -1351,10 +1412,14 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                       )
                                     : ListView.builder(
                                         itemCount: _proposals.length,
-                                        // Performance optimizations for large lists
-                                        cacheExtent: 1000,
+                                        // Performance optimizations for large lists (105k+ entries)
+                                        itemExtent:
+                                            80, // Fixed height for collapsed cards
+                                        cacheExtent:
+                                            500, // Reduced cache for better memory usage
                                         addAutomaticKeepAlives: false,
-                                        addRepaintBoundaries: true,
+                                        addRepaintBoundaries:
+                                            false, // Already using RepaintBoundary below
                                         itemBuilder: (context, index) {
                                           final p = _proposals[index];
                                           return RepaintBoundary(
