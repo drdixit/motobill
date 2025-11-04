@@ -8,6 +8,7 @@ import '../../../model/vendor.dart';
 import '../../../repository/purchase_repository.dart';
 import '../../../repository/vendor_repository.dart';
 import '../../../repository/gst_rate_repository.dart';
+import '../../../view_model/gst_rate_viewmodel.dart';
 import '../../../view_model/pos_viewmodel.dart';
 import '../../../view_model/vendor_viewmodel.dart';
 import '../../widgets/vendor_form_dialog.dart';
@@ -35,9 +36,14 @@ final productListForPurchaseProvider =
   ''');
     });
 
+// IMPORTANT: This provider automatically refreshes when GST rates are updated
+// in Masters > HSN Codes screen by watching gstRateViewModelProvider state
 final gstRatesForPurchaseProvider = FutureProvider<List<Map<String, dynamic>>>((
   ref,
 ) async {
+  // Watch the gstRateViewModelProvider to trigger refresh on updates
+  ref.watch(gstRateViewModelProvider);
+
   final db = await ref.watch(databaseProvider);
   final repository = GstRateRepository(db);
   return repository.getAllGstRates();
