@@ -810,8 +810,9 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
 
       // Use batch operations for better performance
       await db.transaction((txn) async {
-        final batch = txn.batch();
-        const batchSize = 500;
+        var batch = txn.batch();
+        const batchSize = 5000; // Increased batch size for better performance
+        int batchCount = 0;
 
         for (var i = 0; i < toApply.length; i++) {
           final p = toApply[i];
@@ -887,21 +888,28 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
             );
           }
 
-          // Commit batch every batchSize items
-          if ((i + 1) % batchSize == 0) {
-            await batch.commit(noResult: true);
+          batchCount++;
 
+          // Commit batch every batchSize items
+          if (batchCount >= batchSize) {
+            await batch.commit(noResult: true);
+            batch = txn.batch(); // Create new batch
+            batchCount = 0;
+
+            // Only update UI every 5000 items to reduce overhead
             final progress = 0.1 + ((i + 1) / totalToApply * 0.85);
             setState(() {
               _progress = progress;
               _progressMessage = 'Saving products... (${i + 1}/$totalToApply)';
             });
-            await Future.delayed(const Duration(milliseconds: 1));
+            // No Future.delayed - keep it fast
           }
         }
 
         // Commit any remaining operations
-        await batch.commit(noResult: true);
+        if (batchCount > 0) {
+          await batch.commit(noResult: true);
+        }
       });
 
       setState(() {
