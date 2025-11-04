@@ -783,54 +783,74 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
     final db = await ref.read(databaseProvider);
     try {
       final totalToApply = toApply.length;
-      await db.transaction((txn) async {
-        for (var i = 0; i < toApply.length; i++) {
-          // Update progress every 20 products
-          if (i % 20 == 0) {
-            setState(() {
-              _progress = i / totalToApply;
-              _progressMessage = 'Saving products... ($i/$totalToApply)';
-            });
-          }
 
+      // Pre-load all existing products by part_number for quick lookup
+      setState(() {
+        _progressMessage = 'Checking existing products...';
+        _progress = 0.05;
+      });
+      await Future.delayed(const Duration(milliseconds: 10));
+
+      final existingProductsMap = <String, int>{};
+      final existingRows = await db.rawQuery(
+        'SELECT id, part_number FROM products WHERE is_deleted = 0',
+      );
+      for (final row in existingRows) {
+        final partNumber = row['part_number'] as String?;
+        if (partNumber != null && partNumber.isNotEmpty) {
+          existingProductsMap[partNumber.toLowerCase()] = row['id'] as int;
+        }
+      }
+
+      setState(() {
+        _progressMessage = 'Saving products...';
+        _progress = 0.1;
+      });
+      await Future.delayed(const Duration(milliseconds: 10));
+
+      // Use batch operations for better performance
+      await db.transaction((txn) async {
+        final batch = txn.batch();
+        const batchSize = 500;
+
+        for (var i = 0; i < toApply.length; i++) {
           final p = toApply[i];
-          // Require HSN to exist (we do not auto-create HSNs during product import)
+
+          // Require HSN to exist
           if (p.hsnCodeId == null) {
             throw Exception('HSN code missing for product ${p.partNumber}');
           }
           final hsnId = p.hsnCodeId!;
 
-          // Defaults per user instructions
-          const defaultSubCategoryId = 1; // assumption: exists
-          const defaultUqcId = 9; // as requested
-          const defaultIsTaxable = 0; // 0
+          // Defaults
+          const defaultSubCategoryId = 1;
+          const defaultUqcId = 9;
+          const defaultIsTaxable = 0;
           const defaultIsEnabled = 1;
 
-          // Use planned manufacturer ID (resolved from Excel or dropdown)
           final manufacturerId = p.plannedManufacturerId ?? 1;
 
-          final existing = await txn.rawQuery(
-            'SELECT * FROM products WHERE LOWER(part_number) = LOWER(?) AND is_deleted = 0 LIMIT 1',
-            [p.partNumber],
+          // Round prices
+          final costToStore = double.parse(
+            p.computedCostExcl.toStringAsFixed(2),
           );
-          if (existing.isNotEmpty) {
-            final id = existing.first['id'] as int;
-            // round prices to 2 decimal places before storing
-            final costToStore = double.parse(
-              p.computedCostExcl.toStringAsFixed(2),
-            );
-            final sellToStore = double.parse(
-              p.computedSellingExcl.toStringAsFixed(2),
-            );
-            final mrpToStore = p.mrp != null
-                ? double.parse(p.mrp!.toStringAsFixed(2))
-                : null;
-            await txn.rawUpdate(
-              '''
-              UPDATE products SET
-                name = ?, hsn_code_id = ?, uqc_id = ?, cost_price = ?, selling_price = ?, mrp = ?, sub_category_id = ?, manufacturer_id = ?, is_taxable = ?, updated_at = datetime('now')
-              WHERE id = ?
-              ''',
+          final sellToStore = double.parse(
+            p.computedSellingExcl.toStringAsFixed(2),
+          );
+          final mrpToStore = p.mrp != null
+              ? double.parse(p.mrp!.toStringAsFixed(2))
+              : null;
+
+          // Check if product exists using pre-loaded map
+          final existingId = existingProductsMap[p.partNumber.toLowerCase()];
+
+          if (existingId != null) {
+            // Update existing product
+            batch.rawUpdate(
+              '''UPDATE products SET
+                name = ?, hsn_code_id = ?, uqc_id = ?, cost_price = ?, selling_price = ?, mrp = ?,
+                sub_category_id = ?, manufacturer_id = ?, is_taxable = ?, updated_at = datetime('now')
+              WHERE id = ?''',
               [
                 p.name,
                 hsnId,
@@ -841,25 +861,15 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                 defaultSubCategoryId,
                 manufacturerId,
                 defaultIsTaxable,
-                id,
+                existingId,
               ],
             );
           } else {
-            // round prices to 2 decimal places before storing
-            final costToStore = double.parse(
-              p.computedCostExcl.toStringAsFixed(2),
-            );
-            final sellToStore = double.parse(
-              p.computedSellingExcl.toStringAsFixed(2),
-            );
-            final mrpToStore = p.mrp != null
-                ? double.parse(p.mrp!.toStringAsFixed(2))
-                : null;
-            await txn.rawInsert(
-              '''
-              INSERT INTO products (name, part_number, hsn_code_id, uqc_id, cost_price, selling_price, mrp, sub_category_id, manufacturer_id, is_taxable, is_enabled, negative_allow, is_deleted, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'), datetime('now'))
-              ''',
+            // Insert new product
+            batch.rawInsert(
+              '''INSERT INTO products (name, part_number, hsn_code_id, uqc_id, cost_price, selling_price, mrp,
+                sub_category_id, manufacturer_id, is_taxable, is_enabled, negative_allow, is_deleted, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'), datetime('now'))''',
               [
                 p.name,
                 p.partNumber,
@@ -872,12 +882,33 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                 manufacturerId,
                 defaultIsTaxable,
                 defaultIsEnabled,
-                0, // negative_allow default false
+                0,
               ],
             );
           }
+
+          // Commit batch every batchSize items
+          if ((i + 1) % batchSize == 0) {
+            await batch.commit(noResult: true);
+
+            final progress = 0.1 + ((i + 1) / totalToApply * 0.85);
+            setState(() {
+              _progress = progress;
+              _progressMessage = 'Saving products... (${i + 1}/$totalToApply)';
+            });
+            await Future.delayed(const Duration(milliseconds: 1));
+          }
         }
+
+        // Commit any remaining operations
+        await batch.commit(noResult: true);
       });
+
+      setState(() {
+        _progressMessage = 'Finalizing...';
+        _progress = 0.95;
+      });
+      await Future.delayed(const Duration(milliseconds: 10));
 
       // Copy Excel file to storage directory after successful database transaction
       if (_uploadedFilePath != null) {
@@ -1387,14 +1418,11 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                       )
                                     : ListView.builder(
                                         itemCount: _proposals.length,
-                                        // Performance optimizations for large lists (105k+ entries)
-                                        itemExtent:
-                                            80, // Fixed height for collapsed cards
-                                        cacheExtent:
-                                            500, // Reduced cache for better memory usage
+                                        // Performance optimizations for large lists
+                                        // Note: itemExtent removed to allow ExpansionTile to work
+                                        cacheExtent: 500,
                                         addAutomaticKeepAlives: false,
-                                        addRepaintBoundaries:
-                                            false, // Already using RepaintBoundary below
+                                        addRepaintBoundaries: false,
                                         itemBuilder: (context, index) {
                                           final p = _proposals[index];
                                           return RepaintBoundary(
