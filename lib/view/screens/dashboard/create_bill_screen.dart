@@ -1142,7 +1142,13 @@ class BillRow {
           return name.contains(text) || partNo.contains(text);
         });
       },
-      displayStringForOption: (option) => option['name'] as String,
+      displayStringForOption: (option) {
+        final name = option['name'] as String;
+        final partNumber = option['part_number'] as String?;
+        return partNumber != null && partNumber.isNotEmpty
+            ? '$name ($partNumber)'
+            : name;
+      },
       onSelected: (option) {
         selectedProduct = option;
         hsnCode = option['hsn_code'] as String?;
@@ -1165,6 +1171,54 @@ class BillRow {
 
         // Check for duplicates and merge if needed
         onProductSelected?.call(this);
+      },
+      optionsViewBuilder: (context, onSelected, options) {
+        final optionsList = options.toList();
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            elevation: 4.0,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 200, maxWidth: 400),
+              child: ListView.builder(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                itemCount: optionsList.length,
+                // Optimize scrollbar performance for large lists
+                itemExtent: 48, // Fixed height for each option
+                cacheExtent:
+                    500, // Cache more items for smooth scrollbar dragging
+                addAutomaticKeepAlives: false,
+                addRepaintBoundaries: true,
+                itemBuilder: (context, index) {
+                  final option = optionsList[index];
+                  final name = option['name'] as String;
+                  final partNumber = option['part_number'] as String?;
+                  final displayText =
+                      partNumber != null && partNumber.isNotEmpty
+                      ? '$name ($partNumber)'
+                      : name;
+
+                  return InkWell(
+                    onTap: () => onSelected(option),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      child: Text(
+                        displayText,
+                        style: const TextStyle(fontSize: 14),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
       },
       fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
         // Sync our controller with the autocomplete's controller
