@@ -594,41 +594,116 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                                         ),
                                       );
                                     }
-                                    // Validate that selected value exists in list
-                                    final validValue =
-                                        _selectedHsnCodeId != null &&
-                                            hsnCodes.any(
-                                              (hsn) =>
-                                                  hsn.id == _selectedHsnCodeId,
-                                            )
-                                        ? _selectedHsnCodeId
+
+                                    // Find the initially selected HSN code
+                                    final selectedHsn =
+                                        _selectedHsnCodeId != null
+                                        ? hsnCodes.firstWhere(
+                                            (hsn) =>
+                                                hsn.id == _selectedHsnCodeId,
+                                            orElse: () => hsnCodes.first,
+                                          )
                                         : null;
-                                    return DropdownButtonFormField<int>(
-                                      value: validValue,
-                                      isExpanded: true,
-                                      decoration: InputDecoration(
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            AppSizes.radiusS,
-                                          ),
-                                        ),
-                                      ),
-                                      hint: const Text('Select HSN code'),
-                                      items: hsnCodes.map((hsn) {
-                                        return DropdownMenuItem<int>(
-                                          value: hsn.id,
-                                          child: Text(
-                                            '${hsn.code} - ${hsn.description ?? ''}',
-                                            overflow: TextOverflow.ellipsis,
-                                            maxLines: 1,
-                                          ),
-                                        );
-                                      }).toList(),
-                                      onChanged: (value) {
-                                        setState(() {
-                                          _selectedHsnCodeId = value;
+
+                                    return Autocomplete<HsnCode>(
+                                      initialValue: selectedHsn != null
+                                          ? TextEditingValue(
+                                              text:
+                                                  '${selectedHsn.code} - ${selectedHsn.description ?? ''}',
+                                            )
+                                          : const TextEditingValue(),
+                                      optionsBuilder: (textEditingValue) {
+                                        if (textEditingValue.text.isEmpty) {
+                                          return hsnCodes;
+                                        }
+                                        final text = textEditingValue.text
+                                            .toLowerCase();
+                                        return hsnCodes.where((hsn) {
+                                          final code = hsn.code.toLowerCase();
+                                          final desc = (hsn.description ?? '')
+                                              .toLowerCase();
+                                          return code.contains(text) ||
+                                              desc.contains(text);
                                         });
                                       },
+                                      displayStringForOption: (hsn) =>
+                                          '${hsn.code} - ${hsn.description ?? ''}',
+                                      onSelected: (hsn) {
+                                        setState(() {
+                                          _selectedHsnCodeId = hsn.id;
+                                        });
+                                      },
+                                      optionsViewBuilder: (context, onSelected, options) {
+                                        final optionsList = options.toList();
+                                        return Align(
+                                          alignment: Alignment.topLeft,
+                                          child: Material(
+                                            elevation: 4.0,
+                                            child: ConstrainedBox(
+                                              constraints: const BoxConstraints(
+                                                maxHeight: 200,
+                                                maxWidth: 400,
+                                              ),
+                                              child: ListView.builder(
+                                                padding: EdgeInsets.zero,
+                                                shrinkWrap: true,
+                                                itemCount: optionsList.length,
+                                                itemExtent: 48,
+                                                cacheExtent: 500,
+                                                addAutomaticKeepAlives: false,
+                                                addRepaintBoundaries: true,
+                                                itemBuilder: (context, index) {
+                                                  final hsn =
+                                                      optionsList[index];
+                                                  return InkWell(
+                                                    onTap: () =>
+                                                        onSelected(hsn),
+                                                    child: Container(
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 16,
+                                                            vertical: 12,
+                                                          ),
+                                                      child: Text(
+                                                        '${hsn.code} - ${hsn.description ?? ''}',
+                                                        style: const TextStyle(
+                                                          fontSize: 14,
+                                                        ),
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      fieldViewBuilder:
+                                          (
+                                            context,
+                                            controller,
+                                            focusNode,
+                                            onSubmitted,
+                                          ) {
+                                            return TextFormField(
+                                              controller: controller,
+                                              focusNode: focusNode,
+                                              decoration: InputDecoration(
+                                                hintText: 'Search HSN code...',
+                                                border: OutlineInputBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                        AppSizes.radiusS,
+                                                      ),
+                                                ),
+                                              ),
+                                              onFieldSubmitted: (_) =>
+                                                  onSubmitted(),
+                                            );
+                                          },
                                     );
                                   },
                                   loading: () =>
