@@ -55,6 +55,7 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
   // Map of sheetName -> rows (each row is List<String>)
   final Map<String, List<List<String>>> _sheets = {};
   String? _fileName;
+  String? _uploadedFilePath; // Store original file path for copying after apply
 
   // Progress tracking state
   bool _isProcessing = false;
@@ -188,6 +189,7 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
           ..clear()
           ..addAll(parsed);
         _fileName = result.files.single.name;
+        _uploadedFilePath = path; // Store path for copying after apply
       });
       // After loading raw sheets, prepare proposals from first sheet rows
       await _prepareProposalsFromLoaded();
@@ -703,6 +705,39 @@ class _TestingScreenState extends ConsumerState<TestingScreen> {
           }
         }
       });
+
+      // Copy Excel file to storage directory after successful database transaction
+      if (_uploadedFilePath != null) {
+        try {
+          final timestamp = DateTime.now();
+          final formattedTimestamp =
+              '${timestamp.year}${timestamp.month.toString().padLeft(2, '0')}${timestamp.day.toString().padLeft(2, '0')}_'
+              '${timestamp.hour.toString().padLeft(2, '0')}${timestamp.minute.toString().padLeft(2, '0')}${timestamp.second.toString().padLeft(2, '0')}';
+
+          final fileName = 'hsn_$formattedTimestamp.xlsx';
+          final destinationPath = path.join(
+            'C:',
+            'motobill',
+            'database',
+            'excel_files',
+            fileName,
+          );
+
+          // Copy the file
+          final sourceFile = File(_uploadedFilePath!);
+          await sourceFile.copy(destinationPath);
+
+          // Insert record into excel_uploads table
+          final createdAt = timestamp.toIso8601String();
+          await db.rawInsert(
+            'INSERT INTO excel_uploads (file_name, file_type, created_at, updated_at) VALUES (?, ?, ?, ?)',
+            [fileName, 'hsn_codes', createdAt, createdAt],
+          );
+        } catch (e) {
+          // Log error but don't fail the operation
+          debugPrint('Failed to copy Excel file: $e');
+        }
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

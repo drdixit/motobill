@@ -70,6 +70,7 @@ class _ProductProposal {
 
 class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
   String? _fileName;
+  String? _uploadedFilePath; // Store original file path for copying after apply
   final Map<String, List<List<String>>> _sheets = {};
   final List<_ProductProposal> _proposals = [];
   bool _isProcessing = false;
@@ -244,6 +245,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           ..clear()
           ..addAll(parsed);
         _fileName = result.files.single.name;
+        _uploadedFilePath = path; // Store path for copying after apply
       });
       // Prepare proposals for preview
       setState(() {
@@ -787,6 +789,39 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         }
       });
 
+      // Copy Excel file to storage directory after successful database transaction
+      if (_uploadedFilePath != null) {
+        try {
+          final timestamp = DateTime.now();
+          final formattedTimestamp =
+              '${timestamp.year}${timestamp.month.toString().padLeft(2, '0')}${timestamp.day.toString().padLeft(2, '0')}_'
+              '${timestamp.hour.toString().padLeft(2, '0')}${timestamp.minute.toString().padLeft(2, '0')}${timestamp.second.toString().padLeft(2, '0')}';
+
+          final fileName = 'products_$formattedTimestamp.xlsx';
+          final destinationPath = path.join(
+            'C:',
+            'motobill',
+            'database',
+            'excel_files',
+            fileName,
+          );
+
+          // Copy the file
+          final sourceFile = File(_uploadedFilePath!);
+          await sourceFile.copy(destinationPath);
+
+          // Insert record into excel_uploads table
+          final createdAt = timestamp.toIso8601String();
+          await db.rawInsert(
+            'INSERT INTO excel_uploads (file_name, file_type, created_at, updated_at) VALUES (?, ?, ?, ?)',
+            [fileName, 'products', createdAt, createdAt],
+          );
+        } catch (e) {
+          // Log error but don't fail the operation
+          debugPrint('Failed to copy Excel file: $e');
+        }
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Applied selected product proposals')),
@@ -794,6 +829,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         // Clear UI state after successful apply as requested
         setState(() {
           _fileName = null;
+          _uploadedFilePath = null; // Clear stored path
           _sheets.clear();
           _proposals.clear();
           _isProcessing = false;
