@@ -219,11 +219,14 @@ class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
 
     final customerGstNumber = customer.gstNumber;
 
-    // Edge cases: customer has no GST number, assume inter-state for safety
+    // New GST logic:
+    // - No GST number: intra-state (CGST + SGST + UTGST)
+    // - Same state: intra-state (CGST + SGST + UTGST)
+    // - Different state: inter-state (IGST + UTGST)
     if (customerGstNumber == null ||
         customerGstNumber.isEmpty ||
         customerGstNumber.length < 2) {
-      _isInterState = true;
+      _isInterState = false; // No GST number = intra-state
     } else {
       // Compare first 2 digits of GST numbers
       final companyStateCode = _companyGstNumber!.substring(0, 2);
@@ -747,8 +750,8 @@ class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
           _buildHeaderCell('Amount', flex: 1),
           _buildHeaderCell('CGST%', width: 60),
           _buildHeaderCell('SGST%', width: 60),
-          _buildHeaderCell('IGST%', width: 60),
-          _buildHeaderCell('UTGST%', width: 60),
+          _buildHeaderCell('IGST/UTGST%', width: 60),
+          _buildHeaderCell('CESS%', width: 60),
           _buildHeaderCell('Tax Amt', flex: 1),
           _buildHeaderCell('Total Amount', flex: 1),
           const SizedBox(width: 40),
@@ -971,20 +974,20 @@ class BillRow {
     );
 
     if (matchingRate.isNotEmpty) {
+      final utgst = (matchingRate['utgst'] as num).toStringAsFixed(2);
+
       if (isInterState) {
-        // Inter-state: Apply IGST only, others are 0
+        // Inter-state: Apply IGST + UTGST
         cgstController.text = '0.00';
         sgstController.text = '0.00';
         igstController.text = (matchingRate['igst'] as num).toStringAsFixed(2);
-        utgstController.text = '0.00';
+        utgstController.text = utgst;
       } else {
-        // Intra-state: Apply CGST, SGST, UTGST, IGST is 0
+        // Intra-state (including no GST number): Apply CGST + SGST + UTGST
         cgstController.text = (matchingRate['cgst'] as num).toStringAsFixed(2);
         sgstController.text = (matchingRate['sgst'] as num).toStringAsFixed(2);
         igstController.text = '0.00';
-        utgstController.text = (matchingRate['utgst'] as num).toStringAsFixed(
-          2,
-        );
+        utgstController.text = utgst;
       }
     }
   }
