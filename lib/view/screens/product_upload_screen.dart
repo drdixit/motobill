@@ -6,7 +6,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
 import '../../core/providers/database_provider.dart';
@@ -122,23 +121,6 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
 
     // No match found, use dropdown default
     return _selectedDefaultManufacturerId;
-  }
-
-  // Helper method to fetch and set manufacturer name for a proposal
-  Future<void> _fetchManufacturerName(_ProductProposal p, Database db) async {
-    if (p.plannedManufacturerId != null) {
-      try {
-        final rows = await db.rawQuery(
-          'SELECT name FROM manufacturers WHERE id = ? LIMIT 1',
-          [p.plannedManufacturerId],
-        );
-        if (rows.isNotEmpty) {
-          p.plannedManufacturerName = rows.first['name']?.toString();
-        }
-      } catch (_) {
-        // ignore lookup failures
-      }
-    }
   }
 
   Future<void> _downloadTemplate() async {
@@ -276,16 +258,106 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
       _progressMessage = 'Analyzing products...';
     });
 
+    // Pre-load all manufacturers once instead of querying in loop
+    final db = await ref.read(databaseProvider);
+    final manufacturerMap = <int, String>{};
+    try {
+      final manufacturerRows = await db.rawQuery(
+        'SELECT id, name FROM manufacturers WHERE is_deleted = 0',
+      );
+      for (final row in manufacturerRows) {
+        manufacturerMap[row['id'] as int] = row['name'] as String;
+      }
+    } catch (_) {
+      // Ignore manufacturer loading errors
+    }
+
+    // Pre-load all HSN codes once to avoid repeated queries
+    final hsnMap = <String, int>{};
+    try {
+      final hsnRows = await db.rawQuery(
+        'SELECT id, code FROM hsn_codes WHERE is_deleted = 0',
+      );
+      for (final row in hsnRows) {
+        hsnMap[row['code'] as String] = row['id'] as int;
+      }
+    } catch (_) {
+      // Ignore HSN loading errors
+    }
+
+    // Pre-load all GST rates once
+    final gstRatesMap = <int, Map<String, dynamic>>{};
+    try {
+      final gstRows = await db.rawQuery(
+        '''SELECT hsn_code_id, cgst, sgst, igst, utgst
+           FROM gst_rates
+           WHERE is_deleted = 0 AND effective_to IS NULL
+           ORDER BY effective_from DESC''',
+      );
+      for (final row in gstRows) {
+        final hsnCodeId = row['hsn_code_id'] as int;
+        if (!gstRatesMap.containsKey(hsnCodeId)) {
+          gstRatesMap[hsnCodeId] = row;
+        }
+      }
+    } catch (_) {
+      // Ignore GST rates loading errors
+    }
+
+    // Pre-load all existing products by part_number for quick lookups
+    final existingProductsMap = <String, Map<String, dynamic>>{};
+    try {
+      final productRows = await db.rawQuery(
+        'SELECT * FROM products WHERE is_deleted = 0',
+      );
+      for (final row in productRows) {
+        final partNumber = row['part_number'] as String?;
+        if (partNumber != null && partNumber.isNotEmpty) {
+          existingProductsMap[partNumber.toLowerCase()] = row;
+        }
+      }
+    } catch (_) {
+      // Ignore product loading errors
+    }
+
+    // Pre-load all UQC codes for quick lookups
+    final uqcMap = <int, String>{};
+    try {
+      final uqcRows = await db.rawQuery(
+        'SELECT id, code FROM uqcs WHERE is_deleted = 0',
+      );
+      for (final row in uqcRows) {
+        uqcMap[row['id'] as int] = row['code'] as String;
+      }
+    } catch (_) {
+      // Ignore UQC loading errors
+    }
+
+    // Pre-load sub-category names for display
+    final subCategoryMap = <int, String>{};
+    try {
+      final subCatRows = await db.rawQuery(
+        'SELECT id, name FROM sub_categories WHERE is_deleted = 0',
+      );
+      for (final row in subCatRows) {
+        subCategoryMap[row['id'] as int] = row['name'] as String;
+      }
+    } catch (_) {
+      // Ignore sub-category loading errors
+    }
+
     final totalRows = first.length;
+    final batchSize = 1000; // Increased batch size for better performance
+
     for (var rowIndex = 0; rowIndex < first.length; rowIndex++) {
-      // Update progress every 100 rows
-      if (rowIndex % 100 == 0) {
+      // Update progress every batch
+      if (rowIndex % batchSize == 0) {
         setState(() {
           _progress = rowIndex / totalRows;
           _progressMessage = 'Analyzing products... ($rowIndex/$totalRows)';
         });
         // Allow UI to update
-        await Future.delayed(Duration.zero);
+        await Future.delayed(const Duration(milliseconds: 5));
       }
 
       final row = first[rowIndex];
@@ -355,9 +427,10 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         p.plannedNegativeAllow = defaultNegativeAllow;
         p.includeProvided = includeProvided;
 
-        // Fetch manufacturer name for display
-        final db = await ref.read(databaseProvider);
-        await _fetchManufacturerName(p, db);
+        // Use pre-loaded manufacturer name
+        if (p.plannedManufacturerId != null) {
+          p.plannedManufacturerName = manufacturerMap[p.plannedManufacturerId];
+        }
 
         _proposals.add(p);
         continue;
@@ -398,9 +471,10 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         p.plannedIsEnabled = defaultIsEnabled;
         p.plannedNegativeAllow = defaultNegativeAllow;
 
-        // Fetch manufacturer name for display
-        final db = await ref.read(databaseProvider);
-        await _fetchManufacturerName(p, db);
+        // Use pre-loaded manufacturer name
+        if (p.plannedManufacturerId != null) {
+          p.plannedManufacturerName = manufacturerMap[p.plannedManufacturerId];
+        }
 
         _proposals.add(p);
         continue;
@@ -437,9 +511,10 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         p.plannedIsEnabled = defaultIsEnabled;
         p.plannedNegativeAllow = defaultNegativeAllow;
 
-        // Fetch manufacturer name for display
-        final db = await ref.read(databaseProvider);
-        await _fetchManufacturerName(p, db);
+        // Use pre-loaded manufacturer name
+        if (p.plannedManufacturerId != null) {
+          p.plannedManufacturerName = manufacturerMap[p.plannedManufacturerId];
+        }
 
         _proposals.add(p);
         continue;
@@ -461,41 +536,24 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
       p.computedCostExcl = p.costPrice;
       p.computedSellingExcl = p.sellingPrice;
 
-      // Lookup existing product by part_number
       try {
-        final db = await ref.read(databaseProvider);
-        final prodRows = await db.rawQuery(
-          'SELECT * FROM products WHERE LOWER(part_number) = LOWER(?) AND is_deleted = 0 LIMIT 1',
-          [p.partNumber],
-        );
-        if (prodRows.isNotEmpty) {
-          p.existingProductId = prodRows.first['id'] as int;
-          p.existingData = prodRows.first.cast<String, dynamic>();
+        // Lookup existing product by part_number using pre-loaded map
+        final existingProduct = existingProductsMap[p.partNumber.toLowerCase()];
+        if (existingProduct != null) {
+          p.existingProductId = existingProduct['id'] as int;
+          p.existingData = existingProduct;
 
-          // Fetch UQC code for existing product
-          try {
-            final uqcId = p.existingData!['uqc_id'];
-            if (uqcId != null) {
-              final uqcRows = await db.rawQuery(
-                'SELECT code FROM uqcs WHERE id = ? LIMIT 1',
-                [uqcId],
-              );
-              if (uqcRows.isNotEmpty) {
-                p.existingUqcCode = uqcRows.first['code']?.toString();
-              }
-            }
-          } catch (_) {
-            // ignore lookup failures
+          // Get UQC code for existing product using pre-loaded map
+          final uqcId = existingProduct['uqc_id'];
+          if (uqcId != null) {
+            p.existingUqcCode = uqcMap[uqcId as int];
           }
         }
 
-        // find hsn code id
-        final hsnRows = await db.rawQuery(
-          'SELECT * FROM hsn_codes WHERE LOWER(code) = LOWER(?) AND is_deleted = 0 LIMIT 1',
-          [p.hsnCode],
-        );
-        if (hsnRows.isNotEmpty) {
-          p.hsnCodeId = hsnRows.first['id'] as int;
+        // Use pre-loaded HSN code map
+        p.hsnCodeId = hsnMap[p.hsnCode];
+
+        if (p.hsnCodeId != null) {
           // include_tax must be provided when HSN exists
           if (!includeProvided) {
             p.valid = false;
@@ -504,19 +562,9 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
             _proposals.add(p);
             continue;
           }
-          // load active gst rate for this hsn
-          final rates = await db.rawQuery(
-            'SELECT * FROM gst_rates WHERE hsn_code_id = ? AND is_deleted = 0 ORDER BY effective_from DESC',
-            [p.hsnCodeId],
-          );
-          Map<String, dynamic>? active;
-          for (final r in rates) {
-            if (r['effective_to'] == null) {
-              active = r;
-              break;
-            }
-          }
-          if (active == null && rates.isNotEmpty) active = rates.first;
+
+          // Use pre-loaded GST rates
+          final active = gstRatesMap[p.hsnCodeId];
 
           if (active != null) {
             final cgst = (active['cgst'] as num?)?.toDouble() ?? 0.0;
@@ -601,23 +649,18 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
 
         // Try to fetch names for subcategory/manufacturer/uqc (best-effort)
         try {
+          // Use pre-loaded sub-category name
           if (p.plannedSubCategoryId != null) {
-            final rows = await db.rawQuery(
-              'SELECT name FROM sub_categories WHERE id = ? LIMIT 1',
-              [p.plannedSubCategoryId],
-            );
-            if (rows.isNotEmpty)
-              p.plannedSubCategoryName = rows.first['name']?.toString();
+            p.plannedSubCategoryName = subCategoryMap[p.plannedSubCategoryId];
           }
-          // Fetch manufacturer name using helper method
-          await _fetchManufacturerName(p, db);
+          // Use pre-loaded manufacturer name
+          if (p.plannedManufacturerId != null) {
+            p.plannedManufacturerName =
+                manufacturerMap[p.plannedManufacturerId];
+          }
+          // Use pre-loaded UQC code
           if (p.plannedUqcId != null) {
-            final rows = await db.rawQuery(
-              'SELECT code FROM uqcs WHERE id = ? LIMIT 1',
-              [p.plannedUqcId],
-            );
-            if (rows.isNotEmpty)
-              p.plannedUqcName = rows.first['code']?.toString();
+            p.plannedUqcName = uqcMap[p.plannedUqcId];
           }
         } catch (_) {
           // ignore lookup failures - display IDs if names not found
@@ -643,6 +686,15 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
 
     try {
       final db = await ref.read(databaseProvider);
+      // Pre-load manufacturer names
+      final manufacturerMap = <int, String>{};
+      final manufacturerRows = await db.rawQuery(
+        'SELECT id, name FROM manufacturers WHERE is_deleted = 0',
+      );
+      for (final row in manufacturerRows) {
+        manufacturerMap[row['id'] as int] = row['name'] as String;
+      }
+
       for (final p in _proposals) {
         // Re-resolve manufacturer ID for ALL products (new and existing)
         // Use Excel manufacturer if valid, otherwise use dropdown default
@@ -650,8 +702,10 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           p.manufacturerNameFromExcel,
         );
 
-        // Fetch manufacturer name using helper method
-        await _fetchManufacturerName(p, db);
+        // Use pre-loaded manufacturer name
+        if (p.plannedManufacturerId != null) {
+          p.plannedManufacturerName = manufacturerMap[p.plannedManufacturerId];
+        }
       }
       setState(() {}); // Trigger UI update
     } catch (e) {
@@ -1053,22 +1107,26 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                   DropdownButton<int>(
                                     value: _selectedDefaultManufacturerId,
                                     underline: const SizedBox(),
-                                    items: _manufacturers.map((manufacturer) {
-                                      return DropdownMenuItem<int>(
-                                        value: manufacturer.id,
-                                        child: Text(manufacturer.name),
-                                      );
-                                    }).toList(),
-                                    onChanged: (value) async {
-                                      if (value != null) {
-                                        setState(() {
-                                          _selectedDefaultManufacturerId =
-                                              value;
-                                        });
-                                        // Update all proposals with new default manufacturer
-                                        await _updateManufacturerNames();
-                                      }
-                                    },
+                                    items: _isProcessing
+                                        ? []
+                                        : _manufacturers.map((manufacturer) {
+                                            return DropdownMenuItem<int>(
+                                              value: manufacturer.id,
+                                              child: Text(manufacturer.name),
+                                            );
+                                          }).toList(),
+                                    onChanged: _isProcessing
+                                        ? null
+                                        : (value) async {
+                                            if (value != null) {
+                                              setState(() {
+                                                _selectedDefaultManufacturerId =
+                                                    value;
+                                              });
+                                              // Update all proposals with new default manufacturer
+                                              await _updateManufacturerNames();
+                                            }
+                                          },
                                   ),
                                 ],
                               ),
@@ -1284,507 +1342,451 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                               ),
                               const SizedBox(height: AppSizes.paddingXS),
                               Expanded(
-                                child: ListView.builder(
-                                  itemCount: _proposals.length,
-                                  itemBuilder: (context, index) {
-                                    final p = _proposals[index];
-                                    return Card(
-                                      margin: const EdgeInsets.symmetric(
-                                        vertical: AppSizes.paddingS,
-                                      ),
-                                      color: AppColors.white,
-                                      elevation: 0,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        side: BorderSide.none,
-                                      ),
-                                      child: ExpansionTile(
-                                        initiallyExpanded: false,
-                                        backgroundColor: AppColors.white,
-                                        collapsedBackgroundColor:
-                                            AppColors.white,
-                                        tilePadding: const EdgeInsets.symmetric(
-                                          horizontal: AppSizes.paddingM,
+                                child: _isProcessing
+                                    ? const Center(
+                                        child: Text(
+                                          'Please wait while analyzing...',
+                                          style: TextStyle(fontSize: 16),
                                         ),
-                                        trailing: const SizedBox.shrink(),
-                                        leading: Checkbox(
-                                          value: p.approved,
-                                          onChanged: p.valid
-                                              ? (v) {
-                                                  setState(() {
-                                                    if (v == true) {
-                                                      // selecting one variant unselects others with same name
-                                                      // or same part-number (case-insensitive)
-                                                      for (final other
-                                                          in _proposals) {
-                                                        final sameName =
-                                                            other.name
-                                                                .toLowerCase() ==
-                                                            p.name
-                                                                .toLowerCase();
-                                                        final bothPartsPresent =
-                                                            other.partNumber
-                                                                .trim()
-                                                                .isNotEmpty &&
-                                                            p.partNumber
-                                                                .trim()
-                                                                .isNotEmpty;
-                                                        final samePart =
-                                                            bothPartsPresent &&
-                                                            other.partNumber
-                                                                    .toLowerCase() ==
-                                                                p.partNumber
-                                                                    .toLowerCase();
-                                                        if (sameName ||
-                                                            samePart) {
-                                                          other.approved =
-                                                              false;
+                                      )
+                                    : ListView.builder(
+                                        itemCount: _proposals.length,
+                                        // Performance optimizations for large lists
+                                        cacheExtent: 1000,
+                                        addAutomaticKeepAlives: false,
+                                        addRepaintBoundaries: true,
+                                        itemBuilder: (context, index) {
+                                          final p = _proposals[index];
+                                          return RepaintBoundary(
+                                            child: Card(
+                                              margin:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: AppSizes.paddingS,
+                                                  ),
+                                              color: AppColors.white,
+                                              elevation: 0,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                side: BorderSide.none,
+                                              ),
+                                              child: ExpansionTile(
+                                                initiallyExpanded: false,
+                                                backgroundColor:
+                                                    AppColors.white,
+                                                collapsedBackgroundColor:
+                                                    AppColors.white,
+                                                tilePadding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal:
+                                                          AppSizes.paddingM,
+                                                    ),
+                                                trailing:
+                                                    const SizedBox.shrink(),
+                                                leading: Checkbox(
+                                                  value: p.approved,
+                                                  onChanged: p.valid
+                                                      ? (v) {
+                                                          setState(() {
+                                                            if (v == true) {
+                                                              // selecting one variant unselects others with same name
+                                                              // or same part-number (case-insensitive)
+                                                              for (final other
+                                                                  in _proposals) {
+                                                                final sameName =
+                                                                    other.name
+                                                                        .toLowerCase() ==
+                                                                    p.name
+                                                                        .toLowerCase();
+                                                                final bothPartsPresent =
+                                                                    other
+                                                                        .partNumber
+                                                                        .trim()
+                                                                        .isNotEmpty &&
+                                                                    p.partNumber
+                                                                        .trim()
+                                                                        .isNotEmpty;
+                                                                final samePart =
+                                                                    bothPartsPresent &&
+                                                                    other.partNumber
+                                                                            .toLowerCase() ==
+                                                                        p.partNumber
+                                                                            .toLowerCase();
+                                                                if (sameName ||
+                                                                    samePart) {
+                                                                  other.approved =
+                                                                      false;
+                                                                }
+                                                              }
+                                                              p.approved = true;
+                                                            } else {
+                                                              p.approved =
+                                                                  false;
+                                                            }
+                                                          });
                                                         }
-                                                      }
-                                                      p.approved = true;
-                                                    } else {
-                                                      p.approved = false;
-                                                    }
-                                                  });
-                                                }
-                                              : null,
-                                          activeColor: AppColors.primary,
-                                          checkColor: AppColors.white,
-                                        ),
-                                        title: Row(
-                                          children: [
-                                            Expanded(
-                                              flex: 2,
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    '${p.name} (${p.partNumber})',
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      fontSize: 12,
-                                                    ),
-                                                  ),
-                                                  if (!p.valid &&
-                                                      p.invalidReason != null)
-                                                    Text(
-                                                      p.invalidReason!,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      style: TextStyle(
-                                                        color: Colors.red,
-                                                        fontSize: 11,
-                                                      ),
-                                                    ),
-                                                ],
-                                              ),
-                                            ),
-                                            Expanded(
-                                              flex: 1,
-                                              child: Text(
-                                                p.hsnCode,
-                                                style: TextStyle(fontSize: 12),
-                                              ),
-                                            ),
-                                            Expanded(
-                                              flex: 1,
-                                              child: Text(
-                                                p.costPrice > 0
-                                                    ? p.costPrice
-                                                          .toStringAsFixed(2)
-                                                    : '',
-                                                style: TextStyle(fontSize: 12),
-                                              ),
-                                            ),
-                                            Expanded(
-                                              flex: 1,
-                                              child: Text(
-                                                p.sellingPrice > 0
-                                                    ? p.sellingPrice
-                                                          .toStringAsFixed(2)
-                                                    : '',
-                                                style: TextStyle(fontSize: 12),
-                                              ),
-                                            ),
-                                            Expanded(
-                                              flex: 1,
-                                              child: Text(
-                                                p.includeProvided
-                                                    ? (p.includeTax
-                                                          ? 'YES'
-                                                          : 'NO')
-                                                    : '',
-                                                style: TextStyle(fontSize: 12),
-                                              ),
-                                            ),
-                                            Expanded(
-                                              flex: 1,
-                                              child: Text(
-                                                p.computedCostExcl > 0
-                                                    ? p.computedCostExcl
-                                                          .toStringAsFixed(2)
-                                                    : '',
-                                                style: TextStyle(fontSize: 12),
-                                              ),
-                                            ),
-                                            Expanded(
-                                              flex: 1,
-                                              child: Text(
-                                                p.computedSellingExcl > 0
-                                                    ? p.computedSellingExcl
-                                                          .toStringAsFixed(2)
-                                                    : '',
-                                                style: TextStyle(fontSize: 12),
-                                              ),
-                                            ),
-                                            Expanded(
-                                              flex: 1,
-                                              child: Text(
-                                                p
-                                                        .manufacturerNameFromExcel
-                                                        .isNotEmpty
-                                                    ? p.manufacturerNameFromExcel
-                                                    : '-',
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(fontSize: 12),
-                                              ),
-                                            ),
-                                            Expanded(
-                                              flex: 1,
-                                              child: Text(
-                                                p.plannedManufacturerName ??
-                                                    (p.plannedManufacturerId
-                                                            ?.toString() ??
-                                                        '-'),
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(fontSize: 12),
-                                              ),
-                                            ),
-                                            SizedBox(
-                                              width: 80,
-                                              child: Text(
-                                                p.valid
-                                                    ? (p.existingProductId !=
-                                                              null
-                                                          ? 'Existing'
-                                                          : 'New')
-                                                    : 'Invalid',
-                                                style: TextStyle(
-                                                  color: p.valid
-                                                      ? AppColors.textSecondary
-                                                      : Colors.red,
-                                                  fontSize: 12,
+                                                      : null,
+                                                  activeColor:
+                                                      AppColors.primary,
+                                                  checkColor: AppColors.white,
                                                 ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        children: [
-                                          Container(
-                                            color: AppColors.white,
-                                            padding: const EdgeInsets.all(
-                                              AppSizes.paddingM,
-                                            ),
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Wrap(
-                                                  spacing: AppSizes.paddingM,
-                                                  runSpacing:
-                                                      AppSizes.paddingXS,
+                                                title: Row(
                                                   children: [
-                                                    Text(
-                                                      'Store Cost (excl): ${p.computedCostExcl.toStringAsFixed(2)}',
-                                                      style: TextStyle(
-                                                        fontSize:
-                                                            AppSizes.fontM,
-                                                        color: AppColors
-                                                            .textPrimary,
-                                                      ),
-                                                    ),
-                                                    Text(
-                                                      'Store Sell (excl): ${p.computedSellingExcl.toStringAsFixed(2)}',
-                                                      style: TextStyle(
-                                                        fontSize:
-                                                            AppSizes.fontM,
-                                                        color: AppColors
-                                                            .textPrimary,
-                                                      ),
-                                                    ),
-                                                    if (p.mrp != null)
-                                                      Text(
-                                                        'MRP: ${p.mrp!.toStringAsFixed(2)}',
-                                                        style: TextStyle(
-                                                          fontSize:
-                                                              AppSizes.fontM,
-                                                          color: AppColors
-                                                              .textPrimary,
-                                                        ),
-                                                      ),
-                                                  ],
-                                                ),
-                                                const SizedBox(
-                                                  height: AppSizes.paddingS,
-                                                ),
-                                                if (!p.valid &&
-                                                    p.invalidReason != null)
-                                                  Container(
-                                                    padding:
-                                                        const EdgeInsets.all(
-                                                          AppSizes.paddingS,
-                                                        ),
-                                                    decoration: BoxDecoration(
-                                                      color: AppColors.error
-                                                          .withOpacity(0.1),
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            6,
-                                                          ),
-                                                      border: Border.all(
-                                                        color: AppColors.error
-                                                            .withOpacity(0.3),
-                                                      ),
-                                                    ),
-                                                    child: Text(
-                                                      p.invalidReason!,
-                                                      style: TextStyle(
-                                                        color: AppColors.error,
-                                                        fontSize:
-                                                            AppSizes.fontM,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                if (p.suggestion != null)
-                                                  Padding(
-                                                    padding:
-                                                        const EdgeInsets.only(
-                                                          top:
-                                                              AppSizes.paddingS,
-                                                        ),
-                                                    child: Container(
-                                                      padding:
-                                                          const EdgeInsets.all(
-                                                            AppSizes.paddingS,
-                                                          ),
-                                                      decoration: BoxDecoration(
-                                                        color: AppColors.info
-                                                            .withOpacity(0.1),
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              6,
-                                                            ),
-                                                      ),
-                                                      child: Text(
-                                                        p.suggestion!,
-                                                        style: TextStyle(
-                                                          color: AppColors
-                                                              .textSecondary,
-                                                          fontSize:
-                                                              AppSizes.fontM,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                const SizedBox(
-                                                  height: AppSizes.paddingM,
-                                                ),
-                                                Divider(
-                                                  color: AppColors.border,
-                                                ),
-                                                const SizedBox(
-                                                  height: AppSizes.paddingS,
-                                                ),
-                                                Row(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    // Planned DB values - Left side
                                                     Expanded(
+                                                      flex: 2,
                                                       child: Column(
                                                         crossAxisAlignment:
                                                             CrossAxisAlignment
                                                                 .start,
                                                         children: [
                                                           Text(
-                                                            'Planned DB values',
+                                                            '${p.name} (${p.partNumber})',
+                                                            overflow:
+                                                                TextOverflow
+                                                                    .ellipsis,
                                                             style: TextStyle(
                                                               fontWeight:
                                                                   FontWeight
                                                                       .w600,
-                                                              fontSize: AppSizes
-                                                                  .fontL,
-                                                              color: AppColors
-                                                                  .textPrimary,
+                                                              fontSize: 12,
                                                             ),
                                                           ),
-                                                          const SizedBox(
-                                                            height: AppSizes
-                                                                .paddingS,
-                                                          ),
-                                                          Container(
-                                                            padding:
-                                                                const EdgeInsets.all(
-                                                                  AppSizes
-                                                                      .paddingM,
-                                                                ),
-                                                            decoration: BoxDecoration(
-                                                              color: AppColors
-                                                                  .backgroundSecondary,
-                                                              borderRadius:
-                                                                  BorderRadius.circular(
-                                                                    6,
-                                                                  ),
+                                                          if (!p.valid &&
+                                                              p.invalidReason !=
+                                                                  null)
+                                                            Text(
+                                                              p.invalidReason!,
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
+                                                              style: TextStyle(
+                                                                color:
+                                                                    Colors.red,
+                                                                fontSize: 11,
+                                                              ),
                                                             ),
-                                                            child: Column(
-                                                              crossAxisAlignment:
-                                                                  CrossAxisAlignment
-                                                                      .start,
-                                                              children: [
-                                                                Text(
-                                                                  'Sub-category: ${p.plannedSubCategoryName ?? p.plannedSubCategoryId}',
-                                                                  style: TextStyle(
-                                                                    fontSize:
-                                                                        AppSizes
-                                                                            .fontM,
-                                                                    color: AppColors
-                                                                        .textPrimary,
-                                                                  ),
-                                                                ),
-                                                                const SizedBox(
-                                                                  height: AppSizes
-                                                                      .paddingXS,
-                                                                ),
-                                                                Text(
-                                                                  'Manufacturer: ${p.plannedManufacturerName ?? p.plannedManufacturerId}',
-                                                                  style: TextStyle(
-                                                                    fontSize:
-                                                                        AppSizes
-                                                                            .fontM,
-                                                                    color: AppColors
-                                                                        .textPrimary,
-                                                                  ),
-                                                                ),
-                                                                const SizedBox(
-                                                                  height: AppSizes
-                                                                      .paddingXS,
-                                                                ),
-                                                                Text(
-                                                                  'UQC Code: ${p.plannedUqcName ?? p.plannedUqcId}',
-                                                                  style: TextStyle(
-                                                                    fontSize:
-                                                                        AppSizes
-                                                                            .fontM,
-                                                                    color: AppColors
-                                                                        .textPrimary,
-                                                                  ),
-                                                                ),
-                                                                const SizedBox(
-                                                                  height: AppSizes
-                                                                      .paddingXS,
-                                                                ),
-                                                                if (p.mrp !=
-                                                                    null)
-                                                                  Text(
-                                                                    'MRP: ${p.mrp!.toStringAsFixed(2)}',
-                                                                    style: TextStyle(
-                                                                      fontSize:
-                                                                          AppSizes
-                                                                              .fontM,
-                                                                      color: AppColors
-                                                                          .textPrimary,
-                                                                    ),
-                                                                  ),
-                                                                if (p.mrp !=
-                                                                    null)
-                                                                  const SizedBox(
-                                                                    height: AppSizes
-                                                                        .paddingXS,
-                                                                  ),
-                                                                Text(
-                                                                  'isTaxable: ${p.plannedIsTaxable}  isEnabled: ${p.plannedIsEnabled}  negativeAllow: ${p.plannedNegativeAllow}',
-                                                                  style: TextStyle(
-                                                                    fontSize:
-                                                                        AppSizes
-                                                                            .fontM,
-                                                                    color: AppColors
-                                                                        .textPrimary,
-                                                                  ),
-                                                                ),
-                                                              ],
-                                                            ),
-                                                          ),
                                                         ],
                                                       ),
                                                     ),
-                                                    // Spacing between columns
-                                                    if (p.existingData != null)
-                                                      const SizedBox(
-                                                        width:
-                                                            AppSizes.paddingM,
+                                                    Expanded(
+                                                      flex: 1,
+                                                      child: Text(
+                                                        p.hsnCode,
+                                                        style: TextStyle(
+                                                          fontSize: 12,
+                                                        ),
                                                       ),
-                                                    // Existing product data - Right side
-                                                    if (p.existingData != null)
-                                                      Expanded(
-                                                        child: Column(
-                                                          crossAxisAlignment:
-                                                              CrossAxisAlignment
-                                                                  .start,
+                                                    ),
+                                                    Expanded(
+                                                      flex: 1,
+                                                      child: Text(
+                                                        p.costPrice > 0
+                                                            ? p.costPrice
+                                                                  .toStringAsFixed(
+                                                                    2,
+                                                                  )
+                                                            : '',
+                                                        style: TextStyle(
+                                                          fontSize: 12,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    Expanded(
+                                                      flex: 1,
+                                                      child: Text(
+                                                        p.sellingPrice > 0
+                                                            ? p.sellingPrice
+                                                                  .toStringAsFixed(
+                                                                    2,
+                                                                  )
+                                                            : '',
+                                                        style: TextStyle(
+                                                          fontSize: 12,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    Expanded(
+                                                      flex: 1,
+                                                      child: Text(
+                                                        p.includeProvided
+                                                            ? (p.includeTax
+                                                                  ? 'YES'
+                                                                  : 'NO')
+                                                            : '',
+                                                        style: TextStyle(
+                                                          fontSize: 12,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    Expanded(
+                                                      flex: 1,
+                                                      child: Text(
+                                                        p.computedCostExcl > 0
+                                                            ? p.computedCostExcl
+                                                                  .toStringAsFixed(
+                                                                    2,
+                                                                  )
+                                                            : '',
+                                                        style: TextStyle(
+                                                          fontSize: 12,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    Expanded(
+                                                      flex: 1,
+                                                      child: Text(
+                                                        p.computedSellingExcl >
+                                                                0
+                                                            ? p.computedSellingExcl
+                                                                  .toStringAsFixed(
+                                                                    2,
+                                                                  )
+                                                            : '',
+                                                        style: TextStyle(
+                                                          fontSize: 12,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    Expanded(
+                                                      flex: 1,
+                                                      child: Text(
+                                                        p
+                                                                .manufacturerNameFromExcel
+                                                                .isNotEmpty
+                                                            ? p.manufacturerNameFromExcel
+                                                            : '-',
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        style: TextStyle(
+                                                          fontSize: 12,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    Expanded(
+                                                      flex: 1,
+                                                      child: Text(
+                                                        p.plannedManufacturerName ??
+                                                            (p.plannedManufacturerId
+                                                                    ?.toString() ??
+                                                                '-'),
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        style: TextStyle(
+                                                          fontSize: 12,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    SizedBox(
+                                                      width: 80,
+                                                      child: Text(
+                                                        p.valid
+                                                            ? (p.existingProductId !=
+                                                                      null
+                                                                  ? 'Existing'
+                                                                  : 'New')
+                                                            : 'Invalid',
+                                                        style: TextStyle(
+                                                          color: p.valid
+                                                              ? AppColors
+                                                                    .textSecondary
+                                                              : Colors.red,
+                                                          fontSize: 12,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                children: [
+                                                  Container(
+                                                    color: AppColors.white,
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                          AppSizes.paddingM,
+                                                        ),
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      children: [
+                                                        Wrap(
+                                                          spacing:
+                                                              AppSizes.paddingM,
+                                                          runSpacing: AppSizes
+                                                              .paddingXS,
                                                           children: [
                                                             Text(
-                                                              'Existing product data (DB)',
+                                                              'Store Cost (excl): ${p.computedCostExcl.toStringAsFixed(2)}',
                                                               style: TextStyle(
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w600,
                                                                 fontSize:
                                                                     AppSizes
-                                                                        .fontL,
+                                                                        .fontM,
                                                                 color: AppColors
                                                                     .textPrimary,
                                                               ),
                                                             ),
-                                                            const SizedBox(
-                                                              height: AppSizes
-                                                                  .paddingS,
+                                                            Text(
+                                                              'Store Sell (excl): ${p.computedSellingExcl.toStringAsFixed(2)}',
+                                                              style: TextStyle(
+                                                                fontSize:
+                                                                    AppSizes
+                                                                        .fontM,
+                                                                color: AppColors
+                                                                    .textPrimary,
+                                                              ),
                                                             ),
-                                                            Container(
+                                                            if (p.mrp != null)
+                                                              Text(
+                                                                'MRP: ${p.mrp!.toStringAsFixed(2)}',
+                                                                style: TextStyle(
+                                                                  fontSize:
+                                                                      AppSizes
+                                                                          .fontM,
+                                                                  color: AppColors
+                                                                      .textPrimary,
+                                                                ),
+                                                              ),
+                                                          ],
+                                                        ),
+                                                        const SizedBox(
+                                                          height:
+                                                              AppSizes.paddingS,
+                                                        ),
+                                                        if (!p.valid &&
+                                                            p.invalidReason !=
+                                                                null)
+                                                          Container(
+                                                            padding:
+                                                                const EdgeInsets.all(
+                                                                  AppSizes
+                                                                      .paddingS,
+                                                                ),
+                                                            decoration: BoxDecoration(
+                                                              color: AppColors
+                                                                  .error
+                                                                  .withOpacity(
+                                                                    0.1,
+                                                                  ),
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    6,
+                                                                  ),
+                                                              border: Border.all(
+                                                                color: AppColors
+                                                                    .error
+                                                                    .withOpacity(
+                                                                      0.3,
+                                                                    ),
+                                                              ),
+                                                            ),
+                                                            child: Text(
+                                                              p.invalidReason!,
+                                                              style: TextStyle(
+                                                                color: AppColors
+                                                                    .error,
+                                                                fontSize:
+                                                                    AppSizes
+                                                                        .fontM,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        if (p.suggestion !=
+                                                            null)
+                                                          Padding(
+                                                            padding:
+                                                                const EdgeInsets.only(
+                                                                  top: AppSizes
+                                                                      .paddingS,
+                                                                ),
+                                                            child: Container(
                                                               padding:
                                                                   const EdgeInsets.all(
                                                                     AppSizes
-                                                                        .paddingM,
+                                                                        .paddingS,
                                                                   ),
                                                               decoration: BoxDecoration(
                                                                 color: AppColors
-                                                                    .backgroundTertiary,
+                                                                    .info
+                                                                    .withOpacity(
+                                                                      0.1,
+                                                                    ),
                                                                 borderRadius:
                                                                     BorderRadius.circular(
                                                                       6,
                                                                     ),
                                                               ),
+                                                              child: Text(
+                                                                p.suggestion!,
+                                                                style: TextStyle(
+                                                                  color: AppColors
+                                                                      .textSecondary,
+                                                                  fontSize:
+                                                                      AppSizes
+                                                                          .fontM,
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        const SizedBox(
+                                                          height:
+                                                              AppSizes.paddingM,
+                                                        ),
+                                                        Divider(
+                                                          color:
+                                                              AppColors.border,
+                                                        ),
+                                                        const SizedBox(
+                                                          height:
+                                                              AppSizes.paddingS,
+                                                        ),
+                                                        Row(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .start,
+                                                          children: [
+                                                            // Planned DB values - Left side
+                                                            Expanded(
                                                               child: Column(
                                                                 crossAxisAlignment:
                                                                     CrossAxisAlignment
                                                                         .start,
                                                                 children: [
-                                                                  for (final entry
-                                                                      in p
-                                                                          .existingData!
-                                                                          .entries)
-                                                                    if (entry
-                                                                            .key !=
-                                                                        'uqc_id')
-                                                                      Padding(
-                                                                        padding: const EdgeInsets.only(
-                                                                          bottom:
-                                                                              AppSizes.paddingXS,
-                                                                        ),
-                                                                        child: Text(
-                                                                          '${entry.key}: ${entry.value}',
+                                                                  Text(
+                                                                    'Planned DB values',
+                                                                    style: TextStyle(
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .w600,
+                                                                      fontSize:
+                                                                          AppSizes
+                                                                              .fontL,
+                                                                      color: AppColors
+                                                                          .textPrimary,
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    height: AppSizes
+                                                                        .paddingS,
+                                                                  ),
+                                                                  Container(
+                                                                    padding: const EdgeInsets.all(
+                                                                      AppSizes
+                                                                          .paddingM,
+                                                                    ),
+                                                                    decoration: BoxDecoration(
+                                                                      color: AppColors
+                                                                          .backgroundSecondary,
+                                                                      borderRadius:
+                                                                          BorderRadius.circular(
+                                                                            6,
+                                                                          ),
+                                                                    ),
+                                                                    child: Column(
+                                                                      crossAxisAlignment:
+                                                                          CrossAxisAlignment
+                                                                              .start,
+                                                                      children: [
+                                                                        Text(
+                                                                          'Sub-category: ${p.plannedSubCategoryName ?? p.plannedSubCategoryId}',
                                                                           style: TextStyle(
                                                                             fontSize:
                                                                                 AppSizes.fontM,
@@ -1792,40 +1794,161 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                                                                 AppColors.textPrimary,
                                                                           ),
                                                                         ),
-                                                                      ),
-                                                                  if (p.existingUqcCode !=
-                                                                      null)
-                                                                    Padding(
-                                                                      padding: const EdgeInsets.only(
-                                                                        bottom:
-                                                                            AppSizes.paddingXS,
-                                                                      ),
-                                                                      child: Text(
-                                                                        'uqc_code: ${p.existingUqcCode}',
-                                                                        style: TextStyle(
-                                                                          fontSize:
-                                                                              AppSizes.fontM,
-                                                                          color:
-                                                                              AppColors.textPrimary,
+                                                                        const SizedBox(
+                                                                          height:
+                                                                              AppSizes.paddingXS,
                                                                         ),
-                                                                      ),
+                                                                        Text(
+                                                                          'Manufacturer: ${p.plannedManufacturerName ?? p.plannedManufacturerId}',
+                                                                          style: TextStyle(
+                                                                            fontSize:
+                                                                                AppSizes.fontM,
+                                                                            color:
+                                                                                AppColors.textPrimary,
+                                                                          ),
+                                                                        ),
+                                                                        const SizedBox(
+                                                                          height:
+                                                                              AppSizes.paddingXS,
+                                                                        ),
+                                                                        Text(
+                                                                          'UQC Code: ${p.plannedUqcName ?? p.plannedUqcId}',
+                                                                          style: TextStyle(
+                                                                            fontSize:
+                                                                                AppSizes.fontM,
+                                                                            color:
+                                                                                AppColors.textPrimary,
+                                                                          ),
+                                                                        ),
+                                                                        const SizedBox(
+                                                                          height:
+                                                                              AppSizes.paddingXS,
+                                                                        ),
+                                                                        if (p.mrp !=
+                                                                            null)
+                                                                          Text(
+                                                                            'MRP: ${p.mrp!.toStringAsFixed(2)}',
+                                                                            style: TextStyle(
+                                                                              fontSize: AppSizes.fontM,
+                                                                              color: AppColors.textPrimary,
+                                                                            ),
+                                                                          ),
+                                                                        if (p.mrp !=
+                                                                            null)
+                                                                          const SizedBox(
+                                                                            height:
+                                                                                AppSizes.paddingXS,
+                                                                          ),
+                                                                        Text(
+                                                                          'isTaxable: ${p.plannedIsTaxable}  isEnabled: ${p.plannedIsEnabled}  negativeAllow: ${p.plannedNegativeAllow}',
+                                                                          style: TextStyle(
+                                                                            fontSize:
+                                                                                AppSizes.fontM,
+                                                                            color:
+                                                                                AppColors.textPrimary,
+                                                                          ),
+                                                                        ),
+                                                                      ],
                                                                     ),
+                                                                  ),
                                                                 ],
                                                               ),
                                                             ),
+                                                            // Spacing between columns
+                                                            if (p.existingData !=
+                                                                null)
+                                                              const SizedBox(
+                                                                width: AppSizes
+                                                                    .paddingM,
+                                                              ),
+                                                            // Existing product data - Right side
+                                                            if (p.existingData !=
+                                                                null)
+                                                              Expanded(
+                                                                child: Column(
+                                                                  crossAxisAlignment:
+                                                                      CrossAxisAlignment
+                                                                          .start,
+                                                                  children: [
+                                                                    Text(
+                                                                      'Existing product data (DB)',
+                                                                      style: TextStyle(
+                                                                        fontWeight:
+                                                                            FontWeight.w600,
+                                                                        fontSize:
+                                                                            AppSizes.fontL,
+                                                                        color: AppColors
+                                                                            .textPrimary,
+                                                                      ),
+                                                                    ),
+                                                                    const SizedBox(
+                                                                      height: AppSizes
+                                                                          .paddingS,
+                                                                    ),
+                                                                    Container(
+                                                                      padding: const EdgeInsets.all(
+                                                                        AppSizes
+                                                                            .paddingM,
+                                                                      ),
+                                                                      decoration: BoxDecoration(
+                                                                        color: AppColors
+                                                                            .backgroundTertiary,
+                                                                        borderRadius:
+                                                                            BorderRadius.circular(
+                                                                              6,
+                                                                            ),
+                                                                      ),
+                                                                      child: Column(
+                                                                        crossAxisAlignment:
+                                                                            CrossAxisAlignment.start,
+                                                                        children: [
+                                                                          for (final entry
+                                                                              in p.existingData!.entries)
+                                                                            if (entry.key !=
+                                                                                'uqc_id')
+                                                                              Padding(
+                                                                                padding: const EdgeInsets.only(
+                                                                                  bottom: AppSizes.paddingXS,
+                                                                                ),
+                                                                                child: Text(
+                                                                                  '${entry.key}: ${entry.value}',
+                                                                                  style: TextStyle(
+                                                                                    fontSize: AppSizes.fontM,
+                                                                                    color: AppColors.textPrimary,
+                                                                                  ),
+                                                                                ),
+                                                                              ),
+                                                                          if (p.existingUqcCode !=
+                                                                              null)
+                                                                            Padding(
+                                                                              padding: const EdgeInsets.only(
+                                                                                bottom: AppSizes.paddingXS,
+                                                                              ),
+                                                                              child: Text(
+                                                                                'uqc_code: ${p.existingUqcCode}',
+                                                                                style: TextStyle(
+                                                                                  fontSize: AppSizes.fontM,
+                                                                                  color: AppColors.textPrimary,
+                                                                                ),
+                                                                              ),
+                                                                            ),
+                                                                        ],
+                                                                      ),
+                                                                    ),
+                                                                  ],
+                                                                ),
+                                                              ),
                                                           ],
                                                         ),
-                                                      ),
-                                                  ],
-                                                ),
-                                              ],
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
                                             ),
-                                          ),
-                                        ],
+                                          );
+                                        },
                                       ),
-                                    );
-                                  },
-                                ),
                               ),
                             ],
                           ),
