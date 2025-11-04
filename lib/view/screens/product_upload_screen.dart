@@ -1426,8 +1426,10 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                                       )
                                     : ListView.builder(
                                         itemCount: _proposals.length,
-                                        // Performance optimizations for large lists
-                                        // Note: itemExtent removed to allow ExpansionTile to work
+                                        // CRITICAL: itemExtent prevents crashes with 900k+ records
+                                        // When dragging scrollbar rapidly, ListView needs fixed height
+                                        // to calculate scroll position without measuring all items
+                                        itemExtent: 80,
                                         cacheExtent: 500,
                                         addAutomaticKeepAlives: false,
                                         addRepaintBoundaries: false,
