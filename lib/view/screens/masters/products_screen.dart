@@ -237,14 +237,25 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                       ),
                     ),
                   )
-                : ListView.separated(
+                : ListView.builder(
                     padding: const EdgeInsets.all(AppSizes.paddingL),
                     itemCount: filteredProducts.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(height: AppSizes.paddingM),
+                    // Optimize scrollbar dragging performance
+                    itemExtent:
+                        112, // Fixed height: 80 (card) + 16 (padding) + 16 (margin)
+                    cacheExtent:
+                        1000, // Cache more items for smooth scrollbar dragging
+                    addAutomaticKeepAlives:
+                        false, // Don't keep offscreen items alive
+                    addRepaintBoundaries: true, // Isolate repaint boundaries
                     itemBuilder: (context, index) {
                       final product = filteredProducts[index];
-                      return _buildProductCard(context, ref, product);
+                      return Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: AppSizes.paddingM,
+                        ),
+                        child: _buildProductCard(context, ref, product),
+                      );
                     },
                   ),
           ),
@@ -258,110 +269,112 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     WidgetRef ref,
     Product product,
   ) {
-    return Container(
-      padding: const EdgeInsets.all(AppSizes.paddingM),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(AppSizes.radiusM),
-        border: Border.all(color: AppColors.divider),
-      ),
-      child: Row(
-        children: [
-          _buildImageThumbnail(ref, product),
-          const SizedBox(width: AppSizes.paddingM),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  product.partNumber != null
-                      ? '${product.name} (${product.partNumber})'
-                      : product.name,
-                  style: TextStyle(
-                    fontSize: AppSizes.fontL,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                    fontFamily: 'Roboto',
+    return RepaintBoundary(
+      child: Container(
+        padding: const EdgeInsets.all(AppSizes.paddingM),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(AppSizes.radiusM),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Row(
+          children: [
+            _buildImageThumbnail(ref, product),
+            const SizedBox(width: AppSizes.paddingM),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    product.partNumber != null
+                        ? '${product.name} (${product.partNumber})'
+                        : product.name,
+                    style: TextStyle(
+                      fontSize: AppSizes.fontL,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                      fontFamily: 'Roboto',
+                    ),
                   ),
-                ),
-                const SizedBox(height: AppSizes.paddingXS),
-                Row(
-                  children: [
-                    Text(
-                      'Cost: ₹${product.costPrice.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontSize: AppSizes.fontM,
-                        color: AppColors.textSecondary,
-                        fontFamily: 'Roboto',
-                      ),
-                    ),
-                    const SizedBox(width: AppSizes.paddingM),
-                    Text(
-                      'Selling: ₹${product.sellingPrice.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontSize: AppSizes.fontM,
-                        color: AppColors.textSecondary,
-                        fontFamily: 'Roboto',
-                      ),
-                    ),
-                    if (product.mrp != null)
-                      const SizedBox(width: AppSizes.paddingM),
-                    if (product.mrp != null)
+                  const SizedBox(height: AppSizes.paddingXS),
+                  Row(
+                    children: [
                       Text(
-                        'MRP: ₹${product.mrp!.toStringAsFixed(2)}',
+                        'Cost: ₹${product.costPrice.toStringAsFixed(2)}',
                         style: TextStyle(
                           fontSize: AppSizes.fontM,
                           color: AppColors.textSecondary,
                           fontFamily: 'Roboto',
                         ),
                       ),
-                    if (product.isTaxable)
-                      const Padding(
-                        padding: EdgeInsets.only(left: AppSizes.paddingM),
-                        child: Text(
-                          '(Taxable)',
+                      const SizedBox(width: AppSizes.paddingM),
+                      Text(
+                        'Selling: ₹${product.sellingPrice.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: AppSizes.fontM,
+                          color: AppColors.textSecondary,
+                          fontFamily: 'Roboto',
+                        ),
+                      ),
+                      if (product.mrp != null)
+                        const SizedBox(width: AppSizes.paddingM),
+                      if (product.mrp != null)
+                        Text(
+                          'MRP: ₹${product.mrp!.toStringAsFixed(2)}',
                           style: TextStyle(
-                            fontSize: AppSizes.fontS,
+                            fontSize: AppSizes.fontM,
                             color: AppColors.textSecondary,
                             fontFamily: 'Roboto',
                           ),
                         ),
-                      ),
-                  ],
+                      if (product.isTaxable)
+                        const Padding(
+                          padding: EdgeInsets.only(left: AppSizes.paddingM),
+                          child: Text(
+                            '(Taxable)',
+                            style: TextStyle(
+                              fontSize: AppSizes.fontS,
+                              color: AppColors.textSecondary,
+                              fontFamily: 'Roboto',
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.edit, size: 20),
+                  color: AppColors.primary,
+                  onPressed: () => _showProductDialog(context, ref, product),
+                  tooltip: 'Edit',
                 ),
+                IconButton(
+                  icon: Icon(
+                    product.isEnabled ? Icons.toggle_on : Icons.toggle_off,
+                    size: 36,
+                  ),
+                  color: product.isEnabled
+                      ? AppColors.success
+                      : AppColors.textSecondary,
+                  onPressed: () => _toggleProduct(ref, product),
+                  tooltip: product.isEnabled ? 'Disable' : 'Enable',
+                ),
+                // Delete button - Hidden
+                // IconButton(
+                //   icon: const Icon(Icons.delete, size: 20),
+                //   color: AppColors.error,
+                //   onPressed: () => _deleteProduct(context, ref, product),
+                //   tooltip: 'Delete',
+                // ),
               ],
             ),
-          ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.edit, size: 20),
-                color: AppColors.primary,
-                onPressed: () => _showProductDialog(context, ref, product),
-                tooltip: 'Edit',
-              ),
-              IconButton(
-                icon: Icon(
-                  product.isEnabled ? Icons.toggle_on : Icons.toggle_off,
-                  size: 36,
-                ),
-                color: product.isEnabled
-                    ? AppColors.success
-                    : AppColors.textSecondary,
-                onPressed: () => _toggleProduct(ref, product),
-                tooltip: product.isEnabled ? 'Disable' : 'Enable',
-              ),
-              // Delete button - Hidden
-              // IconButton(
-              //   icon: const Icon(Icons.delete, size: 20),
-              //   color: AppColors.error,
-              //   onPressed: () => _deleteProduct(context, ref, product),
-              //   tooltip: 'Delete',
-              // ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
