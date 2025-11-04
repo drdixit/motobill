@@ -5,12 +5,39 @@ import 'package:excel/excel.dart' hide Border;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
 import '../../core/providers/database_provider.dart';
 import '../../model/manufacturer.dart';
 import '../../repository/manufacturer_repository.dart';
+
+// Top-level function for isolate processing
+Map<String, List<List<String>>> _parseExcelInIsolate(List<int> bytes) {
+  final excel = Excel.decodeBytes(bytes);
+  final Map<String, List<List<String>>> parsed = {};
+
+  for (final sheetName in excel.tables.keys) {
+    final table = excel.tables[sheetName];
+    if (table == null) continue;
+
+    final rows = <List<String>>[];
+    for (final row in table.rows) {
+      final cells = row
+          .map((cell) {
+            if (cell == null) return '';
+            final val = cell.value;
+            return val == null ? '' : val.toString();
+          })
+          .toList(growable: false);
+      rows.add(cells);
+    }
+    parsed[sheetName] = rows;
+  }
+
+  return parsed;
+}
 
 class ProductUploadScreen extends ConsumerStatefulWidget {
   const ProductUploadScreen({super.key});
@@ -180,7 +207,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
 
     try {
       // Allow UI to update before starting heavy work
-      await Future.delayed(const Duration(milliseconds: 50));
+      await Future.delayed(const Duration(milliseconds: 100));
 
       final bytes = File(path).readAsBytesSync();
 
@@ -189,23 +216,19 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         _progressMessage = 'Parsing Excel data...';
         _progress = 0.1;
       });
-      await Future.delayed(const Duration(milliseconds: 10));
 
-      final excel = Excel.decodeBytes(bytes);
+      // Run Excel parsing in separate isolate to prevent UI freeze
+      final parsed = await compute(_parseExcelInIsolate, bytes);
 
-      // Validate I1 (column I, row 1) of the first sheet: it MUST contain
-      // exactly four space characters ("    "). If not, reject the file and
-      // show an error message. Product Upload uses I1 as the sentinel.
-      if (excel.tables.isNotEmpty) {
-        final firstKey = excel.tables.keys.first;
-        final firstTable = excel.tables[firstKey];
-        if (firstTable != null && firstTable.rows.isNotEmpty) {
-          final firstRow = firstTable.rows.first;
+      // Validate I1 (column I, row 1) of the first sheet
+      if (parsed.isNotEmpty) {
+        final firstSheet = parsed.values.first;
+        if (firstSheet.isNotEmpty) {
+          final firstRow = firstSheet.first;
           String h1Val = '';
           // Column I is index 8 (0-based)
-          if (firstRow.length > 8 && firstRow[8] != null) {
-            final v = firstRow[8]?.value;
-            h1Val = v == null ? '' : v.toString();
+          if (firstRow.length > 8) {
+            h1Val = firstRow[8];
           }
 
           if (h1Val != '    ') {
@@ -226,54 +249,6 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
             return;
           }
         }
-      }
-
-      // Update progress
-      setState(() {
-        _progressMessage = 'Converting data...';
-        _progress = 0.2;
-      });
-      await Future.delayed(const Duration(milliseconds: 10));
-
-      final Map<String, List<List<String>>> parsed = {};
-      var sheetIndex = 0;
-      final totalSheets = excel.tables.keys.length;
-
-      for (final sheetName in excel.tables.keys) {
-        final table = excel.tables[sheetName];
-        if (table == null) continue;
-
-        final rows = <List<String>>[];
-        var rowIndex = 0;
-        final totalRows = table.rows.length;
-
-        for (final row in table.rows) {
-          // Update progress periodically for large sheets
-          if (rowIndex % 5000 == 0 && rowIndex > 0) {
-            final sheetProgress = rowIndex / totalRows;
-            final overallProgress =
-                0.2 + (0.1 * (sheetIndex + sheetProgress) / totalSheets);
-            setState(() {
-              _progressMessage =
-                  'Converting data... ($rowIndex/$totalRows rows)';
-              _progress = overallProgress;
-            });
-            // Allow UI to update
-            await Future.delayed(const Duration(milliseconds: 5));
-          }
-
-          final cells = row
-              .map((cell) {
-                if (cell == null) return '';
-                final val = cell.value;
-                return val == null ? '' : val.toString();
-              })
-              .toList(growable: false);
-          rows.add(cells);
-          rowIndex++;
-        }
-        parsed[sheetName] = rows;
-        sheetIndex++;
       }
 
       setState(() {
