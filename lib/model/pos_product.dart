@@ -20,6 +20,8 @@ class PosProduct {
   final double? igstRate;
   final double? utgstRate;
   final int stock;
+  final int taxableStock;
+  final int nonTaxableStock;
   final bool negativeAllow;
 
   PosProduct({
@@ -44,6 +46,8 @@ class PosProduct {
     this.igstRate,
     this.utgstRate,
     required this.stock,
+    required this.taxableStock,
+    required this.nonTaxableStock,
     required this.negativeAllow,
   });
 
@@ -78,6 +82,8 @@ class PosProduct {
           ? (json['utgst_rate'] as num).toDouble()
           : null,
       stock: (json['stock'] as num?)?.toInt() ?? 0,
+      taxableStock: (json['taxable_stock'] as num?)?.toInt() ?? 0,
+      nonTaxableStock: (json['non_taxable_stock'] as num?)?.toInt() ?? 0,
       negativeAllow: (json['negative_allow'] as int?) == 1,
     );
   }

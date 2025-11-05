@@ -56,8 +56,8 @@ class PurchaseRepository {
       final purchaseId = await txn.rawInsert(
         '''INSERT INTO purchases
         (purchase_number, purchase_reference_number, purchase_reference_date,
-        vendor_id, subtotal, tax_amount, total_amount, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+        vendor_id, subtotal, tax_amount, total_amount, is_taxable_bill, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
         [
           purchase.purchaseNumber,
           purchase.purchaseReferenceNumber,
@@ -66,6 +66,7 @@ class PurchaseRepository {
           purchase.subtotal,
           purchase.taxAmount,
           purchase.totalAmount,
+          purchase.isTaxableBill ? 1 : 0,
           purchase.createdAt.toIso8601String(),
           purchase.updatedAt.toIso8601String(),
         ],
@@ -112,8 +113,8 @@ class PurchaseRepository {
         await txn.rawInsert(
           '''INSERT INTO stock_batches
           (product_id, purchase_item_id, batch_number, quantity_received,
-          quantity_remaining, cost_price, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))''',
+          quantity_remaining, cost_price, is_taxable, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))''',
           [
             item.productId,
             purchaseItemId,
@@ -121,6 +122,7 @@ class PurchaseRepository {
             item.quantity,
             item.quantity, // Initially, remaining = received
             item.costPrice,
+            purchase.isTaxableBill ? 1 : 0,
           ],
         );
       }

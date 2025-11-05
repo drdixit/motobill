@@ -7,6 +7,7 @@ class Purchase {
   final double subtotal;
   final double taxAmount;
   final double totalAmount;
+  final bool isTaxableBill;
   final bool isDeleted;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -20,6 +21,7 @@ class Purchase {
     required this.subtotal,
     required this.taxAmount,
     required this.totalAmount,
+    this.isTaxableBill = true,
     this.isDeleted = false,
     required this.createdAt,
     required this.updatedAt,
@@ -37,6 +39,9 @@ class Purchase {
       subtotal: (json['subtotal'] as num).toDouble(),
       taxAmount: (json['tax_amount'] as num).toDouble(),
       totalAmount: (json['total_amount'] as num).toDouble(),
+      isTaxableBill: json['is_taxable_bill'] != null
+          ? (json['is_taxable_bill'] as int) == 1
+          : true,
       isDeleted: (json['is_deleted'] as int) == 1,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
@@ -55,6 +60,7 @@ class Purchase {
       'subtotal': subtotal,
       'tax_amount': taxAmount,
       'total_amount': totalAmount,
+      'is_taxable_bill': isTaxableBill ? 1 : 0,
       'is_deleted': isDeleted ? 1 : 0,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),

@@ -39,7 +39,9 @@ class PosRepository {
           g.sgst as sgst_rate,
           g.igst as igst_rate,
           g.utgst as utgst_rate,
-          COALESCE(SUM(sb.quantity_remaining), 0) as stock
+          COALESCE(SUM(sb.quantity_remaining), 0) as stock,
+          COALESCE(SUM(CASE WHEN sb.is_taxable = 1 THEN sb.quantity_remaining ELSE 0 END), 0) as taxable_stock,
+          COALESCE(SUM(CASE WHEN sb.is_taxable = 0 THEN sb.quantity_remaining ELSE 0 END), 0) as non_taxable_stock
         FROM products p
         LEFT JOIN hsn_codes h ON p.hsn_code_id = h.id
         LEFT JOIN uqcs u ON p.uqc_id = u.id

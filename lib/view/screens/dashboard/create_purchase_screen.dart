@@ -81,6 +81,7 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
   double _grandTotal = 0.0;
 
   bool _isSaving = false;
+  bool _isTaxableBill = true; // Default: taxable bill
 
   List<Map<String, dynamic>> _products = [];
   List<Map<String, dynamic>> _gstRates = [];
@@ -305,6 +306,7 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
         subtotal: _subtotal,
         taxAmount: _totalTax,
         totalAmount: _grandTotal,
+        isTaxableBill: _isTaxableBill,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -750,6 +752,39 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
                   ),
                 ),
               ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          // Taxable Bill Switch
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
+              color: Colors.grey.shade50,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Taxable Bill',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Switch(
+                  value: _isTaxableBill,
+                  onChanged: (value) {
+                    setState(() {
+                      _isTaxableBill = value;
+                    });
+                  },
+                  activeColor: AppColors.primary,
+                ),
+              ],
             ),
           ),
         ],
