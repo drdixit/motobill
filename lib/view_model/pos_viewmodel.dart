@@ -574,6 +574,7 @@ class PosViewModel extends StateNotifier<PosState> {
       cgstRate: product.cgstRate,
       sgstRate: product.sgstRate,
       igstRate: product.igstRate,
+      utgstRate: product.utgstRate,
       stock: product.stock,
       negativeAllow: product.negativeAllow,
     );
@@ -593,16 +594,21 @@ class PosViewModel extends StateNotifier<PosState> {
     double cgstRate = 0;
     double sgstRate = 0;
     double igstRate = 0;
+    double utgstRate = 0;
     double cgstAmount = 0;
     double sgstAmount = 0;
     double igstAmount = 0;
+    double utgstAmount = 0;
     double taxAmount = 0;
 
     if (product.isTaxable) {
       // Use customerOverride if provided, otherwise use state.selectedCustomer
       final customer = customerOverride ?? state.selectedCustomer;
 
-      // Default to CGST+SGST (intra-state)
+      // Get UTGST rate (applies to both intra and inter-state)
+      utgstRate = product.utgstRate ?? 0.0;
+
+      // Default to CGST+SGST+UTGST (intra-state)
       bool isInterState = false;
 
       // Debug: Print GST information
@@ -611,7 +617,7 @@ class PosViewModel extends StateNotifier<PosState> {
       print('DEBUG: Customer GST: ${customer?.gstNumber ?? "None"}');
       print('DEBUG: Company GST: ${state.companyGstNumber ?? "None"}');
       print(
-        'DEBUG: Product CGST: ${product.cgstRate}, SGST: ${product.sgstRate}, IGST: ${product.igstRate}',
+        'DEBUG: Product CGST: ${product.cgstRate}, SGST: ${product.sgstRate}, IGST: ${product.igstRate}, UTGST: ${product.utgstRate}',
       );
 
       // Check if we should apply IGST (inter-state)
@@ -630,31 +636,35 @@ class PosViewModel extends StateNotifier<PosState> {
         print('DEBUG: Customer State Code: $customerStateCode');
         print('DEBUG: Company State Code: $companyStateCode');
 
-        // If state codes are different, it's inter-state (IGST)
+        // If state codes are different, it's inter-state (IGST + UTGST)
         if (customerStateCode != companyStateCode) {
           isInterState = true;
-          print('DEBUG: Inter-state detected - Using IGST');
+          print('DEBUG: Inter-state detected - Using IGST + UTGST');
         } else {
-          print('DEBUG: Intra-state detected - Using CGST+SGST');
+          print('DEBUG: Intra-state detected - Using CGST + SGST + UTGST');
         }
       }
-      // If customer has no GST number, default to CGST+SGST (intra-state)
+      // If customer has no GST number, default to CGST+SGST+UTGST (intra-state)
 
       if (isInterState) {
-        // Inter-state: Apply IGST from product's GST rate
+        // Inter-state: Apply IGST + UTGST
         igstRate = product.igstRate ?? 0.0;
         igstAmount = subtotal * igstRate / 100;
-        taxAmount = igstAmount;
-        print('DEBUG: Applying IGST - Rate: $igstRate%, Amount: ₹$igstAmount');
+        utgstAmount = subtotal * utgstRate / 100;
+        taxAmount = igstAmount + utgstAmount;
+        print(
+          'DEBUG: Applying IGST + UTGST - IGST: $igstRate% (₹$igstAmount), UTGST: $utgstRate% (₹$utgstAmount), Total: ₹$taxAmount',
+        );
       } else {
-        // Intra-state: Apply CGST + SGST from product's GST rates
+        // Intra-state: Apply CGST + SGST + UTGST
         cgstRate = product.cgstRate ?? 0.0;
         sgstRate = product.sgstRate ?? 0.0;
         cgstAmount = subtotal * cgstRate / 100;
         sgstAmount = subtotal * sgstRate / 100;
-        taxAmount = cgstAmount + sgstAmount;
+        utgstAmount = subtotal * utgstRate / 100;
+        taxAmount = cgstAmount + sgstAmount + utgstAmount;
         print(
-          'DEBUG: Applying CGST+SGST - CGST: $cgstRate% (₹$cgstAmount), SGST: $sgstRate% (₹$sgstAmount), Total: ₹$taxAmount',
+          'DEBUG: Applying CGST + SGST + UTGST - CGST: $cgstRate% (₹$cgstAmount), SGST: $sgstRate% (₹$sgstAmount), UTGST: $utgstRate% (₹$utgstAmount), Total: ₹$taxAmount',
         );
       }
       print(
@@ -677,11 +687,11 @@ class PosViewModel extends StateNotifier<PosState> {
       cgstRate: cgstRate,
       sgstRate: sgstRate,
       igstRate: igstRate,
-      utgstRate: 0,
+      utgstRate: utgstRate,
       cgstAmount: cgstAmount,
       sgstAmount: sgstAmount,
       igstAmount: igstAmount,
-      utgstAmount: 0,
+      utgstAmount: utgstAmount,
       taxAmount: taxAmount,
       totalAmount: totalAmount,
     );

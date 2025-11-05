@@ -38,6 +38,7 @@ class PosRepository {
           g.cgst as cgst_rate,
           g.sgst as sgst_rate,
           g.igst as igst_rate,
+          g.utgst as utgst_rate,
           COALESCE(SUM(sb.quantity_remaining), 0) as stock
         FROM products p
         LEFT JOIN hsn_codes h ON p.hsn_code_id = h.id

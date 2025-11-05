@@ -148,10 +148,11 @@ class PosProductCard extends StatelessWidget {
 
   String _getPriceText() {
     if (product.isTaxable) {
-      // Calculate price with tax (CGST + SGST)
+      // Calculate price with tax (CGST + SGST + UTGST)
       final cgstRate = product.cgstRate ?? 0.0;
       final sgstRate = product.sgstRate ?? 0.0;
-      final totalTaxRate = cgstRate + sgstRate;
+      final utgstRate = product.utgstRate ?? 0.0;
+      final totalTaxRate = cgstRate + sgstRate + utgstRate;
       final priceWithTax = product.sellingPrice * (1 + totalTaxRate / 100);
       return '₹${priceWithTax.toStringAsFixed(0)}';
     }
