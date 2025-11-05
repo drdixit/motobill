@@ -796,7 +796,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Text(
-                                  'Cost Price *',
+                                  'Cost Price (Excluded tax) *',
                                   style: TextStyle(fontSize: AppSizes.fontL),
                                 ),
                                 const SizedBox(height: AppSizes.paddingS),
@@ -840,7 +840,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Text(
-                                  'Selling Price *',
+                                  'Selling Price (Excluded tax) *',
                                   style: TextStyle(fontSize: AppSizes.fontL),
                                 ),
                                 const SizedBox(height: AppSizes.paddingS),

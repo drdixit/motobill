@@ -806,6 +806,12 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
             fileName,
           );
 
+          // Ensure directory exists
+          final directory = Directory(path.dirname(destinationPath));
+          if (!await directory.exists()) {
+            await directory.create(recursive: true);
+          }
+
           // Copy the file
           final sourceFile = File(_uploadedFilePath!);
           await sourceFile.copy(destinationPath);

@@ -67,6 +67,11 @@ class AppSidebar extends StatelessWidget {
                   icon: Icons.cloud_upload,
                   title: 'Product Upload',
                 ),
+                _buildMenuItem(
+                  index: 7,
+                  icon: Icons.folder_outlined,
+                  title: 'Uploaded Excels',
+                ),
               ],
             ),
           ),

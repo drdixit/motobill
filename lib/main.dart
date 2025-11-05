@@ -13,6 +13,7 @@ import 'view/screens/masters_screen.dart';
 import 'view/screens/settings_screen.dart';
 import 'view/screens/testing_screen.dart';
 import 'view/screens/product_upload_screen.dart';
+import 'view/screens/uploaded_excels_screen.dart';
 
 void main() {
   // Initialize sqflite for desktop platforms
@@ -101,6 +102,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         return const TestingScreen();
       case 6:
         return const ProductUploadScreen();
+      case 7:
+        return const UploadedExcelsScreen();
       default:
         return const DashboardScreen();
     }
