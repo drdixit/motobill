@@ -149,6 +149,18 @@ class PosCart extends ConsumerWidget {
                     color: AppColors.textPrimary,
                   ),
                 ),
+                const SizedBox(width: AppSizes.paddingM),
+                // Taxable/Non-Taxable Stock Switch
+                Switch(
+                  value: state.useTaxableStock,
+                  onChanged: (value) {
+                    viewModel.toggleTaxableStock(value);
+                  },
+                  activeColor: Colors.green.shade700,
+                  activeTrackColor: Colors.green.shade200,
+                  inactiveThumbColor: Colors.orange.shade700,
+                  inactiveTrackColor: Colors.orange.shade200,
+                ),
                 const Spacer(),
                 if (state.cartItems.isNotEmpty)
                   Container(

@@ -109,42 +109,67 @@ class PosProductCard extends StatelessWidget {
                     width: 1,
                   ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Total stock
-                    Text(
-                      '${product.stock}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: product.negativeAllow
-                            ? Colors.red.shade900
-                            : Colors.black,
+                child: RichText(
+                  text: TextSpan(
+                    children: [
+                      // Total stock
+                      TextSpan(
+                        text: '${product.stock}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: product.negativeAllow
+                              ? Colors.red.shade900
+                              : Colors.black,
+                        ),
                       ),
-                    ),
-                    // Taxable stock (green)
-                    if (product.taxableStock > 0)
-                      Text(
-                        'T:${product.taxableStock}',
+                      // Opening parenthesis
+                      TextSpan(
+                        text: ' (',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black,
+                        ),
+                      ),
+                      // Taxable stock (green)
+                      TextSpan(
+                        text: '${product.taxableStock}',
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
                           color: Colors.green.shade700,
                         ),
                       ),
-                    // Non-taxable stock (orange)
-                    if (product.nonTaxableStock > 0)
-                      Text(
-                        'N:${product.nonTaxableStock}',
+                      // Slash separator
+                      TextSpan(
+                        text: '/',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black,
+                        ),
+                      ),
+                      // Non-taxable stock (orange)
+                      TextSpan(
+                        text: '${product.nonTaxableStock}',
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
                           color: Colors.orange.shade700,
                         ),
                       ),
-                  ],
+                      // Closing parenthesis
+                      TextSpan(
+                        text: ')',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

@@ -45,6 +45,8 @@ class PosState {
   final bool isLoading;
   final String? error;
   final bool showCheckoutConfirmation; // Always true by default on app launch
+  final bool
+  useTaxableStock; // false = use non-taxable stock, true = use taxable stock
 
   PosState({
     this.allProducts = const [],
@@ -64,6 +66,7 @@ class PosState {
     this.isLoading = false,
     this.error,
     this.showCheckoutConfirmation = true, // Default to true
+    this.useTaxableStock = false, // Default to false (use non-taxable stock)
   });
 
   double get subtotal {
@@ -105,6 +108,7 @@ class PosState {
     String? error,
     bool clearError = false,
     bool? showCheckoutConfirmation,
+    bool? useTaxableStock,
   }) {
     return PosState(
       allProducts: allProducts ?? this.allProducts,
@@ -133,6 +137,7 @@ class PosState {
       error: clearError ? null : (error ?? this.error),
       showCheckoutConfirmation:
           showCheckoutConfirmation ?? this.showCheckoutConfirmation,
+      useTaxableStock: useTaxableStock ?? this.useTaxableStock,
     );
   }
 }
@@ -482,6 +487,10 @@ class PosViewModel extends StateNotifier<PosState> {
     state = state.copyWith(showCheckoutConfirmation: value);
   }
 
+  void toggleTaxableStock(bool value) {
+    state = state.copyWith(useTaxableStock: value);
+  }
+
   void selectCustomer(Customer? customer) async {
     print('\n=== SELECT CUSTOMER CALLED ===');
     print(
@@ -713,6 +722,35 @@ class PosViewModel extends StateNotifier<PosState> {
     if (state.selectedCustomer == null) {
       state = state.copyWith(error: 'Please select a customer');
       return null;
+    }
+
+    // Validate stock availability based on taxable/non-taxable setting
+    for (final item in state.cartItems) {
+      final product = state.allProducts.firstWhere(
+        (p) => p.id == item.productId,
+        orElse: () => throw Exception('Product not found'),
+      );
+
+      int availableStock;
+      String stockType;
+
+      if (state.useTaxableStock) {
+        // Using taxable stock
+        availableStock = product.taxableStock;
+        stockType = 'taxable';
+      } else {
+        // Using non-taxable stock
+        availableStock = product.nonTaxableStock;
+        stockType = 'non-taxable';
+      }
+
+      if (item.quantity > availableStock) {
+        state = state.copyWith(
+          error:
+              'Insufficient $stockType stock for ${product.name}. Available: $availableStock, Required: ${item.quantity}',
+        );
+        return null;
+      }
     }
 
     state = state.copyWith(isLoading: true, clearError: true);
