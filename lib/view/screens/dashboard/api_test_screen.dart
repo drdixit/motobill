@@ -3,7 +3,6 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
-import 'package:xxh3/xxh3.dart';
 import '../../../core/constants/app_colors.dart';
 
 class ApiTestScreen extends StatefulWidget {
@@ -98,11 +97,6 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
         response = await http.get(url);
       } else if (_selectedMethod == 'POST') {
         if (_selectedFile != null) {
-          // Calculate file hash (using XXH3-64 since XXH3-128 is not supported by the package yet)
-          final fileBytes = await _selectedFile!.readAsBytes();
-          final hash = xxh3(fileBytes);
-          final hashHex = hash.toRadixString(16).padLeft(16, '0');
-
           // Send file as multipart
           requestDetails +=
               'Content-Type: multipart/form-data; boundary=----\n';
@@ -113,7 +107,6 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
           requestDetails += 'Filename: $_selectedFileName\n';
           requestDetails += 'File Size: ${_selectedFile!.lengthSync()} bytes\n';
           requestDetails += 'MIME Type: application/pdf\n';
-          requestDetails += 'File Hash (XXH3-64): $hashHex\n';
 
           var request = http.MultipartRequest('POST', url);
           request.files.add(
@@ -130,8 +123,24 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
             requestDetails += '$key: $value\n';
           });
 
-          var streamedResponse = await request.send();
-          response = await http.Response.fromStream(streamedResponse);
+          var streamedResponse = await request.send().timeout(
+            const Duration(seconds: 120),
+            onTimeout: () {
+              throw Exception('Request timeout after 120 seconds');
+            },
+          );
+
+          // Update UI immediately to show request is sent
+          setState(() {
+            _requestInfo = requestDetails;
+          });
+
+          response = await http.Response.fromStream(streamedResponse).timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw Exception('Response reading timeout after 30 seconds');
+            },
+          );
         } else {
           requestDetails += 'Content-Type: application/x-www-form-urlencoded\n';
           requestDetails += 'Accept: */*\n';
@@ -156,8 +165,15 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
       String formattedResponse = '\n\n=== RESPONSE ===\n';
       formattedResponse += 'Status Code: ${response.statusCode}\n';
       formattedResponse += 'Status Message: ${response.reasonPhrase ?? "OK"}\n';
-      formattedResponse +=
-          'Content-Length: ${response.contentLength ?? response.bodyBytes.length} bytes\n';
+
+      // Safely get content length
+      int bodyLength = 0;
+      try {
+        bodyLength = response.contentLength ?? response.bodyBytes.length;
+      } catch (e) {
+        bodyLength = 0;
+      }
+      formattedResponse += 'Content-Length: $bodyLength bytes\n';
 
       formattedResponse += '\n--- Response Headers ---\n';
       response.headers.forEach((key, value) {
@@ -166,45 +182,58 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
 
       formattedResponse += '\n--- Response Body ---\n';
 
+      // Limit body size to prevent UI freeze
+      String responseBody = '';
+      try {
+        if (bodyLength > 100000) {
+          // If response is larger than 100KB, truncate it
+          responseBody = response.body.substring(0, 100000);
+          formattedResponse +=
+              '[Response truncated - showing first 100KB of ${bodyLength} bytes]\n\n';
+        } else {
+          responseBody = response.body;
+        }
+      } catch (e) {
+        responseBody = '[Error reading response body: $e]';
+      }
+
       // Try to parse as JSON first
       if (contentType.contains('application/json') ||
           contentType.contains('text/json')) {
         try {
-          final jsonResponse = json.decode(response.body);
+          final jsonResponse = json.decode(responseBody);
           final prettyJson = const JsonEncoder.withIndent(
             '  ',
           ).convert(jsonResponse);
           formattedResponse += prettyJson;
         } catch (e) {
-          formattedResponse += response.body;
+          formattedResponse += responseBody;
         }
       } else if (contentType.contains('image/')) {
         // Handle image responses
-        formattedResponse +=
-            '[Image Response - ${response.bodyBytes.length} bytes]\n';
+        formattedResponse += '[Image Response - $bodyLength bytes]\n';
         formattedResponse +=
             'This is a binary image file and cannot be displayed as text.\n';
         formattedResponse += 'Content-Type: $contentType';
       } else if (contentType.contains('text/')) {
         // Handle plain text responses
-        formattedResponse += response.body;
+        formattedResponse += responseBody;
       } else {
         // Try to parse as JSON anyway, if it fails show raw body
         try {
-          final jsonResponse = json.decode(response.body);
+          final jsonResponse = json.decode(responseBody);
           final prettyJson = const JsonEncoder.withIndent(
             '  ',
           ).convert(jsonResponse);
           formattedResponse += prettyJson;
         } catch (e) {
           // Not JSON, show raw response or binary info
-          if (response.bodyBytes.length > 1000 && response.body.contains('ÿ')) {
-            formattedResponse +=
-                '[Binary Response - ${response.bodyBytes.length} bytes]\n';
+          if (bodyLength > 1000) {
+            formattedResponse += '[Binary Response - $bodyLength bytes]\n';
             formattedResponse +=
                 'This appears to be binary data and cannot be displayed as text.';
           } else {
-            formattedResponse += response.body;
+            formattedResponse += responseBody;
           }
         }
       }
