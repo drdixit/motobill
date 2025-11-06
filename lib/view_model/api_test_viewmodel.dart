@@ -16,12 +16,14 @@ class ApiTestState {
   final String requestInfo;
   final String responseInfo;
   final String? error;
+  final String fullResponseBody; // Store complete response for parsing
 
   ApiTestState({
     this.isLoading = false,
     this.requestInfo = '',
     this.responseInfo = '',
     this.error,
+    this.fullResponseBody = '',
   });
 
   ApiTestState copyWith({
@@ -29,12 +31,14 @@ class ApiTestState {
     String? requestInfo,
     String? responseInfo,
     String? error,
+    String? fullResponseBody,
   }) {
     return ApiTestState(
       isLoading: isLoading ?? this.isLoading,
       requestInfo: requestInfo ?? this.requestInfo,
       responseInfo: responseInfo ?? this.responseInfo,
       error: error ?? this.error,
+      fullResponseBody: fullResponseBody ?? this.fullResponseBody,
     );
   }
 }
@@ -72,6 +76,7 @@ class ApiTestViewModel extends StateNotifier<ApiTestState> {
         isLoading: false,
         requestInfo: requestInfo,
         responseInfo: _formatResponse(response),
+        fullResponseBody: response.body, // Store full body
         error: null,
       );
     } catch (e) {
@@ -145,6 +150,7 @@ class ApiTestViewModel extends StateNotifier<ApiTestState> {
         isLoading: false,
         requestInfo: requestInfo,
         responseInfo: _formatResponse(response),
+        fullResponseBody: response.body, // Store full body
         error: null,
       );
     } catch (e) {

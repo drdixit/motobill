@@ -289,4 +289,18 @@ class ProductRepository {
       throw Exception('Invalid UQC ID');
     }
   }
+
+  /// Get product by part number (for automated purchase bill creation)
+  Future<Product?> getProductByPartNumber(String partNumber) async {
+    try {
+      final result = await _db.rawQuery(
+        'SELECT * FROM products WHERE part_number = ? AND is_deleted = 0',
+        [partNumber],
+      );
+      if (result.isEmpty) return null;
+      return Product.fromJson(result.first);
+    } catch (e) {
+      throw Exception('Failed to get product by part number: $e');
+    }
+  }
 }

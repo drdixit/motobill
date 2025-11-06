@@ -8,6 +8,7 @@ import '../../widgets/api_test/api_url_field.dart';
 import '../../widgets/api_test/api_method_selector.dart';
 import '../../widgets/api_test/api_file_selector.dart';
 import '../../widgets/api_test/api_response_display.dart';
+import 'purchase_bill_preview_screen.dart';
 
 class ApiTestScreen extends ConsumerStatefulWidget {
   const ApiTestScreen({super.key});
@@ -178,6 +179,34 @@ class _ApiTestScreenState extends ConsumerState<ApiTestScreen> {
               requestInfo: state.requestInfo,
               responseInfo: state.responseInfo,
             ),
+            // Parse Invoice Button
+            if (state.responseInfo.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => PurchaseBillPreviewScreen(
+                          jsonResponse: state
+                              .fullResponseBody, // Use full body for parsing
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.receipt_long),
+                  label: const Text('Create Purchase Bill from Response'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

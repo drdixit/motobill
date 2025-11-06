@@ -101,4 +101,14 @@ class VendorRepository {
     );
     return result.map((json) => Vendor.fromJson(json)).toList();
   }
+
+  /// Find vendor by GST number (for automated purchase bill creation)
+  Future<Vendor?> getVendorByGSTIN(String gstin) async {
+    final result = await _db.rawQuery(
+      'SELECT * FROM vendors WHERE gst_number = ? AND is_deleted = 0',
+      [gstin],
+    );
+    if (result.isEmpty) return null;
+    return Vendor.fromJson(result.first);
+  }
 }

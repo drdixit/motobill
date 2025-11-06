@@ -337,4 +337,93 @@ class PurchaseRepository {
 
     return purchaseId;
   }
+
+  // Create automated purchase bill from parsed invoice with per-item taxable flag
+  Future<int> createAutomatedPurchase(
+    Purchase purchase,
+    List<PurchaseItem> items,
+    List<bool> itemTaxableFlags, // Per-item taxable flags
+  ) async {
+    return await _db.transaction((txn) async {
+      // Insert purchase
+      final purchaseId = await txn.rawInsert(
+        '''INSERT INTO purchases
+        (purchase_number, purchase_reference_number, purchase_reference_date,
+        vendor_id, subtotal, tax_amount, total_amount, is_taxable_bill, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+        [
+          purchase.purchaseNumber,
+          purchase.purchaseReferenceNumber,
+          purchase.purchaseReferenceDate?.toIso8601String().split('T')[0],
+          purchase.vendorId,
+          purchase.subtotal,
+          purchase.taxAmount,
+          purchase.totalAmount,
+          purchase.isTaxableBill ? 1 : 0,
+          purchase.createdAt.toIso8601String(),
+          purchase.updatedAt.toIso8601String(),
+        ],
+      );
+
+      // Insert purchase items and create stock batches
+      for (int i = 0; i < items.length; i++) {
+        final item = items[i];
+        final isTaxable = itemTaxableFlags[i];
+
+        final purchaseItemId = await txn.rawInsert(
+          '''INSERT INTO purchase_items
+          (purchase_id, product_id, product_name, part_number, hsn_code, uqc_code,
+          cost_price, quantity, subtotal, cgst_rate, sgst_rate, igst_rate, utgst_rate,
+          cgst_amount, sgst_amount, igst_amount, utgst_amount, tax_amount, total_amount,
+          created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))''',
+          [
+            purchaseId,
+            item.productId,
+            item.productName,
+            item.partNumber,
+            item.hsnCode,
+            item.uqcCode,
+            item.costPrice,
+            item.quantity,
+            item.subtotal,
+            item.cgstRate,
+            item.sgstRate,
+            item.igstRate,
+            item.utgstRate,
+            item.cgstAmount,
+            item.sgstAmount,
+            item.igstAmount,
+            item.utgstAmount,
+            item.taxAmount,
+            item.totalAmount,
+          ],
+        );
+
+        // Create stock batch with taxable flag
+        final batchNumber = await _generateBatchNumber(
+          txn,
+          purchaseId,
+          item.productId,
+        );
+        await txn.rawInsert(
+          '''INSERT INTO stock_batches
+          (product_id, purchase_item_id, batch_number, quantity_received,
+          quantity_remaining, cost_price, is_taxable, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))''',
+          [
+            item.productId,
+            purchaseItemId,
+            batchNumber,
+            item.quantity,
+            item.quantity, // Initially, remaining = received
+            item.costPrice,
+            isTaxable ? 1 : 0,
+          ],
+        );
+      }
+
+      return purchaseId;
+    });
+  }
 }
