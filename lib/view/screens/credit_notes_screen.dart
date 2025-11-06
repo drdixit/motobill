@@ -6,6 +6,7 @@ import '../../core/providers/database_provider.dart';
 import '../../repository/bill_repository.dart';
 import '../../view_model/pos_viewmodel.dart';
 import 'debit_notes_screen.dart';
+import 'dashboard/create_bill_screen.dart';
 
 final creditNotesProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
@@ -2420,6 +2421,8 @@ class _CreateCreditNoteScreenState
       ref.invalidate(creditNotesProvider);
       // Refresh POS screen stock to reflect returned items
       ref.invalidate(posViewModelProvider);
+      // Refresh product list for Create Bill screen to show updated stock
+      ref.invalidate(productListForBillProvider);
       // Refresh purchases provider so debit notes screen shows updated stock
       ref.invalidate(purchasesProvider);
       // Refresh available stock for all purchases that might be affected

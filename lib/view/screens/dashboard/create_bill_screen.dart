@@ -356,6 +356,8 @@ class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
 
       // Invalidate purchases list so auto-purchases show in Debit Notes
       ref.invalidate(purchasesProvider);
+      // Invalidate product list to refresh stock after bill creation
+      ref.invalidate(productListForBillProvider);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
