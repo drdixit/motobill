@@ -126,13 +126,24 @@ class InvoiceParserService {
             itemFields['ItemDescription']?['content'] ??
             itemFields['ProductDescription']?['content'] ??
             '';
-        final partNumber = _extractPartNumber(description);
-        final hsnCode =
+
+        // ProductCode in Azure invoice is the part number (e.g., "52DJ1617", "DK181086")
+        final partNumber =
             itemFields['ProductCode']?['content'] ??
             itemFields['productCode']?['content'] ??
+            itemFields['PartNumber']?['content'] ??
+            itemFields['partNumber']?['content'] ??
+            itemFields['ItemCode']?['content'] ??
+            _extractPartNumber(
+              description,
+            ); // Fallback to extracting from description
+
+        // HSN code is separate from ProductCode
+        final hsnCode =
             itemFields['HSNCode']?['content'] ??
             itemFields['hsnCode']?['content'] ??
             itemFields['HSN']?['content'] ??
+            itemFields['hsn']?['content'] ??
             '';
         final quantity = _parseDouble(
           itemFields['Quantity']?['content'] ??

@@ -29,34 +29,79 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
         foregroundColor: Colors.white,
       ),
       backgroundColor: AppColors.background,
-      body: state.isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : state.error != null
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.error, size: 64, color: Colors.red[300]),
-                    const SizedBox(height: 16),
-                    Text(
-                      state.error!,
-                      style: const TextStyle(color: Colors.red),
-                      textAlign: TextAlign.center,
+      body: Stack(
+        children: [
+          // Main content
+          state.isLoading && state.parsedInvoice == null
+              ? const Center(child: CircularProgressIndicator())
+              : state.error != null && state.parsedInvoice == null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.error, size: 64, color: Colors.red[300]),
+                        const SizedBox(height: 16),
+                        Text(
+                          state.error!,
+                          style: const TextStyle(color: Colors.red),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Go Back'),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Go Back'),
+                  ),
+                )
+              : state.parsedInvoice == null
+              ? const Center(child: Text('No invoice data'))
+              : _buildInvoicePreview(context, ref, state),
+
+          // Full-screen loading overlay when creating bill
+          if (state.isCreating)
+            Container(
+              color: Colors.black54,
+              child: Center(
+                child: Card(
+                  margin: const EdgeInsets.all(32),
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(
+                          width: 60,
+                          height: 60,
+                          child: CircularProgressIndicator(strokeWidth: 4),
+                        ),
+                        const SizedBox(height: 24),
+                        const Text(
+                          'Creating Purchase Bill...',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Please wait while we save the data',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
-            )
-          : state.parsedInvoice == null
-          ? const Center(child: Text('No invoice data'))
-          : _buildInvoicePreview(context, ref, state),
+            ),
+        ],
+      ),
     );
   }
 
@@ -127,7 +172,11 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                 const SizedBox(height: 16),
 
                 // Vendor Info
-                _buildVendorInfo(invoice, state),
+                _buildVendorInfo(invoice, state, viewModel),
+                const SizedBox(height: 16),
+
+                // Bill-level taxable toggle
+                _buildBillTaxableToggle(state, viewModel),
                 const SizedBox(height: 16),
 
                 // Items Table
@@ -270,8 +319,10 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
   Widget _buildVendorInfo(
     ParsedInvoice invoice,
     PurchaseBillAutomationState state,
+    PurchaseBillAutomationViewModel viewModel,
   ) {
     final vendorExists = state.existingVendor != null;
+    final vendorSelected = state.selectedVendorId != null;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -303,7 +354,7 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  vendorExists ? 'Existing Vendor' : 'New Vendor',
+                  vendorExists ? 'Found' : 'Not Found',
                   style: TextStyle(
                     color: vendorExists
                         ? Colors.green[700]
@@ -320,15 +371,73 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
           _buildInfoRow('GSTIN', invoice.vendor.gstin),
           _buildInfoRow('City', invoice.vendor.city),
           _buildInfoRow('State', invoice.vendor.state),
-          if (!vendorExists)
+
+          // Vendor selection dropdown if not found
+          if (!vendorExists && state.availableVendors.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            const Text(
+              'Select Existing Vendor:',
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: 14,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  isExpanded: true,
+                  value: state.selectedVendorId,
+                  hint: const Text('Choose a vendor...'),
+                  items: state.availableVendors.map((vendor) {
+                    return DropdownMenuItem<int>(
+                      value: vendor.id,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            vendor.name,
+                            style: const TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                          if (vendor.gstNumber != null &&
+                              vendor.gstNumber!.isNotEmpty)
+                            Text(
+                              'GSTIN: ${vendor.gstNumber}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (vendorId) {
+                    if (vendorId != null) {
+                      viewModel.setVendor(vendorId);
+                    }
+                  },
+                ),
+              ),
+            ),
+          ],
+
+          if (!vendorSelected)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                'Note: This vendor will need to be created before the purchase bill can be generated.',
+                'Please select a vendor to continue.',
                 style: TextStyle(
-                  color: Colors.orange[700],
+                  color: Colors.red[700],
                   fontSize: 12,
-                  fontStyle: FontStyle.italic,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),
@@ -355,6 +464,60 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
               value,
               style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBillTaxableToggle(
+    PurchaseBillAutomationState state,
+    PurchaseBillAutomationViewModel viewModel,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.shade200,
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.inventory_2_outlined, size: 20, color: Colors.grey),
+          const SizedBox(width: 8),
+          const Text(
+            'Stock Type (Entire Bill):',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          ),
+          const Spacer(),
+          ChoiceChip(
+            label: const Text('Taxable'),
+            selected: state.isBillTaxable,
+            onSelected: (selected) {
+              if (selected != state.isBillTaxable) {
+                viewModel.toggleBillTaxable();
+              }
+            },
+            selectedColor: Colors.blue[100],
+            backgroundColor: Colors.grey[100],
+          ),
+          const SizedBox(width: 8),
+          ChoiceChip(
+            label: const Text('Non-Taxable'),
+            selected: !state.isBillTaxable,
+            onSelected: (selected) {
+              if (selected != !state.isBillTaxable) {
+                viewModel.toggleBillTaxable();
+              }
+            },
+            selectedColor: Colors.orange[100],
+            backgroundColor: Colors.grey[100],
           ),
         ],
       ),
@@ -411,8 +574,6 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
     int? productId,
     PurchaseBillAutomationViewModel viewModel,
   ) {
-    final productExists = productId != null;
-
     return Container(
       padding: const EdgeInsets.all(16),
       color: item.isApproved ? Colors.green[50] : null,
@@ -432,11 +593,13 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                   children: [
                     Row(
                       children: [
-                        Text(
-                          item.partNumber,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                        Expanded(
+                          child: Text(
+                            item.partNumber,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -446,17 +609,13 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: productExists
-                                ? Colors.green[100]
-                                : Colors.red[100],
+                            color: Colors.green[100],
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Text(
-                            productExists ? 'Found' : 'Not Found',
+                          child: const Text(
+                            'Matched',
                             style: TextStyle(
-                              color: productExists
-                                  ? Colors.green[700]
-                                  : Colors.red[700],
+                              color: Colors.green,
                               fontSize: 10,
                               fontWeight: FontWeight.w500,
                             ),
@@ -475,6 +634,7 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 12),
+
           Row(
             children: [
               Expanded(
@@ -535,38 +695,6 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Taxable toggle
-          Row(
-            children: [
-              const Text(
-                'Stock Type:',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              const SizedBox(width: 8),
-              ChoiceChip(
-                label: const Text('Taxable'),
-                selected: item.isTaxable,
-                onSelected: (selected) {
-                  if (selected != item.isTaxable) {
-                    viewModel.toggleItemTaxable(index);
-                  }
-                },
-                selectedColor: Colors.blue[100],
-              ),
-              const SizedBox(width: 8),
-              ChoiceChip(
-                label: const Text('Non-Taxable'),
-                selected: !item.isTaxable,
-                onSelected: (selected) {
-                  if (selected != !item.isTaxable) {
-                    viewModel.toggleItemTaxable(index);
-                  }
-                },
-                selectedColor: Colors.orange[100],
               ),
             ],
           ),

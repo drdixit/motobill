@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../model/apis/parsed_invoice.dart';
 import '../model/services/invoice_parser_service.dart';
 import '../model/vendor.dart';
+import '../model/product.dart';
 import '../model/purchase.dart';
 import '../repository/vendor_repository.dart';
 import '../repository/product_repository.dart';
@@ -30,18 +31,26 @@ class PurchaseBillAutomationState {
   final ParsedInvoice? parsedInvoice;
   final String? error;
   final Vendor? existingVendor;
+  final int? selectedVendorId; // Manually selected vendor
   final Map<int, int?> productMatches; // index -> product_id
   final bool isCreating;
   final String? successMessage;
+  final bool isBillTaxable; // Global taxable flag for entire bill
+  final List<Vendor> availableVendors; // For vendor selection
+  final List<Product> availableProducts; // For product selection
 
   PurchaseBillAutomationState({
     this.isLoading = false,
     this.parsedInvoice,
     this.error,
     this.existingVendor,
+    this.selectedVendorId,
     this.productMatches = const {},
     this.isCreating = false,
     this.successMessage,
+    this.isBillTaxable = true,
+    this.availableVendors = const [],
+    this.availableProducts = const [],
   });
 
   PurchaseBillAutomationState copyWith({
@@ -49,18 +58,26 @@ class PurchaseBillAutomationState {
     ParsedInvoice? parsedInvoice,
     String? error,
     Vendor? existingVendor,
+    int? selectedVendorId,
     Map<int, int?>? productMatches,
     bool? isCreating,
     String? successMessage,
+    bool? isBillTaxable,
+    List<Vendor>? availableVendors,
+    List<Product>? availableProducts,
   }) {
     return PurchaseBillAutomationState(
       isLoading: isLoading ?? this.isLoading,
       parsedInvoice: parsedInvoice ?? this.parsedInvoice,
       error: error,
       existingVendor: existingVendor ?? this.existingVendor,
+      selectedVendorId: selectedVendorId ?? this.selectedVendorId,
       productMatches: productMatches ?? this.productMatches,
       isCreating: isCreating ?? this.isCreating,
       successMessage: successMessage,
+      isBillTaxable: isBillTaxable ?? this.isBillTaxable,
+      availableVendors: availableVendors ?? this.availableVendors,
+      availableProducts: availableProducts ?? this.availableProducts,
     );
   }
 }
@@ -92,6 +109,9 @@ class PurchaseBillAutomationViewModel
       return;
 
     state = state.copyWith(isLoading: true, error: null, successMessage: null);
+
+    // Allow UI to update before starting heavy work
+    await Future.delayed(const Duration(milliseconds: 100));
 
     try {
       // Check if response is empty
@@ -129,22 +149,80 @@ class PurchaseBillAutomationViewModel
         parsed.vendor.gstin,
       );
 
-      // Look up products by part number
+      // Look up products by part number and filter items
       final productMatches = <int, int?>{};
+      final matchedItems = <ParsedInvoiceItem>[];
+      final unmatchedItems = <ParsedInvoiceItem>[];
+
+      print('\n=== Product Matching Started ===');
+      print('Total items in invoice: ${parsed.items.length}');
+
       for (int i = 0; i < parsed.items.length; i++) {
         final item = parsed.items[i];
+        print('\nChecking item ${i + 1}: "${item.partNumber}"');
+
         final product = await _productRepository.getProductByPartNumber(
           item.partNumber,
         );
-        productMatches[i] = product?.id;
+
+        if (product != null) {
+          // Product found - add to matched items
+          print(
+            '  ✓ MATCHED - Found product ID: ${product.id}, Name: ${product.name}',
+          );
+          productMatches[matchedItems.length] = product.id;
+          matchedItems.add(item);
+        } else {
+          // Product not found - add to unmatched items
+          print(
+            '  ✗ NOT FOUND - No product with part_number="${item.partNumber}" in database',
+          );
+          unmatchedItems.add(item);
+        }
+      }
+
+      print('\n=== Product Matching Summary ===');
+      print('Matched: ${matchedItems.length} items');
+      print('Unmatched: ${unmatchedItems.length} items');
+      print('================================\n');
+
+      // Create new parsed invoice with only matched items
+      final filteredInvoice = ParsedInvoice(
+        invoiceNumber: parsed.invoiceNumber,
+        invoiceDate: parsed.invoiceDate,
+        vendor: parsed.vendor,
+        items: matchedItems,
+        subtotal: parsed.subtotal,
+        cgstAmount: parsed.cgstAmount,
+        sgstAmount: parsed.sgstAmount,
+        totalAmount: parsed.totalAmount,
+      );
+
+      // Only load vendors if no vendor found (lazy loading)
+      List<Vendor> availableVendors = [];
+      if (vendor == null) {
+        availableVendors = await _vendorRepository.getAllVendors();
       }
 
       state = state.copyWith(
         isLoading: false,
-        parsedInvoice: parsed,
+        parsedInvoice: filteredInvoice,
         existingVendor: vendor,
+        selectedVendorId: vendor?.id,
         productMatches: productMatches,
+        availableVendors: availableVendors,
+        availableProducts: [], // Don't load all products - too slow
       );
+
+      // Show info about unmatched items
+      if (unmatchedItems.isNotEmpty) {
+        print(
+          'INFO: ${unmatchedItems.length} items not found in product database and will be excluded from bill:',
+        );
+        for (final item in unmatchedItems) {
+          print('  - ${item.partNumber}: ${item.description}');
+        }
+      }
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
@@ -174,7 +252,25 @@ class PurchaseBillAutomationViewModel
     );
   }
 
-  /// Toggle taxable flag for an item
+  /// Toggle bill taxable flag (applies to entire bill)
+  void toggleBillTaxable() {
+    state = state.copyWith(isBillTaxable: !state.isBillTaxable);
+  }
+
+  /// Set vendor manually
+  void setVendor(int vendorId) {
+    state = state.copyWith(selectedVendorId: vendorId);
+  }
+
+  /// Set product for a specific item
+  void setProductForItem(int index, int productId) {
+    final updatedMatches = Map<int, int?>.from(state.productMatches);
+    updatedMatches[index] = productId;
+    state = state.copyWith(productMatches: updatedMatches);
+  }
+
+  /// Toggle taxable flag for an item (DEPRECATED - use toggleBillTaxable instead)
+  @Deprecated('Use toggleBillTaxable() for entire bill')
   void toggleItemTaxable(int index) {
     if (state.parsedInvoice == null) return;
 
@@ -197,16 +293,28 @@ class PurchaseBillAutomationViewModel
 
   /// Create purchase bill from approved items
   Future<void> createPurchaseBill() async {
-    if (state.parsedInvoice == null || state.existingVendor == null) {
-      state = state.copyWith(error: 'Missing vendor or invoice data');
+    if (state.parsedInvoice == null) {
+      state = state.copyWith(error: 'Missing invoice data');
       return;
     }
 
+    // Check vendor selection
+    if (state.selectedVendorId == null) {
+      state = state.copyWith(
+        error: 'Please select a vendor before creating the purchase bill',
+      );
+      return;
+    }
+
+    // Set loading state
     state = state.copyWith(isCreating: true, error: null);
+
+    // Allow UI to update before starting heavy computation
+    await Future.delayed(const Duration(milliseconds: 100));
 
     try {
       final parsed = state.parsedInvoice!;
-      final vendor = state.existingVendor!;
+      final vendorId = state.selectedVendorId!;
 
       // Filter approved items only
       final approvedItems = <ParsedInvoiceItem>[];
@@ -227,17 +335,8 @@ class PurchaseBillAutomationViewModel
         return;
       }
 
-      // Check if all approved items have product matches
-      for (final index in approvedIndices) {
-        if (state.productMatches[index] == null) {
-          state = state.copyWith(
-            isCreating: false,
-            error:
-                'Item "${parsed.items[index].partNumber}" not found in product database. Please create the product first.',
-          );
-          return;
-        }
-      }
+      // All items in the list already have product matches (filtered during parse)
+      // No need to check for missing products
 
       // Generate purchase number
       final purchaseNumber = await _purchaseRepository!
@@ -291,11 +390,11 @@ class PurchaseBillAutomationViewModel
         purchaseNumber: purchaseNumber,
         purchaseReferenceNumber: parsed.invoiceNumber,
         purchaseReferenceDate: invoiceDate,
-        vendorId: vendor.id!,
+        vendorId: vendorId,
         subtotal: subtotal,
         taxAmount: taxAmount,
         totalAmount: totalAmount,
-        isTaxableBill: true,
+        isTaxableBill: state.isBillTaxable,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -332,10 +431,11 @@ class PurchaseBillAutomationViewModel
           ),
         );
 
-        taxableFlags.add(item.isTaxable);
+        // Use bill-level taxable flag for all items
+        taxableFlags.add(state.isBillTaxable);
       }
 
-      // Create purchase with items
+      // Create purchase with items (this is the heavy operation)
       await _purchaseRepository.createAutomatedPurchase(
         purchase,
         purchaseItems,
