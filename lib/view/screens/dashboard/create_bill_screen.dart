@@ -32,11 +32,16 @@ final productListForBillProvider = FutureProvider<List<Map<String, dynamic>>>((
   final db = await ref.watch(databaseProvider);
   return await db.rawQuery('''
     SELECT p.id, p.name, p.part_number, p.cost_price, p.selling_price, p.is_taxable, p.negative_allow,
-           h.code as hsn_code, u.code as uqc_code
+           h.code as hsn_code, u.code as uqc_code,
+           COALESCE(SUM(sb.quantity_remaining), 0) as stock,
+           COALESCE(SUM(CASE WHEN sb.is_taxable = 1 THEN sb.quantity_remaining ELSE 0 END), 0) as taxable_stock,
+           COALESCE(SUM(CASE WHEN sb.is_taxable = 0 THEN sb.quantity_remaining ELSE 0 END), 0) as non_taxable_stock
     FROM products p
     LEFT JOIN hsn_codes h ON p.hsn_code_id = h.id
     LEFT JOIN uqcs u ON p.uqc_id = u.id
+    LEFT JOIN stock_batches sb ON p.id = sb.product_id AND sb.is_deleted = 0
     WHERE p.is_deleted = 0 AND p.is_enabled = 1
+    GROUP BY p.id
     ORDER BY p.name
   ''');
 });
@@ -81,6 +86,8 @@ class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
   double _grandTotal = 0.0;
 
   bool _isSaving = false;
+  bool _useTaxableStock =
+      false; // false = non-taxable (default), true = taxable
 
   List<Map<String, dynamic>> _products = [];
   List<Map<String, dynamic>> _gstRates = [];
@@ -293,6 +300,35 @@ class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
       return;
     }
 
+    // Validate stock availability
+    for (var row in validRows) {
+      final product = row.selectedProduct!;
+      final requestedQty = int.parse(row.quantityController.text);
+      final negativeAllow = (product['negative_allow'] as int?) == 1;
+
+      if (!negativeAllow) {
+        final taxableStock = (product['taxable_stock'] as num?)?.toInt() ?? 0;
+        final nonTaxableStock =
+            (product['non_taxable_stock'] as num?)?.toInt() ?? 0;
+        final availableStock = _useTaxableStock
+            ? taxableStock
+            : nonTaxableStock;
+
+        if (requestedQty > availableStock) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Insufficient ${_useTaxableStock ? 'taxable' : 'non-taxable'} stock for ${product['name']}. Available: $availableStock, Requested: $requestedQty',
+              ),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+          return;
+        }
+      }
+    }
+
     setState(() {
       _isSaving = true;
     });
@@ -312,7 +348,11 @@ class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
       );
 
       final items = validRows.map((row) => row.toBillItem()).toList();
-      await repository.createBill(bill, items);
+      await repository.createBill(
+        bill,
+        items,
+        useTaxableStock: _useTaxableStock,
+      );
 
       // Invalidate purchases list so auto-purchases show in Debit Notes
       ref.invalidate(purchasesProvider);
@@ -561,179 +601,252 @@ class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.all(16),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            flex: 3,
-            child: Autocomplete<Customer>(
-              key: ValueKey(_selectedCustomer?.id),
-              optionsBuilder: (TextEditingValue textEditingValue) {
-                if (textEditingValue.text.isEmpty) {
-                  return customers;
-                }
-                return customers.where((customer) {
-                  return _matchesCustomer(customer, textEditingValue.text);
-                });
-              },
-              displayStringForOption: (Customer customer) => customer.name,
-              onSelected: (Customer customer) {
-                setState(() {
-                  _selectedCustomer = customer;
-                  _checkInterStateAndUpdateRows(customer);
-                });
-              },
-              initialValue: _selectedCustomer != null
-                  ? TextEditingValue(text: _selectedCustomer!.name)
-                  : null,
-              fieldViewBuilder:
-                  (
-                    BuildContext context,
-                    TextEditingController textController,
-                    FocusNode focusNode,
-                    VoidCallback onFieldSubmitted,
-                  ) {
-                    return TextField(
-                      controller: textController,
-                      focusNode: focusNode,
-                      decoration: InputDecoration(
-                        labelText: 'Select Customer *',
-                        labelStyle: TextStyle(
-                          color: _selectedCustomer == null
-                              ? Colors.red
-                              : Colors.grey.shade700,
-                        ),
-                        hintText: 'Search by name, GST, mobile, email...',
-                        hintStyle: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade400,
-                        ),
-                        prefixIcon: Icon(
-                          Icons.person,
-                          color: _selectedCustomer == null
-                              ? Colors.red
-                              : AppColors.primary,
-                        ),
-                        suffixIcon: _selectedCustomer != null
-                            ? IconButton(
-                                icon: const Icon(Icons.clear, size: 20),
-                                onPressed: () {
-                                  textController.clear();
-                                  setState(() {
-                                    _selectedCustomer = null;
-                                    _checkInterStateAndUpdateRows(null);
-                                  });
-                                },
-                              )
-                            : null,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(
-                            color: _selectedCustomer == null
-                                ? Colors.red
-                                : Colors.grey.shade300,
-                            width: _selectedCustomer == null ? 2 : 1,
-                          ),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(
-                            color: _selectedCustomer == null
-                                ? Colors.red
-                                : Colors.grey.shade300,
-                            width: _selectedCustomer == null ? 2 : 1,
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(
-                            color: _selectedCustomer == null
-                                ? Colors.red
-                                : AppColors.primary,
-                            width: 2,
-                          ),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 16,
-                        ),
-                      ),
-                    );
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: Autocomplete<Customer>(
+                  key: ValueKey(_selectedCustomer?.id),
+                  optionsBuilder: (TextEditingValue textEditingValue) {
+                    if (textEditingValue.text.isEmpty) {
+                      return customers;
+                    }
+                    return customers.where((customer) {
+                      return _matchesCustomer(customer, textEditingValue.text);
+                    });
                   },
-              optionsViewBuilder:
-                  (
-                    BuildContext context,
-                    AutocompleteOnSelected<Customer> onSelected,
-                    Iterable<Customer> options,
-                  ) {
-                    return Align(
-                      alignment: Alignment.topLeft,
-                      child: Material(
-                        elevation: 4,
-                        borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          constraints: const BoxConstraints(maxHeight: 200),
-                          width: 500,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
+                  displayStringForOption: (Customer customer) => customer.name,
+                  onSelected: (Customer customer) {
+                    setState(() {
+                      _selectedCustomer = customer;
+                      _checkInterStateAndUpdateRows(customer);
+                    });
+                  },
+                  initialValue: _selectedCustomer != null
+                      ? TextEditingValue(text: _selectedCustomer!.name)
+                      : null,
+                  fieldViewBuilder:
+                      (
+                        BuildContext context,
+                        TextEditingController textController,
+                        FocusNode focusNode,
+                        VoidCallback onFieldSubmitted,
+                      ) {
+                        return TextField(
+                          controller: textController,
+                          focusNode: focusNode,
+                          decoration: InputDecoration(
+                            labelText: 'Select Customer *',
+                            labelStyle: TextStyle(
+                              color: _selectedCustomer == null
+                                  ? Colors.red
+                                  : Colors.grey.shade700,
+                            ),
+                            hintText: 'Search by name, GST, mobile, email...',
+                            hintStyle: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade400,
+                            ),
+                            prefixIcon: Icon(
+                              Icons.person,
+                              color: _selectedCustomer == null
+                                  ? Colors.red
+                                  : AppColors.primary,
+                            ),
+                            suffixIcon: _selectedCustomer != null
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear, size: 20),
+                                    onPressed: () {
+                                      textController.clear();
+                                      setState(() {
+                                        _selectedCustomer = null;
+                                        _checkInterStateAndUpdateRows(null);
+                                      });
+                                    },
+                                  )
+                                : null,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: _selectedCustomer == null
+                                    ? Colors.red
+                                    : Colors.grey.shade300,
+                                width: _selectedCustomer == null ? 2 : 1,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: _selectedCustomer == null
+                                    ? Colors.red
+                                    : Colors.grey.shade300,
+                                width: _selectedCustomer == null ? 2 : 1,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: _selectedCustomer == null
+                                    ? Colors.red
+                                    : AppColors.primary,
+                                width: 2,
+                              ),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 16,
+                            ),
+                          ),
+                        );
+                      },
+                  optionsViewBuilder:
+                      (
+                        BuildContext context,
+                        AutocompleteOnSelected<Customer> onSelected,
+                        Iterable<Customer> options,
+                      ) {
+                        return Align(
+                          alignment: Alignment.topLeft,
+                          child: Material(
+                            elevation: 4,
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey.shade300),
+                            child: Container(
+                              constraints: const BoxConstraints(maxHeight: 200),
+                              width: 500,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey.shade300),
+                              ),
+                              child: ListView.builder(
+                                padding: EdgeInsets.zero,
+                                shrinkWrap: true,
+                                itemCount: options.length,
+                                itemBuilder: (BuildContext context, int index) {
+                                  final customer = options.elementAt(index);
+                                  return ListTile(
+                                    leading: Icon(
+                                      Icons.person,
+                                      color: AppColors.primary,
+                                      size: 20,
+                                    ),
+                                    title: Text(
+                                      customer.legalName != null
+                                          ? '${customer.name} (${customer.legalName})'
+                                          : customer.name,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                    ),
+                                    subtitle: customer.gstNumber != null
+                                        ? Text(
+                                            'GST: ${customer.gstNumber}',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey.shade600,
+                                            ),
+                                          )
+                                        : null,
+                                    onTap: () => onSelected(customer),
+                                    hoverColor: AppColors.primary.withOpacity(
+                                      0.1,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
                           ),
-                          child: ListView.builder(
-                            padding: EdgeInsets.zero,
-                            shrinkWrap: true,
-                            itemCount: options.length,
-                            itemBuilder: (BuildContext context, int index) {
-                              final customer = options.elementAt(index);
-                              return ListTile(
-                                leading: Icon(
-                                  Icons.person,
-                                  color: AppColors.primary,
-                                  size: 20,
-                                ),
-                                title: Text(
-                                  customer.legalName != null
-                                      ? '${customer.name} (${customer.legalName})'
-                                      : customer.name,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                ),
-                                subtitle: customer.gstNumber != null
-                                    ? Text(
-                                        'GST: ${customer.gstNumber}',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey.shade600,
-                                        ),
-                                      )
-                                    : null,
-                                onTap: () => onSelected(customer),
-                                hoverColor: AppColors.primary.withOpacity(0.1),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-            ),
-          ),
-          const SizedBox(width: 16),
-          ElevatedButton.icon(
-            onPressed: _showAddCustomerDialog,
-            icon: const Icon(Icons.person_add, size: 18),
-            label: const Text('Add Customer'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+                        );
+                      },
+                ),
               ),
-            ),
+              const SizedBox(width: 16),
+              ElevatedButton.icon(
+                onPressed: _showAddCustomerDialog,
+                icon: const Icon(Icons.person_add, size: 18),
+                label: const Text('Add Customer'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Stock Type Switch
+          Row(
+            children: [
+              Icon(Icons.inventory_2, size: 18, color: Colors.grey.shade600),
+              const SizedBox(width: 8),
+              Text(
+                'Stock Type:',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Non-Taxable',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: _useTaxableStock
+                      ? FontWeight.normal
+                      : FontWeight.w600,
+                  color: _useTaxableStock
+                      ? Colors.grey.shade600
+                      : Colors.orange.shade700,
+                ),
+              ),
+              Switch(
+                value: _useTaxableStock,
+                onChanged: (value) {
+                  setState(() {
+                    _useTaxableStock = value;
+                  });
+                },
+                activeColor: Colors.green.shade700,
+                inactiveThumbColor: Colors.orange.shade700,
+              ),
+              Text(
+                'Taxable',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: _useTaxableStock
+                      ? FontWeight.w600
+                      : FontWeight.normal,
+                  color: _useTaxableStock
+                      ? Colors.green.shade700
+                      : Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  _useTaxableStock
+                      ? 'Using TAXABLE stock batches (with GST)'
+                      : 'Using NON-TAXABLE stock batches (without GST)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

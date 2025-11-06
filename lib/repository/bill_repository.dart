@@ -65,7 +65,11 @@ class BillRepository {
   }
 
   // Create a bill and its items inside a transaction
-  Future<int> createBill(Bill bill, List<BillItem> items) async {
+  Future<int> createBill(
+    Bill bill,
+    List<BillItem> items, {
+    bool useTaxableStock = false,
+  }) async {
     return await _db.transaction((txn) async {
       final billId = await txn.rawInsert(
         '''INSERT INTO bills (bill_number, customer_id, subtotal, tax_amount, total_amount, created_at, updated_at, is_deleted)
@@ -82,12 +86,12 @@ class BillRepository {
       );
 
       for (final it in items) {
-        // First, check stock availability
+        // First, check stock availability based on stock type
         final stockCheck = await txn.rawQuery(
           '''SELECT COALESCE(SUM(quantity_remaining), 0) as available
              FROM stock_batches
-             WHERE product_id = ? AND is_deleted = 0 AND quantity_remaining > 0''',
-          [it.productId],
+             WHERE product_id = ? AND is_deleted = 0 AND quantity_remaining > 0 AND is_taxable = ?''',
+          [it.productId, useTaxableStock ? 1 : 0],
         );
 
         final availableQty = stockCheck.isNotEmpty
@@ -158,16 +162,16 @@ class BillRepository {
           ],
         );
 
-        // Allocate stock using FIFO (First In First Out)
+        // Allocate stock using FIFO (First In First Out) and stock type
         int remainingQty = it.quantity;
 
-        // Get stock batches ordered by ID (oldest first)
+        // Get stock batches ordered by ID (oldest first) and filtered by stock type
         final batches = await txn.rawQuery(
           '''SELECT id, quantity_remaining, cost_price
              FROM stock_batches
-             WHERE product_id = ? AND is_deleted = 0 AND quantity_remaining > 0
+             WHERE product_id = ? AND is_deleted = 0 AND quantity_remaining > 0 AND is_taxable = ?
              ORDER BY id ASC''',
-          [it.productId],
+          [it.productId, useTaxableStock ? 1 : 0],
         );
 
         for (final batch in batches) {
