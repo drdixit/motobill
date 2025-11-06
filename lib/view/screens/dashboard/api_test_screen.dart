@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import '../../../core/constants/app_colors.dart';
 
 class ApiTestScreen extends StatefulWidget {
@@ -12,17 +14,47 @@ class ApiTestScreen extends StatefulWidget {
 
 class _ApiTestScreenState extends State<ApiTestScreen> {
   String _response = '';
+  String _requestInfo = '';
   bool _isLoading = false;
   String _selectedMethod = 'GET';
-  final List<String> _methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
+  final List<String> _methods = ['GET', 'POST'];
   final TextEditingController _urlController = TextEditingController(
     text: 'https://dummyjson.com/test',
   );
+  File? _selectedFile;
+  String? _selectedFileName;
 
   @override
   void dispose() {
     _urlController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickFile() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+
+      if (result != null) {
+        setState(() {
+          _selectedFile = File(result.files.single.path!);
+          _selectedFileName = result.files.single.name;
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error picking file: $e')));
+    }
+  }
+
+  void _clearFile() {
+    setState(() {
+      _selectedFile = null;
+      _selectedFileName = null;
+    });
   }
 
   Future<void> _testApi() async {
@@ -31,6 +63,7 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
     if (urlText.isEmpty) {
       setState(() {
         _response = 'Error: URL cannot be empty';
+        _requestInfo = '';
       });
       return;
     }
@@ -38,35 +71,50 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
     setState(() {
       _isLoading = true;
       _response = '';
+      _requestInfo = '';
     });
 
     try {
       final url = Uri.parse(urlText);
       http.Response response;
+      String requestDetails = '=== REQUEST ===\n';
+      requestDetails += 'Method: $_selectedMethod\n';
+      requestDetails += 'URL: $urlText\n';
 
-      switch (_selectedMethod) {
-        case 'GET':
-          response = await http.get(url);
-          break;
-        case 'POST':
+      if (_selectedMethod == 'GET') {
+        response = await http.get(url);
+        requestDetails += 'Body: None\n';
+      } else if (_selectedMethod == 'POST') {
+        if (_selectedFile != null) {
+          // Send file as multipart
+          requestDetails += 'Content-Type: multipart/form-data\n';
+          requestDetails += 'File: $_selectedFileName\n';
+          requestDetails += 'File Size: ${_selectedFile!.lengthSync()} bytes\n';
+
+          var request = http.MultipartRequest('POST', url);
+          request.files.add(
+            await http.MultipartFile.fromPath(
+              'file',
+              _selectedFile!.path,
+              filename: _selectedFileName,
+            ),
+          );
+
+          var streamedResponse = await request.send();
+          response = await http.Response.fromStream(streamedResponse);
+        } else {
           response = await http.post(url);
-          break;
-        case 'PUT':
-          response = await http.put(url);
-          break;
-        case 'PATCH':
-          response = await http.patch(url);
-          break;
-        case 'DELETE':
-          response = await http.delete(url);
-          break;
-        default:
-          response = await http.get(url);
+          requestDetails += 'Body: None\n';
+        }
+      } else {
+        response = await http.get(url);
+        requestDetails += 'Body: None\n';
       }
 
       // Get content type from headers
       final contentType = response.headers['content-type'] ?? '';
-      String formattedResponse = 'Status Code: ${response.statusCode}\n';
+      String formattedResponse = '\n=== RESPONSE ===\n';
+      formattedResponse += 'Status Code: ${response.statusCode}\n';
       formattedResponse += 'Content-Type: $contentType\n\n';
 
       // Try to parse as JSON first
@@ -113,12 +161,14 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
       }
 
       setState(() {
+        _requestInfo = requestDetails;
         _response = formattedResponse;
         _isLoading = false;
       });
     } catch (e) {
       setState(() {
-        _response = 'Error: $e';
+        _requestInfo = '';
+        _response = '\n=== ERROR ===\n$e';
         _isLoading = false;
       });
     }
@@ -217,6 +267,73 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
                         },
                       ),
                       const Spacer(),
+                      if (_selectedMethod == 'POST') ...[
+                        OutlinedButton.icon(
+                          onPressed: _selectedFile == null
+                              ? _pickFile
+                              : _clearFile,
+                          icon: Icon(
+                            _selectedFile == null
+                                ? Icons.upload_file
+                                : Icons.close,
+                            size: 18,
+                          ),
+                          label: Text(
+                            _selectedFile == null ? 'Upload PDF' : 'Clear',
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _selectedFile == null
+                                ? AppColors.primary
+                                : Colors.red,
+                            side: BorderSide(
+                              color: _selectedFile == null
+                                  ? AppColors.primary
+                                  : Colors.red,
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                        if (_selectedFile != null) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade50,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: Colors.green.shade300),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.picture_as_pdf,
+                                  size: 16,
+                                  color: Colors.green.shade700,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  _selectedFileName ?? '',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.green.shade700,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        const SizedBox(width: 16),
+                      ],
                       ElevatedButton.icon(
                         onPressed: _isLoading ? null : _testApi,
                         icon: _isLoading
@@ -305,10 +422,10 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
                               ),
                             )
                           : SingleChildScrollView(
-                              child: _response.isEmpty
+                              child: _response.isEmpty && _requestInfo.isEmpty
                                   ? Center(
                                       child: Text(
-                                        'Click "Test API" to see the response',
+                                        'Click "Test API" to see the request and response',
                                         style: TextStyle(
                                           color: Colors.grey.shade400,
                                           fontSize: 14,
@@ -325,11 +442,11 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
                                         ),
                                       ),
                                       child: SelectableText(
-                                        _response,
+                                        '$_requestInfo$_response',
                                         style: TextStyle(
                                           fontSize: 13,
                                           fontFamily: 'monospace',
-                                          color: _response.startsWith('Error')
+                                          color: _response.contains('ERROR')
                                               ? Colors.red.shade700
                                               : AppColors.textPrimary,
                                         ),
