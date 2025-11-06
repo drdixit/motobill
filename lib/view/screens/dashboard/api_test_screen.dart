@@ -80,16 +80,33 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
       String requestDetails = '=== REQUEST ===\n';
       requestDetails += 'Method: $_selectedMethod\n';
       requestDetails += 'URL: $urlText\n';
+      requestDetails += 'Host: ${url.host}\n';
+      requestDetails += 'Path: ${url.path}\n';
+      if (url.query.isNotEmpty) {
+        requestDetails += 'Query: ${url.query}\n';
+      }
+      requestDetails += '\n--- Request Headers ---\n';
 
       if (_selectedMethod == 'GET') {
+        // Add default headers for GET
+        requestDetails += 'Accept: */*\n';
+        requestDetails += 'User-Agent: Dart/http\n';
+        requestDetails += '\n--- Request Body ---\n';
+        requestDetails += 'None\n';
+
         response = await http.get(url);
-        requestDetails += 'Body: None\n';
       } else if (_selectedMethod == 'POST') {
         if (_selectedFile != null) {
           // Send file as multipart
-          requestDetails += 'Content-Type: multipart/form-data\n';
-          requestDetails += 'File: $_selectedFileName\n';
+          requestDetails +=
+              'Content-Type: multipart/form-data; boundary=----\n';
+          requestDetails += 'Accept: */*\n';
+          requestDetails += 'User-Agent: Dart/http\n';
+          requestDetails += '\n--- Request Body ---\n';
+          requestDetails += 'File Field: file\n';
+          requestDetails += 'Filename: $_selectedFileName\n';
           requestDetails += 'File Size: ${_selectedFile!.lengthSync()} bytes\n';
+          requestDetails += 'MIME Type: application/pdf\n';
 
           var request = http.MultipartRequest('POST', url);
           request.files.add(
@@ -100,22 +117,47 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
             ),
           );
 
+          // Capture request headers
+          requestDetails += '\n--- Actual Request Headers ---\n';
+          request.headers.forEach((key, value) {
+            requestDetails += '$key: $value\n';
+          });
+
           var streamedResponse = await request.send();
           response = await http.Response.fromStream(streamedResponse);
         } else {
+          requestDetails += 'Content-Type: application/x-www-form-urlencoded\n';
+          requestDetails += 'Accept: */*\n';
+          requestDetails += 'User-Agent: Dart/http\n';
+          requestDetails += 'Content-Length: 0\n';
+          requestDetails += '\n--- Request Body ---\n';
+          requestDetails += 'None\n';
+
           response = await http.post(url);
-          requestDetails += 'Body: None\n';
         }
       } else {
+        requestDetails += 'Accept: */*\n';
+        requestDetails += 'User-Agent: Dart/http\n';
+        requestDetails += '\n--- Request Body ---\n';
+        requestDetails += 'None\n';
+
         response = await http.get(url);
-        requestDetails += 'Body: None\n';
       }
 
       // Get content type from headers
       final contentType = response.headers['content-type'] ?? '';
-      String formattedResponse = '\n=== RESPONSE ===\n';
+      String formattedResponse = '\n\n=== RESPONSE ===\n';
       formattedResponse += 'Status Code: ${response.statusCode}\n';
-      formattedResponse += 'Content-Type: $contentType\n\n';
+      formattedResponse += 'Status Message: ${response.reasonPhrase ?? "OK"}\n';
+      formattedResponse +=
+          'Content-Length: ${response.contentLength ?? response.bodyBytes.length} bytes\n';
+
+      formattedResponse += '\n--- Response Headers ---\n';
+      response.headers.forEach((key, value) {
+        formattedResponse += '$key: $value\n';
+      });
+
+      formattedResponse += '\n--- Response Body ---\n';
 
       // Try to parse as JSON first
       if (contentType.contains('application/json') ||
