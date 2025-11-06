@@ -553,6 +553,21 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                   ),
                 ),
                 const Spacer(),
+                // Select All button
+                ElevatedButton.icon(
+                  onPressed: () => viewModel.selectAllValidProducts(),
+                  icon: const Icon(Icons.check_box, size: 18),
+                  label: const Text('Select All'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green[600],
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 Text(
                   'Products found in database',
                   style: TextStyle(fontSize: 12, color: Colors.grey[600]),
@@ -561,106 +576,121 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
             ),
           ),
           const Divider(height: 1),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              headingRowColor: MaterialStateProperty.all(Colors.grey[100]),
-              dataRowMinHeight: 48,
-              dataRowMaxHeight: 80,
-              columnSpacing: 16,
-              horizontalMargin: 16,
-              columns: const [
-                DataColumn(
-                  label: Text(
-                    'Approve',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                DataColumn(
-                  label: Text(
-                    'Part Number',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                DataColumn(
-                  label: Text(
-                    'Description',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                DataColumn(
-                  label: Text(
-                    'HSN',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                DataColumn(
-                  label: Text(
-                    'Qty',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  numeric: true,
-                ),
-                DataColumn(
-                  label: Text(
-                    'UQC',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                DataColumn(
-                  label: Text(
-                    'Rate',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  numeric: true,
-                ),
-                DataColumn(
-                  label: Text(
-                    'Amount',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  numeric: true,
-                ),
-              ],
-              rows: List.generate(invoice.items.length, (index) {
-                final item = invoice.items[index];
-                return DataRow(
-                  color: MaterialStateProperty.all(
-                    item.isApproved ? Colors.green[50] : null,
-                  ),
-                  cells: [
-                    DataCell(
-                      Checkbox(
-                        value: item.isApproved,
-                        onChanged: (value) =>
-                            viewModel.toggleItemApproval(index),
-                      ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                  child: DataTable(
+                    headingRowColor: MaterialStateProperty.all(
+                      Colors.grey[100],
                     ),
-                    DataCell(
-                      Text(
-                        item.partNumber,
-                        style: const TextStyle(fontWeight: FontWeight.w500),
-                      ),
-                    ),
-                    DataCell(
-                      SizedBox(
-                        width: 200,
-                        child: Text(
-                          item.description,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                    dataRowMinHeight: 48,
+                    dataRowMaxHeight: 80,
+                    columnSpacing: 16,
+                    horizontalMargin: 16,
+                    columns: const [
+                      DataColumn(
+                        label: Text(
+                          'Approve',
+                          style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
-                    ),
-                    DataCell(Text(item.hsnCode)),
-                    DataCell(Text(item.quantity.toStringAsFixed(2))),
-                    DataCell(Text(item.uqc)),
-                    DataCell(Text('₹${item.rate.toStringAsFixed(2)}')),
-                    DataCell(Text('₹${item.totalAmount.toStringAsFixed(2)}')),
-                  ],
-                );
-              }),
-            ),
+                      DataColumn(
+                        label: Text(
+                          'Part Number',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Description',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'HSN',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Qty',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        numeric: true,
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'UQC',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Rate',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        numeric: true,
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Amount',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        numeric: true,
+                      ),
+                    ],
+                    rows: List.generate(invoice.items.length, (index) {
+                      final item = invoice.items[index];
+                      return DataRow(
+                        color: MaterialStateProperty.all(
+                          item.isApproved ? Colors.green[50] : null,
+                        ),
+                        cells: [
+                          DataCell(
+                            Checkbox(
+                              value: item.isApproved,
+                              onChanged: (value) =>
+                                  viewModel.toggleItemApproval(index),
+                            ),
+                          ),
+                          DataCell(
+                            Text(
+                              item.partNumber,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          DataCell(
+                            SizedBox(
+                              width: 200,
+                              child: Text(
+                                item.description,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                          DataCell(Text(item.hsnCode)),
+                          DataCell(
+                            Text(item.quantity.toString()),
+                          ), // Show as integer
+                          DataCell(Text(item.uqc)),
+                          DataCell(Text('₹${item.rate.toStringAsFixed(2)}')),
+                          DataCell(
+                            Text('₹${item.totalAmount.toStringAsFixed(2)}'),
+                          ),
+                        ],
+                      );
+                    }),
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -709,95 +739,110 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                   style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                 ),
                 const SizedBox(height: 12),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: DataTable(
-                    headingRowColor: MaterialStateProperty.all(
-                      Colors.orange[100],
-                    ),
-                    dataRowMinHeight: 48,
-                    dataRowMaxHeight: 80,
-                    columnSpacing: 16,
-                    horizontalMargin: 0,
-                    columns: const [
-                      DataColumn(
-                        label: Text(
-                          'Part Number',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minWidth: constraints.maxWidth,
                         ),
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'Description',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'HSN',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'Qty',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        numeric: true,
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'UQC',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'Rate',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        numeric: true,
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'Amount',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        numeric: true,
-                      ),
-                    ],
-                    rows: state.unmatchedItems.map((item) {
-                      return DataRow(
-                        cells: [
-                          DataCell(
-                            Text(
-                              item.partNumber,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w500,
+                        child: DataTable(
+                          headingRowColor: MaterialStateProperty.all(
+                            Colors.orange[100],
+                          ),
+                          dataRowMinHeight: 48,
+                          dataRowMaxHeight: 80,
+                          columnSpacing: 16,
+                          horizontalMargin: 0,
+                          columns: const [
+                            DataColumn(
+                              label: Text(
+                                'Part Number',
+                                style: TextStyle(fontWeight: FontWeight.bold),
                               ),
                             ),
-                          ),
-                          DataCell(
-                            SizedBox(
-                              width: 200,
-                              child: Text(
-                                item.description,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
+                            DataColumn(
+                              label: Text(
+                                'Description',
+                                style: TextStyle(fontWeight: FontWeight.bold),
                               ),
                             ),
-                          ),
-                          DataCell(Text(item.hsnCode)),
-                          DataCell(Text(item.quantity.toStringAsFixed(2))),
-                          DataCell(Text(item.uqc)),
-                          DataCell(Text('₹${item.rate.toStringAsFixed(2)}')),
-                          DataCell(
-                            Text('₹${item.totalAmount.toStringAsFixed(2)}'),
-                          ),
-                        ],
-                      );
-                    }).toList(),
-                  ),
+                            DataColumn(
+                              label: Text(
+                                'HSN',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            DataColumn(
+                              label: Text(
+                                'Qty',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              numeric: true,
+                            ),
+                            DataColumn(
+                              label: Text(
+                                'UQC',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            DataColumn(
+                              label: Text(
+                                'Rate',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              numeric: true,
+                            ),
+                            DataColumn(
+                              label: Text(
+                                'Amount',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              numeric: true,
+                            ),
+                          ],
+                          rows: state.unmatchedItems.map((item) {
+                            return DataRow(
+                              cells: [
+                                DataCell(
+                                  Text(
+                                    item.partNumber,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                                DataCell(
+                                  SizedBox(
+                                    width: 200,
+                                    child: Text(
+                                      item.description,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ),
+                                DataCell(Text(item.hsnCode)),
+                                DataCell(
+                                  Text(item.quantity.toString()),
+                                ), // Show as integer
+                                DataCell(Text(item.uqc)),
+                                DataCell(
+                                  Text('₹${item.rate.toStringAsFixed(2)}'),
+                                ),
+                                DataCell(
+                                  Text(
+                                    '₹${item.totalAmount.toStringAsFixed(2)}',
+                                  ),
+                                ),
+                              ],
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),

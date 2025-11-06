@@ -293,9 +293,10 @@ class ProductRepository {
   /// Get product by part number (for automated purchase bill creation)
   Future<Product?> getProductByPartNumber(String partNumber) async {
     try {
+      // Case-insensitive search for part number
       final result = await _db.rawQuery(
-        'SELECT * FROM products WHERE part_number = ? AND is_deleted = 0',
-        [partNumber],
+        'SELECT * FROM products WHERE LOWER(part_number) = LOWER(?) AND is_deleted = 0',
+        [partNumber.trim()],
       );
       if (result.isEmpty) return null;
       return Product.fromJson(result.first);

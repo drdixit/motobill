@@ -7,6 +7,7 @@ import '../model/purchase.dart';
 import '../repository/vendor_repository.dart';
 import '../repository/product_repository.dart';
 import '../repository/purchase_repository.dart';
+import '../repository/hsn_code_repository.dart';
 import '../core/providers/database_provider.dart';
 
 // Repository providers
@@ -23,6 +24,11 @@ final _productRepoProvider = FutureProvider<ProductRepository>((ref) async {
 final _purchaseRepoProvider = FutureProvider<PurchaseRepository>((ref) async {
   final db = await ref.watch(databaseProvider);
   return PurchaseRepository(db);
+});
+
+final _hsnRepoProvider = FutureProvider<HsnCodeRepository>((ref) async {
+  final db = await ref.watch(databaseProvider);
+  return HsnCodeRepository(db);
 });
 
 // State for purchase bill automation
@@ -91,11 +97,13 @@ class PurchaseBillAutomationViewModel
   final VendorRepository? _vendorRepository;
   final ProductRepository? _productRepository;
   final PurchaseRepository? _purchaseRepository;
+  final HsnCodeRepository? _hsnRepository;
 
   PurchaseBillAutomationViewModel(
     this._vendorRepository,
     this._productRepository,
     this._purchaseRepository,
+    this._hsnRepository,
   ) : super(PurchaseBillAutomationState());
 
   // Constructor for loading state
@@ -103,13 +111,15 @@ class PurchaseBillAutomationViewModel
     : _vendorRepository = null,
       _productRepository = null,
       _purchaseRepository = null,
+      _hsnRepository = null,
       super(PurchaseBillAutomationState());
 
   /// Parse API response and prepare data
   Future<void> parseInvoiceResponse(String jsonResponse) async {
     if (_vendorRepository == null ||
         _productRepository == null ||
-        _purchaseRepository == null)
+        _purchaseRepository == null ||
+        _hsnRepository == null)
       return;
 
     state = state.copyWith(isLoading: true, error: null, successMessage: null);
@@ -165,17 +175,47 @@ class PurchaseBillAutomationViewModel
         final item = parsed.items[i];
         print('\nChecking item ${i + 1}: "${item.partNumber}"');
 
-        final product = await _productRepository.getProductByPartNumber(
+        final product = await _productRepository!.getProductByPartNumber(
           item.partNumber,
         );
 
         if (product != null) {
-          // Product found - add to matched items
+          // Product found - enrich with database HSN code if invoice HSN is empty
           print(
             '  ✓ MATCHED - Found product ID: ${product.id}, Name: ${product.name}',
           );
+
+          String finalHsnCode = item.hsnCode;
+          if (finalHsnCode.isEmpty || finalHsnCode.trim().isEmpty) {
+            // Get HSN code from database
+            final hsnCodeObj = await _hsnRepository!.getHsnCodeById(
+              product.hsnCodeId,
+            );
+            if (hsnCodeObj != null) {
+              finalHsnCode = hsnCodeObj.code;
+              print('  → Using HSN code from database: $finalHsnCode');
+            }
+          }
+
+          // Create enriched item with database HSN code
+          final enrichedItem = ParsedInvoiceItem(
+            partNumber: item.partNumber,
+            description: item.description,
+            hsnCode: finalHsnCode,
+            quantity: item.quantity,
+            uqc: item.uqc,
+            rate: item.rate,
+            cgstRate: item.cgstRate,
+            sgstRate: item.sgstRate,
+            cgstAmount: item.cgstAmount,
+            sgstAmount: item.sgstAmount,
+            totalAmount: item.totalAmount,
+            isApproved: false,
+            isTaxable: item.isTaxable,
+          );
+
           productMatches[matchedItems.length] = product.id;
-          matchedItems.add(item);
+          matchedItems.add(enrichedItem);
         } else {
           // Product not found - add to unmatched items
           print(
@@ -243,17 +283,49 @@ class PurchaseBillAutomationViewModel
     final items = List<ParsedInvoiceItem>.from(state.parsedInvoice!.items);
     items[index] = items[index].copyWith(isApproved: !items[index].isApproved);
 
-    state = state.copyWith(
-      parsedInvoice: ParsedInvoice(
-        invoiceNumber: state.parsedInvoice!.invoiceNumber,
-        invoiceDate: state.parsedInvoice!.invoiceDate,
-        vendor: state.parsedInvoice!.vendor,
-        items: items,
-        subtotal: state.parsedInvoice!.subtotal,
-        cgstAmount: state.parsedInvoice!.cgstAmount,
-        sgstAmount: state.parsedInvoice!.sgstAmount,
-        totalAmount: state.parsedInvoice!.totalAmount,
-      ),
+    final updatedInvoice = _recalculateTotals(items);
+    state = state.copyWith(parsedInvoice: updatedInvoice);
+  }
+
+  /// Select all valid products (approve all items)
+  void selectAllValidProducts() {
+    if (state.parsedInvoice == null) return;
+
+    final items = state.parsedInvoice!.items
+        .map((item) => item.copyWith(isApproved: true))
+        .toList();
+
+    final updatedInvoice = _recalculateTotals(items);
+    state = state.copyWith(parsedInvoice: updatedInvoice);
+  }
+
+  /// Recalculate totals based on approved items
+  ParsedInvoice _recalculateTotals(List<ParsedInvoiceItem> items) {
+    double subtotal = 0;
+    double cgstAmount = 0;
+    double sgstAmount = 0;
+    double totalAmount = 0;
+
+    for (final item in items) {
+      if (item.isApproved) {
+        // Calculate item base amount (quantity * rate)
+        final itemBaseAmount = item.quantity * item.rate;
+        subtotal += itemBaseAmount;
+        cgstAmount += item.cgstAmount;
+        sgstAmount += item.sgstAmount;
+        totalAmount += item.totalAmount;
+      }
+    }
+
+    return ParsedInvoice(
+      invoiceNumber: state.parsedInvoice!.invoiceNumber,
+      invoiceDate: state.parsedInvoice!.invoiceDate,
+      vendor: state.parsedInvoice!.vendor,
+      items: items,
+      subtotal: subtotal,
+      cgstAmount: cgstAmount,
+      sgstAmount: sgstAmount,
+      totalAmount: totalAmount,
     );
   }
 
@@ -474,17 +546,20 @@ final purchaseBillAutomationViewModelProvider =
       final vendorRepoAsync = ref.watch(_vendorRepoProvider);
       final productRepoAsync = ref.watch(_productRepoProvider);
       final purchaseRepoAsync = ref.watch(_purchaseRepoProvider);
+      final hsnRepoAsync = ref.watch(_hsnRepoProvider);
 
       // All repos must be loaded
       if (vendorRepoAsync.isLoading ||
           productRepoAsync.isLoading ||
-          purchaseRepoAsync.isLoading) {
+          purchaseRepoAsync.isLoading ||
+          hsnRepoAsync.isLoading) {
         return PurchaseBillAutomationViewModel._loading();
       }
 
       if (vendorRepoAsync.hasError ||
           productRepoAsync.hasError ||
-          purchaseRepoAsync.hasError) {
+          purchaseRepoAsync.hasError ||
+          hsnRepoAsync.hasError) {
         return PurchaseBillAutomationViewModel._loading();
       }
 
@@ -492,5 +567,6 @@ final purchaseBillAutomationViewModelProvider =
         vendorRepoAsync.value,
         productRepoAsync.value,
         purchaseRepoAsync.value,
+        hsnRepoAsync.value,
       );
     });

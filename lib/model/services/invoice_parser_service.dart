@@ -145,11 +145,23 @@ class InvoiceParserService {
             itemFields['HSN']?['content'] ??
             itemFields['hsn']?['content'] ??
             '';
-        final quantity = _parseDouble(
-          itemFields['Quantity']?['content'] ??
-              itemFields['quantity']?['content'] ??
-              itemFields['Qty']?['content'],
-        ).toInt();
+
+        // For Quantity, prefer valueNumber over content (content may include unit like "1 Nos")
+        final quantityValue =
+            itemFields['Quantity']?['valueNumber'] ??
+            itemFields['quantity']?['valueNumber'] ??
+            itemFields['Qty']?['valueNumber'];
+
+        final quantity = quantityValue != null
+            ? (quantityValue is int
+                  ? quantityValue
+                  : (quantityValue as double).toInt())
+            : _parseDouble(
+                itemFields['Quantity']?['content'] ??
+                    itemFields['quantity']?['content'] ??
+                    itemFields['Qty']?['content'],
+              ).toInt();
+
         final uqc =
             itemFields['Unit']?['content'] ??
             itemFields['unit']?['content'] ??
@@ -328,8 +340,10 @@ class InvoiceParserService {
     if (value is double) return value;
     if (value is int) return value.toDouble();
     if (value is String) {
-      // Remove currency symbols and commas
-      final cleaned = value.replaceAll(RegExp(r'[₹,\s]'), '');
+      // Remove currency symbols, commas, and unit text (Nos, PCS, etc.)
+      final cleaned = value
+          .replaceAll(RegExp(r'[₹,\s]'), '')
+          .replaceAll(RegExp(r'[A-Za-z]+'), ''); // Remove alphabetic characters
       return double.tryParse(cleaned) ?? 0.0;
     }
     return 0.0;
