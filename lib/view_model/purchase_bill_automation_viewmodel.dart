@@ -38,6 +38,7 @@ class PurchaseBillAutomationState {
   final bool isBillTaxable; // Global taxable flag for entire bill
   final List<Vendor> availableVendors; // For vendor selection
   final List<Product> availableProducts; // For product selection
+  final List<ParsedInvoiceItem> unmatchedItems; // Items not found in database
 
   PurchaseBillAutomationState({
     this.isLoading = false,
@@ -51,6 +52,7 @@ class PurchaseBillAutomationState {
     this.isBillTaxable = true,
     this.availableVendors = const [],
     this.availableProducts = const [],
+    this.unmatchedItems = const [],
   });
 
   PurchaseBillAutomationState copyWith({
@@ -65,6 +67,7 @@ class PurchaseBillAutomationState {
     bool? isBillTaxable,
     List<Vendor>? availableVendors,
     List<Product>? availableProducts,
+    List<ParsedInvoiceItem>? unmatchedItems,
   }) {
     return PurchaseBillAutomationState(
       isLoading: isLoading ?? this.isLoading,
@@ -78,6 +81,7 @@ class PurchaseBillAutomationState {
       isBillTaxable: isBillTaxable ?? this.isBillTaxable,
       availableVendors: availableVendors ?? this.availableVendors,
       availableProducts: availableProducts ?? this.availableProducts,
+      unmatchedItems: unmatchedItems ?? this.unmatchedItems,
     );
   }
 }
@@ -212,6 +216,7 @@ class PurchaseBillAutomationViewModel
         productMatches: productMatches,
         availableVendors: availableVendors,
         availableProducts: [], // Don't load all products - too slow
+        unmatchedItems: unmatchedItems, // Store unmatched items
       );
 
       // Show info about unmatched items
