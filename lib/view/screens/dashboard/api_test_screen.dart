@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
@@ -74,6 +75,9 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
       _requestInfo = '';
     });
 
+    // Give UI a chance to update
+    await Future.delayed(const Duration(milliseconds: 100));
+
     try {
       final url = Uri.parse(urlText);
       http.Response response;
@@ -109,11 +113,14 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
           requestDetails += 'MIME Type: application/pdf\n';
 
           var request = http.MultipartRequest('POST', url);
+
+          // Stream file directly without loading into memory
           request.files.add(
             await http.MultipartFile.fromPath(
               'file',
               _selectedFile!.path,
               filename: _selectedFileName,
+              contentType: MediaType('application', 'pdf'),
             ),
           );
 
