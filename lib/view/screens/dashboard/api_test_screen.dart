@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
+import 'package:xxh3/xxh3.dart';
 import '../../../core/constants/app_colors.dart';
 
 class ApiTestScreen extends StatefulWidget {
@@ -19,7 +20,7 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
   String _selectedMethod = 'GET';
   final List<String> _methods = ['GET', 'POST'];
   final TextEditingController _urlController = TextEditingController(
-    text: 'https://dummyjson.com/test',
+    text: 'http://192.168.0.3/CI360/api/DocIntelligenece/Invoices/dummy',
   );
   File? _selectedFile;
   String? _selectedFileName;
@@ -97,6 +98,11 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
         response = await http.get(url);
       } else if (_selectedMethod == 'POST') {
         if (_selectedFile != null) {
+          // Calculate file hash (using XXH3-64 since XXH3-128 is not supported by the package yet)
+          final fileBytes = await _selectedFile!.readAsBytes();
+          final hash = xxh3(fileBytes);
+          final hashHex = hash.toRadixString(16).padLeft(16, '0');
+
           // Send file as multipart
           requestDetails +=
               'Content-Type: multipart/form-data; boundary=----\n';
@@ -107,6 +113,7 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
           requestDetails += 'Filename: $_selectedFileName\n';
           requestDetails += 'File Size: ${_selectedFile!.lengthSync()} bytes\n';
           requestDetails += 'MIME Type: application/pdf\n';
+          requestDetails += 'File Hash (XXH3-64): $hashHex\n';
 
           var request = http.MultipartRequest('POST', url);
           request.files.add(
