@@ -178,14 +178,20 @@ class DebitNoteRepository {
 
         int remainingToRemove = it['quantity'] as int;
         final purchaseItemId = it['purchase_item_id'] as int;
+        final productId = it['product_id'] as int;
 
         // Get stock batches available for this product ordered by id ASC (oldest first) to reduce stock
+        // Priority: 1) Original purchase batches, 2) Return batches (purchase_item_id = 0)
         final batches = await txn.rawQuery(
-          '''SELECT id, quantity_remaining, cost_price
+          '''SELECT id, quantity_remaining, cost_price, purchase_item_id
              FROM stock_batches
-             WHERE purchase_item_id = ? OR product_id = ?
-             ORDER BY id ASC''',
-          [purchaseItemId, it['product_id']],
+             WHERE (purchase_item_id = ? OR (product_id = ? AND purchase_item_id = 0))
+               AND is_deleted = 0
+               AND quantity_remaining > 0
+             ORDER BY
+               CASE WHEN purchase_item_id = ? THEN 0 ELSE 1 END,
+               id ASC''',
+          [purchaseItemId, productId, purchaseItemId],
         );
 
         for (final batch in batches) {
@@ -253,14 +259,21 @@ class DebitNoteRepository {
   }
 
   /// Get available stock (quantity_remaining) for each purchase item
+  /// This includes stock from the original purchase AND any returns (credit notes)
+  /// that created new batches for the same product (purchase_item_id = 0)
+  /// Does NOT include stock from other purchases of the same product
   Future<Map<int, int>> getAvailableStockForPurchase(int purchaseId) async {
     final result = await _db.rawQuery(
       '''SELECT pi.id as purchase_item_id,
+         pi.product_id,
          COALESCE(SUM(sb.quantity_remaining), 0) as available
          FROM purchase_items pi
-         LEFT JOIN stock_batches sb ON pi.id = sb.purchase_item_id AND sb.is_deleted = 0
+         LEFT JOIN stock_batches sb ON
+           (sb.purchase_item_id = pi.id OR (sb.product_id = pi.product_id AND sb.purchase_item_id = 0))
+           AND sb.is_deleted = 0
+           AND sb.quantity_remaining > 0
          WHERE pi.purchase_id = ? AND pi.is_deleted = 0
-         GROUP BY pi.id''',
+         GROUP BY pi.id, pi.product_id''',
       [purchaseId],
     );
 
