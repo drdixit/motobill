@@ -20,7 +20,7 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
   String _selectedMethod = 'GET';
   final List<String> _methods = ['GET', 'POST'];
   final TextEditingController _urlController = TextEditingController(
-    text: 'http://192.168.0.3/CI360/api/DocIntelligenece/Invoices/dummy',
+    text: 'http://192.168.1.3/ci360/api/DocIntelligenece/Invoices/dummy',
   );
   File? _selectedFile;
   String? _selectedFileName;
