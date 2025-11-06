@@ -6,6 +6,7 @@ import '../../core/constants/app_sizes.dart';
 import '../../repository/purchase_repository.dart';
 import '../../repository/debit_note_repository.dart';
 import '../../view_model/pos_viewmodel.dart';
+import 'dashboard/create_bill_screen.dart';
 
 final debitNotesProvider = FutureProvider<List<Map<String, dynamic>>>((
   ref,
@@ -2008,6 +2009,7 @@ class _CreateDebitNoteScreenState extends ConsumerState<CreateDebitNoteScreen> {
       ref.invalidate(debitNotesProvider);
       ref.invalidate(purchasesProvider);
       ref.invalidate(posViewModelProvider);
+      ref.invalidate(productListForBillProvider);
       ref.invalidate(purchaseItemsProvider(widget.purchaseId));
       ref.invalidate(returnedQuantitiesForPurchaseProvider(widget.purchaseId));
       ref.invalidate(availableStockForPurchaseProvider(widget.purchaseId));

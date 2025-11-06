@@ -766,6 +766,17 @@ class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
                 ),
               ),
               const SizedBox(width: 16),
+              Switch(
+                value: _useTaxableStock,
+                onChanged: (value) {
+                  setState(() {
+                    _useTaxableStock = value;
+                  });
+                },
+                activeColor: Colors.green.shade700,
+                inactiveThumbColor: Colors.orange.shade700,
+              ),
+              const SizedBox(width: 16),
               ElevatedButton.icon(
                 onPressed: _showAddCustomerDialog,
                 icon: const Icon(Icons.person_add, size: 18),
@@ -779,70 +790,6 @@ class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
                   ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Stock Type Switch
-          Row(
-            children: [
-              Icon(Icons.inventory_2, size: 18, color: Colors.grey.shade600),
-              const SizedBox(width: 8),
-              Text(
-                'Stock Type:',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.grey.shade700,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'Non-Taxable',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: _useTaxableStock
-                      ? FontWeight.normal
-                      : FontWeight.w600,
-                  color: _useTaxableStock
-                      ? Colors.grey.shade600
-                      : Colors.orange.shade700,
-                ),
-              ),
-              Switch(
-                value: _useTaxableStock,
-                onChanged: (value) {
-                  setState(() {
-                    _useTaxableStock = value;
-                  });
-                },
-                activeColor: Colors.green.shade700,
-                inactiveThumbColor: Colors.orange.shade700,
-              ),
-              Text(
-                'Taxable',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: _useTaxableStock
-                      ? FontWeight.w600
-                      : FontWeight.normal,
-                  color: _useTaxableStock
-                      ? Colors.green.shade700
-                      : Colors.grey.shade600,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  _useTaxableStock
-                      ? 'Using TAXABLE stock batches (with GST)'
-                      : 'Using NON-TAXABLE stock batches (without GST)',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                    fontStyle: FontStyle.italic,
                   ),
                 ),
               ),

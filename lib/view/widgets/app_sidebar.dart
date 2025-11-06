@@ -72,6 +72,7 @@ class AppSidebar extends StatelessWidget {
                   icon: Icons.folder_outlined,
                   title: 'Uploaded Excels',
                 ),
+                _buildMenuItem(index: 8, icon: Icons.api, title: 'API Test'),
               ],
             ),
           ),

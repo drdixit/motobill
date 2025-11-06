@@ -13,6 +13,7 @@ import '../../../view_model/pos_viewmodel.dart';
 import '../../../view_model/vendor_viewmodel.dart';
 import '../../widgets/vendor_form_dialog.dart';
 import '../debit_notes_screen.dart';
+import 'create_bill_screen.dart';
 
 // Providers
 final purchaseRepositoryProvider = FutureProvider<PurchaseRepository>((
@@ -319,6 +320,8 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
         ref.invalidate(posViewModelProvider);
         // Invalidate purchases provider to refresh in Debit Notes screen
         ref.invalidate(purchasesProvider);
+        // Invalidate product list for Create Bill screen to refresh stock
+        ref.invalidate(productListForBillProvider);
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
