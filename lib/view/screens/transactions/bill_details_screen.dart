@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../repository/bill_repository.dart';
+import '../../widgets/payment_history_dialog.dart';
 
 // Provider for bill details
 final billDetailsProvider = FutureProvider.family<Map<String, dynamic>?, int>((
@@ -15,6 +16,7 @@ final billDetailsProvider = FutureProvider.family<Map<String, dynamic>?, int>((
   if (bill == null) return null;
 
   final items = await repository.getBillItems(billId);
+  final payments = await repository.getBillPayments(billId);
 
   // Separate taxable and non-taxable items
   final taxableItems = items.where((item) {
@@ -195,10 +197,13 @@ final billDetailsProvider = FutureProvider.family<Map<String, dynamic>?, int>((
       'subtotal': subtotal,
       'tax_amount': taxAmount,
       'total': total,
+      'paid_amount': bill['paid_amount'] ?? 0,
+      'payment_status': bill['payment_status'] ?? 'unpaid',
     },
     'taxableItems': transformedTaxableItems,
     'nonTaxableItems': transformedNonTaxableItems,
     'creditNotes': creditNotesWithItems,
+    'payments': payments,
   };
 });
 
@@ -227,6 +232,7 @@ class BillDetailsScreen extends ConsumerWidget {
           final nonTaxableItems =
               data['nonTaxableItems'] as List<Map<String, dynamic>>;
           final creditNotes = data['creditNotes'] as List<Map<String, dynamic>>;
+          final payments = data['payments'] as List<Map<String, dynamic>>;
 
           return Container(
             color: Colors.white,
@@ -241,7 +247,7 @@ class BillDetailsScreen extends ConsumerWidget {
                     children: [
                       Expanded(child: _buildCustomerDetails(bill)),
                       const SizedBox(width: 48),
-                      Expanded(child: _buildBillInfo(bill)),
+                      Expanded(child: _buildBillInfo(bill, payments, ref)),
                     ],
                   ),
                   const SizedBox(height: 32),
@@ -324,9 +330,39 @@ class BillDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildBillInfo(Map<String, dynamic> bill) {
+  Widget _buildBillInfo(
+    Map<String, dynamic> bill,
+    List<Map<String, dynamic>> payments,
+    WidgetRef ref,
+  ) {
     final billNumber = bill['bill_number'] as String? ?? 'N/A';
     final billDate = bill['bill_date'] as String? ?? 'N/A';
+    final paymentStatus = bill['payment_status'] as String? ?? 'unpaid';
+    final paidAmount = (bill['paid_amount'] as num?)?.toDouble() ?? 0.0;
+    final totalAmount = (bill['total'] as num?)?.toDouble() ?? 0.0;
+    final remainingAmount = totalAmount - paidAmount;
+
+    // Determine status color and label
+    Color statusColor;
+    String statusLabel;
+    IconData statusIcon;
+
+    switch (paymentStatus) {
+      case 'paid':
+        statusColor = Colors.green;
+        statusLabel = 'Fully Paid';
+        statusIcon = Icons.check_circle;
+        break;
+      case 'partial':
+        statusColor = Colors.orange;
+        statusLabel = 'Partially Paid';
+        statusIcon = Icons.access_time;
+        break;
+      default:
+        statusColor = Colors.red;
+        statusLabel = 'Unpaid';
+        statusIcon = Icons.cancel;
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -338,6 +374,86 @@ class BillDetailsScreen extends ConsumerWidget {
         const SizedBox(height: 12),
         _buildDetailRow('Bill Number', billNumber),
         _buildDetailRow('Bill Date', billDate),
+        const SizedBox(height: 12),
+        const Text(
+          'PAYMENT STATUS',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: statusColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: statusColor.withOpacity(0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(statusIcon, color: statusColor, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    statusLabel,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: statusColor,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _buildPaymentRow('Total Amount', totalAmount, Colors.black87),
+              if (paidAmount > 0) ...[
+                const SizedBox(height: 4),
+                _buildPaymentRow('Paid Amount', paidAmount, Colors.green),
+              ],
+              if (remainingAmount > 0) ...[
+                const SizedBox(height: 4),
+                _buildPaymentRow('Remaining', remainingAmount, Colors.orange),
+              ],
+              if (payments.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    showDialog(
+                      context: ref.context,
+                      builder: (context) => PaymentHistoryDialog(
+                        payments: payments,
+                        totalAmount: totalAmount,
+                        paidAmount: paidAmount,
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.history, size: 18),
+                  label: Text('View ${payments.length} Payment(s)'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: statusColor,
+                    side: BorderSide(color: statusColor),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPaymentRow(String label, double amount, Color color) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          '$label:',
+          style: TextStyle(fontWeight: FontWeight.w500, color: color),
+        ),
+        Text(
+          '₹${amount.toStringAsFixed(2)}',
+          style: TextStyle(fontWeight: FontWeight.bold, color: color),
+        ),
       ],
     );
   }

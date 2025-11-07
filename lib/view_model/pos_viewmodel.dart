@@ -760,6 +760,15 @@ class PosViewModel extends StateNotifier<PosState> {
 
   // Checkout and create bill
   Future<String?> checkout() async {
+    return checkoutWithPayment();
+  }
+
+  // Checkout with payment
+  Future<String?> checkoutWithPayment({
+    double? paymentAmount,
+    String paymentMethod = 'cash',
+    String? paymentNotes,
+  }) async {
     if (_billRepository == null) return null;
 
     // Validate cart is not empty
@@ -809,15 +818,38 @@ class PosViewModel extends StateNotifier<PosState> {
         subtotal: state.subtotal,
         taxAmount: state.taxAmount,
         totalAmount: state.totalAmount,
+        paidAmount: paymentAmount ?? 0,
+        paymentStatus: paymentAmount == null || paymentAmount == 0
+            ? 'unpaid'
+            : paymentAmount >= state.totalAmount
+            ? 'paid'
+            : 'partial',
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
 
       // Create bill in database (this will also update stock batches)
-      await _billRepository.createBill(bill, state.cartItems);
+      final billId = await _billRepository.createBill(
+        bill,
+        state.cartItems,
+        useTaxableStock: state.useTaxableStock,
+      );
 
-      // Clear cart after successful bill creation
+      // Add payment if amount is provided
+      if (paymentAmount != null && paymentAmount > 0) {
+        await _billRepository.addPayment(
+          billId: billId,
+          amount: paymentAmount,
+          paymentMethod: paymentMethod,
+          notes: paymentNotes,
+        );
+      }
+
+      // Clear cart and refresh products after successful bill creation
       state = state.copyWith(cartItems: [], isLoading: false);
+
+      // Reload products to reflect updated stock levels
+      await loadInitialData();
 
       return billNumber;
     } catch (e) {

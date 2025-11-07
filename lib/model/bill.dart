@@ -5,6 +5,8 @@ class Bill {
   final double subtotal;
   final double taxAmount;
   final double totalAmount;
+  final double paidAmount;
+  final String paymentStatus; // 'paid', 'partial', 'unpaid'
   final bool isDeleted;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -16,10 +18,16 @@ class Bill {
     required this.subtotal,
     required this.taxAmount,
     required this.totalAmount,
+    this.paidAmount = 0,
+    this.paymentStatus = 'unpaid',
     this.isDeleted = false,
     required this.createdAt,
     required this.updatedAt,
   });
+
+  double get remainingAmount => totalAmount - paidAmount;
+  bool get isFullyPaid => paidAmount >= totalAmount;
+  bool get isPartiallyPaid => paidAmount > 0 && paidAmount < totalAmount;
 
   factory Bill.fromJson(Map<String, dynamic> json) {
     return Bill(
@@ -29,6 +37,8 @@ class Bill {
       subtotal: (json['subtotal'] as num).toDouble(),
       taxAmount: (json['tax_amount'] as num).toDouble(),
       totalAmount: (json['total_amount'] as num).toDouble(),
+      paidAmount: (json['paid_amount'] as num?)?.toDouble() ?? 0,
+      paymentStatus: json['payment_status'] as String? ?? 'unpaid',
       isDeleted: (json['is_deleted'] as int) == 1,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
@@ -43,6 +53,8 @@ class Bill {
       'subtotal': subtotal,
       'tax_amount': taxAmount,
       'total_amount': totalAmount,
+      'paid_amount': paidAmount,
+      'payment_status': paymentStatus,
       'is_deleted': isDeleted ? 1 : 0,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),

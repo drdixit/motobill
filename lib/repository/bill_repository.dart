@@ -732,4 +732,157 @@ class BillRepository {
       [productId, purchaseItemId, batchNumber, shortage, shortage, costPrice],
     );
   }
+
+  // ==================== PAYMENT METHODS ====================
+
+  /// Add a payment to a bill
+  Future<void> addPayment({
+    required int billId,
+    required double amount,
+    String paymentMethod = 'cash',
+    DateTime? paymentDate,
+    String? notes,
+  }) async {
+    await _db.transaction((txn) async {
+      final now = DateTime.now();
+      final effectivePaymentDate = paymentDate ?? now;
+
+      // Insert payment record
+      await txn.rawInsert(
+        '''INSERT INTO bill_payments
+           (bill_id, amount, payment_method, payment_date, notes, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)''',
+        [
+          billId,
+          amount,
+          paymentMethod,
+          effectivePaymentDate.toIso8601String(),
+          notes,
+          now.toIso8601String(),
+          now.toIso8601String(),
+        ],
+      );
+
+      // Get total paid amount
+      final result = await txn.rawQuery(
+        '''SELECT COALESCE(SUM(amount), 0) as total_paid
+           FROM bill_payments
+           WHERE bill_id = ? AND is_deleted = 0''',
+        [billId],
+      );
+
+      final totalPaid = (result.first['total_paid'] as num).toDouble();
+
+      // Get bill total
+      final billResult = await txn.rawQuery(
+        'SELECT total_amount FROM bills WHERE id = ?',
+        [billId],
+      );
+
+      final totalAmount = (billResult.first['total_amount'] as num).toDouble();
+
+      // Determine payment status
+      String paymentStatus;
+      if (totalPaid >= totalAmount) {
+        paymentStatus = 'paid';
+      } else if (totalPaid > 0) {
+        paymentStatus = 'partial';
+      } else {
+        paymentStatus = 'unpaid';
+      }
+
+      // Update bill
+      await txn.rawUpdate(
+        '''UPDATE bills
+           SET paid_amount = ?, payment_status = ?, updated_at = ?
+           WHERE id = ?''',
+        [totalPaid, paymentStatus, now.toIso8601String(), billId],
+      );
+    });
+  }
+
+  /// Get all payments for a bill
+  Future<List<Map<String, dynamic>>> getBillPayments(int billId) async {
+    final result = await _db.rawQuery(
+      '''SELECT * FROM bill_payments
+         WHERE bill_id = ? AND is_deleted = 0
+         ORDER BY payment_date DESC''',
+      [billId],
+    );
+    return result;
+  }
+
+  /// Get bill with payment info
+  Future<Map<String, dynamic>?> getBillWithPayments(int billId) async {
+    final billResult = await _db.rawQuery(
+      'SELECT * FROM bills WHERE id = ? AND is_deleted = 0',
+      [billId],
+    );
+
+    if (billResult.isEmpty) return null;
+
+    final bill = billResult.first;
+    final payments = await getBillPayments(billId);
+
+    return {...bill, 'payments': payments};
+  }
+
+  /// Delete a payment (soft delete)
+  Future<void> deletePayment(int paymentId) async {
+    await _db.transaction((txn) async {
+      final now = DateTime.now();
+
+      // Get payment info before deleting
+      final paymentResult = await txn.rawQuery(
+        'SELECT bill_id FROM bill_payments WHERE id = ?',
+        [paymentId],
+      );
+
+      if (paymentResult.isEmpty) return;
+
+      final billId = paymentResult.first['bill_id'] as int;
+
+      // Soft delete payment
+      await txn.rawUpdate(
+        'UPDATE bill_payments SET is_deleted = 1, updated_at = ? WHERE id = ?',
+        [now.toIso8601String(), paymentId],
+      );
+
+      // Recalculate total paid amount
+      final result = await txn.rawQuery(
+        '''SELECT COALESCE(SUM(amount), 0) as total_paid
+           FROM bill_payments
+           WHERE bill_id = ? AND is_deleted = 0''',
+        [billId],
+      );
+
+      final totalPaid = (result.first['total_paid'] as num).toDouble();
+
+      // Get bill total
+      final billResult = await txn.rawQuery(
+        'SELECT total_amount FROM bills WHERE id = ?',
+        [billId],
+      );
+
+      final totalAmount = (billResult.first['total_amount'] as num).toDouble();
+
+      // Determine payment status
+      String paymentStatus;
+      if (totalPaid >= totalAmount) {
+        paymentStatus = 'paid';
+      } else if (totalPaid > 0) {
+        paymentStatus = 'partial';
+      } else {
+        paymentStatus = 'unpaid';
+      }
+
+      // Update bill
+      await txn.rawUpdate(
+        '''UPDATE bills
+           SET paid_amount = ?, payment_status = ?, updated_at = ?
+           WHERE id = ?''',
+        [totalPaid, paymentStatus, now.toIso8601String(), billId],
+      );
+    });
+  }
 }

@@ -12,6 +12,7 @@ import '../../../repository/customer_repository.dart';
 import '../../../core/providers/database_provider.dart';
 import '../customer_form_dialog.dart';
 import '../bill_print_dialog.dart';
+import '../payment_dialog.dart';
 import '../../screens/transactions/sales_screen.dart';
 import '../../screens/debit_notes_screen.dart';
 import '../../screens/dashboard/create_bill_screen.dart';
@@ -545,6 +546,22 @@ class _CartItemWidgetState extends State<_CartItemWidget> {
     qtyFocusNode = FocusNode();
     priceFocusNode = FocusNode();
     totalFocusNode = FocusNode();
+
+    // Add listener to quantity focus node to reset on focus loss
+    qtyFocusNode.addListener(() {
+      if (!qtyFocusNode.hasFocus) {
+        // When focus is lost, ensure text matches actual quantity
+        if (qtyController.text != '${widget.item.quantity}') {
+          qtyController.text = '${widget.item.quantity}';
+        }
+      } else {
+        // When focused, select all text for easy replacement
+        qtyController.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: qtyController.text.length,
+        );
+      }
+    });
   }
 
   @override
@@ -689,7 +706,14 @@ class _CartItemWidgetState extends State<_CartItemWidget> {
                   isDense: true,
                 ),
                 onChanged: (value) {
-                  if (value.isEmpty) return;
+                  if (value.isEmpty) {
+                    // Reset to current quantity if empty
+                    qtyController.text = '${widget.item.quantity}';
+                    qtyController.selection = TextSelection.fromPosition(
+                      TextPosition(offset: qtyController.text.length),
+                    );
+                    return;
+                  }
                   final newQty = int.tryParse(value);
                   if (newQty != null && newQty > 0) {
                     widget.viewModel.updateCartItemQuantity(
@@ -1003,14 +1027,27 @@ extension on PosCart {
                       onPressed: state.selectedCustomer == null
                           ? null
                           : () async {
+                              // Show payment dialog first
+                              final paymentResult =
+                                  await showDialog<Map<String, dynamic>>(
+                                    context: context,
+                                    builder: (context) => PaymentDialog(
+                                      totalAmount: state.totalAmount,
+                                      title: 'Collect Payment',
+                                    ),
+                                  );
+
+                              // If user cancelled payment dialog, return
+                              if (paymentResult == null) return;
+
                               // Show confirmation dialog only if flag is true
                               if (state.showCheckoutConfirmation) {
                                 final confirm = await showDialog<bool>(
                                   context: context,
                                   builder: (context) => AlertDialog(
                                     title: const Text('Confirm Checkout'),
-                                    content: const Text(
-                                      'Are you sure you want to proceed with checkout?',
+                                    content: Text(
+                                      'Payment: ₹${paymentResult['amount'].toStringAsFixed(2)} via ${paymentResult['payment_method']}\n\nProceed with checkout?',
                                     ),
                                     actions: [
                                       TextButton(
@@ -1031,7 +1068,13 @@ extension on PosCart {
                                 if (confirm != true) return;
                               }
 
-                              final billNumber = await viewModel.checkout();
+                              final billNumber = await viewModel
+                                  .checkoutWithPayment(
+                                    paymentAmount: paymentResult['amount'],
+                                    paymentMethod:
+                                        paymentResult['payment_method'],
+                                    paymentNotes: paymentResult['notes'],
+                                  );
                               if (billNumber != null && context.mounted) {
                                 // Invalidate bills list so it refreshes in Sales screen
                                 consumerRef.invalidate(billsListProvider);
