@@ -624,12 +624,6 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                       ),
                       DataColumn(
                         label: Text(
-                          'UQC',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Text(
                           'Rate',
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
@@ -637,7 +631,7 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                       ),
                       DataColumn(
                         label: Text(
-                          'Amount',
+                          'Total',
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                         numeric: true,
@@ -679,7 +673,6 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                           DataCell(
                             Text(item.quantity.toString()),
                           ), // Show as integer
-                          DataCell(Text(item.uqc)),
                           DataCell(Text('₹${item.rate.toStringAsFixed(2)}')),
                           DataCell(
                             Text('₹${item.totalAmount.toStringAsFixed(2)}'),
@@ -783,12 +776,6 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                             ),
                             DataColumn(
                               label: Text(
-                                'UQC',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                            DataColumn(
-                              label: Text(
                                 'Rate',
                                 style: TextStyle(fontWeight: FontWeight.bold),
                               ),
@@ -796,7 +783,7 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                             ),
                             DataColumn(
                               label: Text(
-                                'Amount',
+                                'Total',
                                 style: TextStyle(fontWeight: FontWeight.bold),
                               ),
                               numeric: true,
@@ -827,7 +814,6 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                                 DataCell(
                                   Text(item.quantity.toString()),
                                 ), // Show as integer
-                                DataCell(Text(item.uqc)),
                                 DataCell(
                                   Text('₹${item.rate.toStringAsFixed(2)}'),
                                 ),
@@ -870,14 +856,10 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Totals',
+            'Total',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          _buildTotalRow('Subtotal', invoice.subtotal),
-          _buildTotalRow('CGST', invoice.cgstAmount),
-          _buildTotalRow('SGST', invoice.sgstAmount),
-          const Divider(),
           _buildTotalRow('Grand Total', invoice.totalAmount, isBold: true),
         ],
       ),
