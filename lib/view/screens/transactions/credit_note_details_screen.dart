@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/database_provider.dart';
+import '../../../model/credit_note_refund.dart';
+import '../../../repository/bill_repository.dart';
+import '../../widgets/refund_dialog.dart';
+import '../../widgets/refund_history_dialog.dart';
 
 // Provider for credit note details
 final creditNoteDetailsProvider =
@@ -108,6 +112,17 @@ final creditNoteDetailsProvider =
       final subtotal = creditNote['subtotal'] as num? ?? 0;
       final taxAmount = creditNote['tax_amount'] as num? ?? 0;
       final total = creditNote['total_amount'] as num? ?? 0;
+      final refundedAmount =
+          (creditNote['refunded_amount'] as num?)?.toDouble() ?? 0.0;
+      final refundStatus = creditNote['refund_status'] as String? ?? 'pending';
+
+      // Get refund history
+      final refunds = await db.rawQuery(
+        '''SELECT * FROM credit_note_refunds
+        WHERE credit_note_id = ? AND is_deleted = 0
+        ORDER BY refund_date DESC''',
+        [creditNoteId],
+      );
 
       // Format date as DD-MM-YYYY
       String formatDate(String? dateStr) {
@@ -139,9 +154,12 @@ final creditNoteDetailsProvider =
           'subtotal': subtotal,
           'tax_amount': taxAmount,
           'total': total,
+          'refunded_amount': refundedAmount,
+          'refund_status': refundStatus,
         },
         'taxableItems': transformedTaxableItems,
         'nonTaxableItems': transformedNonTaxableItems,
+        'refunds': refunds,
       };
     });
 
@@ -169,6 +187,10 @@ class CreditNoteDetailsScreen extends ConsumerWidget {
               data['taxableItems'] as List<Map<String, dynamic>>;
           final nonTaxableItems =
               data['nonTaxableItems'] as List<Map<String, dynamic>>;
+          final refundsData = data['refunds'] as List<Map<String, dynamic>>;
+          final refunds = refundsData
+              .map((r) => CreditNoteRefund.fromJson(r))
+              .toList();
 
           return Container(
             color: Colors.white,
@@ -202,6 +224,10 @@ class CreditNoteDetailsScreen extends ConsumerWidget {
 
                   // Combined Totals Section
                   _buildTotalsSection(creditNote, taxableItems.isNotEmpty),
+
+                  // Refund Status Section
+                  const SizedBox(height: 32),
+                  _buildRefundStatusSection(context, creditNote, refunds, ref),
                 ],
               ),
             ),
@@ -531,6 +557,268 @@ class CreditNoteDetailsScreen extends ConsumerWidget {
           ],
         ),
       ],
+    );
+  }
+
+  Widget _buildRefundStatusSection(
+    BuildContext context,
+    Map<String, dynamic> creditNote,
+    List<CreditNoteRefund> refunds,
+    WidgetRef ref,
+  ) {
+    final totalAmount = (creditNote['total'] as num).toDouble();
+    final refundedAmount =
+        (creditNote['refunded_amount'] as num?)?.toDouble() ?? 0.0;
+    final refundStatus = creditNote['refund_status'] as String? ?? 'pending';
+    final remainingAmount = totalAmount - refundedAmount;
+
+    // Status badge color
+    Color statusColor;
+    String statusText;
+    switch (refundStatus) {
+      case 'refunded':
+        statusColor = Colors.green;
+        statusText = 'Fully Refunded';
+        break;
+      case 'partial':
+        statusColor = Colors.orange;
+        statusText = 'Partially Refunded';
+        break;
+      default:
+        statusColor = Colors.red;
+        statusText = 'Pending';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'REFUND STATUS',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: statusColor),
+                ),
+                child: Text(
+                  statusText,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: statusColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Refund summary
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Total Amount',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '₹${totalAmount.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (refundStatus != 'pending') ...[
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Refunded',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '₹${refundedAmount.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              if (refundStatus != 'refunded') ...[
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Remaining',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '₹${remainingAmount.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+
+          // View refunds button (if any refunds exist)
+          if (refunds.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _showRefundHistory(
+                  context,
+                  refunds,
+                  totalAmount,
+                  refundedAmount,
+                ),
+                icon: const Icon(Icons.history),
+                label: Text(
+                  'View ${refunds.length} Refund${refunds.length > 1 ? 's' : ''}',
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+          ],
+
+          // Issue Refund button (if not fully refunded)
+          if (refundStatus != 'refunded') ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _showAddRefundDialog(
+                  context,
+                  ref,
+                  totalAmount,
+                  remainingAmount,
+                ),
+                icon: const Icon(Icons.account_balance_wallet),
+                label: const Text('Issue Refund'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showAddRefundDialog(
+    BuildContext context,
+    WidgetRef ref,
+    double totalAmount,
+    double remainingAmount,
+  ) async {
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => RefundDialog(
+        totalAmount: totalAmount,
+        suggestedAmount: remainingAmount,
+        title: 'Issue Refund',
+      ),
+    );
+
+    if (result != null && context.mounted) {
+      try {
+        final db = await ref.read(databaseProvider);
+        final repository = BillRepository(db);
+        await repository.addRefund(
+          creditNoteId: creditNoteId,
+          amount: result['amount'] as double,
+          refundMethod: result['refund_method'] as String,
+          notes: result['notes'] as String?,
+        );
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Refund added successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          // Invalidate the provider to refresh the screen
+          ref.invalidate(creditNoteDetailsProvider(creditNoteId));
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error adding refund: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  void _showRefundHistory(
+    BuildContext context,
+    List<CreditNoteRefund> refunds,
+    double totalAmount,
+    double refundedAmount,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => RefundHistoryDialog(
+        refunds: refunds,
+        totalAmount: totalAmount,
+        refundedAmount: refundedAmount,
+      ),
     );
   }
 }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/providers/database_provider.dart';
+import '../../../repository/bill_repository.dart';
+import '../../widgets/refund_dialog.dart';
 import '../transactions_screen.dart';
 import 'credit_note_details_screen.dart' as transactions;
 
@@ -14,7 +16,9 @@ final creditNotesProviderForTransactions =
       final endStr = dateRange.end.toIso8601String().split('T')[0];
 
       final result = await db.rawQuery(
-        '''SELECT cn.*, c.name as customer_name
+        '''SELECT cn.*, c.name as customer_name,
+           COALESCE(cn.refunded_amount, 0) as refunded_amount,
+           COALESCE(cn.refund_status, 'pending') as refund_status
      FROM credit_notes cn
      LEFT JOIN customers c ON cn.customer_id = c.id
      WHERE cn.is_deleted = 0
@@ -215,7 +219,28 @@ class _SalesReturnsScreenState extends ConsumerState<SalesReturnsScreen> {
     final customerName =
         creditNote['customer_name'] as String? ?? 'Unknown Customer';
     final totalAmount = (creditNote['total_amount'] as num).toDouble();
+    final refundedAmount =
+        (creditNote['refunded_amount'] as num?)?.toDouble() ?? 0.0;
+    final refundStatus = creditNote['refund_status'] as String? ?? 'pending';
+    final remainingAmount = totalAmount - refundedAmount;
     final createdAt = DateTime.parse(creditNote['created_at'] as String);
+
+    // Status badge color and text
+    Color statusColor;
+    String statusText;
+    switch (refundStatus) {
+      case 'refunded':
+        statusColor = Colors.green;
+        statusText = 'Refunded';
+        break;
+      case 'partial':
+        statusColor = Colors.orange;
+        statusText = 'Partial';
+        break;
+      default:
+        statusColor = Colors.red;
+        statusText = 'Pending';
+    }
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -225,8 +250,8 @@ class _SalesReturnsScreenState extends ConsumerState<SalesReturnsScreen> {
         border: Border.all(color: AppColors.divider),
       ),
       child: InkWell(
-        onTap: () {
-          Navigator.push(
+        onTap: () async {
+          await Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => transactions.CreditNoteDetailsScreen(
@@ -234,11 +259,13 @@ class _SalesReturnsScreenState extends ConsumerState<SalesReturnsScreen> {
               ),
             ),
           );
+          // Refresh the list when returning from details
+          ref.invalidate(creditNotesProviderForTransactions);
         },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // First line: Credit Note number (left) and total (right)
+            // First line: Credit Note number and refund status badge
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -254,44 +281,157 @@ class _SalesReturnsScreenState extends ConsumerState<SalesReturnsScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  '₹${totalAmount.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: statusColor),
+                  ),
+                  child: Text(
+                    statusText,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: statusColor,
+                    ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 4),
-            // Second line: customer name and date
+            const SizedBox(height: 8),
+
+            // Second line: customer name
+            Text(
+              customerName,
+              style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 8),
+
+            // Third line: Refund breakdown
             Row(
               children: [
                 Expanded(
-                  child: Text(
-                    customerName,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textSecondary,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Total: ₹${totalAmount.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      if (refundStatus != 'pending') ...[
+                        Text(
+                          'Refunded: ₹${refundedAmount.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.green,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                      if (refundStatus != 'refunded' &&
+                          remainingAmount > 0.01) ...[
+                        Text(
+                          'Remaining: ₹${remainingAmount.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.orange,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: Text(
-                    '${createdAt.day.toString().padLeft(2, '0')}/${createdAt.month.toString().padLeft(2, '0')}/${createdAt.year}',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                    ),
+                Text(
+                  '${createdAt.day.toString().padLeft(2, '0')}/${createdAt.month.toString().padLeft(2, '0')}/${createdAt.year}',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
                   ),
                 ),
               ],
             ),
+
+            // Add Refund button for pending/partial credit notes
+            if (refundStatus != 'refunded' && remainingAmount > 0.01) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _showAddRefundDialog(
+                    context,
+                    creditNote['id'] as int,
+                    remainingAmount,
+                  ),
+                  icon: const Icon(Icons.account_balance_wallet, size: 18),
+                  label: const Text('Issue Refund'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.orange,
+                    side: const BorderSide(color: Colors.orange),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _showAddRefundDialog(
+    BuildContext context,
+    int creditNoteId,
+    double remainingAmount,
+  ) async {
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => RefundDialog(
+        totalAmount: remainingAmount,
+        suggestedAmount: remainingAmount,
+        title: 'Issue Refund',
+      ),
+    );
+
+    if (result != null && mounted) {
+      try {
+        final db = await ref.read(databaseProvider);
+        final repository = BillRepository(db);
+        await repository.addRefund(
+          creditNoteId: creditNoteId,
+          amount: result['amount'] as double,
+          refundMethod: result['refund_method'] as String,
+          notes: result['notes'] as String?,
+        );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Refund added successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          // Refresh the list
+          ref.invalidate(creditNotesProviderForTransactions);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error adding refund: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
   }
 }

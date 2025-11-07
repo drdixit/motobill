@@ -885,4 +885,146 @@ class BillRepository {
       );
     });
   }
+
+  // ==================== CREDIT NOTE REFUND METHODS ====================
+
+  /// Add a refund to a credit note
+  Future<void> addRefund({
+    required int creditNoteId,
+    required double amount,
+    String refundMethod = 'cash',
+    DateTime? refundDate,
+    String? notes,
+  }) async {
+    await _db.transaction((txn) async {
+      final now = DateTime.now();
+      final effectiveRefundDate = refundDate ?? now;
+
+      // Insert refund record
+      await txn.rawInsert(
+        '''INSERT INTO credit_note_refunds
+           (credit_note_id, amount, refund_method, refund_date, notes, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)''',
+        [
+          creditNoteId,
+          amount,
+          refundMethod,
+          effectiveRefundDate.toIso8601String(),
+          notes,
+          now.toIso8601String(),
+          now.toIso8601String(),
+        ],
+      );
+
+      // Get total refunded amount
+      final result = await txn.rawQuery(
+        '''SELECT COALESCE(SUM(amount), 0) as total_refunded
+           FROM credit_note_refunds
+           WHERE credit_note_id = ? AND is_deleted = 0''',
+        [creditNoteId],
+      );
+
+      final totalRefunded = (result.first['total_refunded'] as num).toDouble();
+
+      // Get credit note total
+      final cnResult = await txn.rawQuery(
+        'SELECT total_amount FROM credit_notes WHERE id = ?',
+        [creditNoteId],
+      );
+
+      final totalAmount = (cnResult.first['total_amount'] as num).toDouble();
+
+      // Determine refund status
+      String refundStatus;
+      if (totalRefunded >= totalAmount) {
+        refundStatus = 'refunded';
+      } else if (totalRefunded > 0) {
+        refundStatus = 'partial';
+      } else {
+        refundStatus = 'pending';
+      }
+
+      // Update credit note
+      await txn.rawUpdate(
+        '''UPDATE credit_notes
+           SET refunded_amount = ?, refund_status = ?, updated_at = ?
+           WHERE id = ?''',
+        [totalRefunded, refundStatus, now.toIso8601String(), creditNoteId],
+      );
+    });
+  }
+
+  /// Get all refunds for a credit note
+  Future<List<Map<String, dynamic>>> getCreditNoteRefunds(
+    int creditNoteId,
+  ) async {
+    final result = await _db.rawQuery(
+      '''SELECT * FROM credit_note_refunds
+         WHERE credit_note_id = ? AND is_deleted = 0
+         ORDER BY refund_date DESC''',
+      [creditNoteId],
+    );
+    return result;
+  }
+
+  /// Delete a refund (soft delete)
+  Future<void> deleteRefund(int refundId) async {
+    await _db.transaction((txn) async {
+      final now = DateTime.now();
+
+      // Get refund info before deleting
+      final refundResult = await txn.rawQuery(
+        'SELECT credit_note_id FROM credit_note_refunds WHERE id = ?',
+        [refundId],
+      );
+
+      if (refundResult.isEmpty) return;
+
+      final creditNoteId = refundResult.first['credit_note_id'] as int;
+
+      // Soft delete refund
+      await txn.rawUpdate(
+        '''UPDATE credit_note_refunds
+           SET is_deleted = 1, updated_at = ?
+           WHERE id = ?''',
+        [now.toIso8601String(), refundId],
+      );
+
+      // Recalculate total refunded amount
+      final result = await txn.rawQuery(
+        '''SELECT COALESCE(SUM(amount), 0) as total_refunded
+           FROM credit_note_refunds
+           WHERE credit_note_id = ? AND is_deleted = 0''',
+        [creditNoteId],
+      );
+
+      final totalRefunded = (result.first['total_refunded'] as num).toDouble();
+
+      // Get credit note total
+      final cnResult = await txn.rawQuery(
+        'SELECT total_amount FROM credit_notes WHERE id = ?',
+        [creditNoteId],
+      );
+
+      final totalAmount = (cnResult.first['total_amount'] as num).toDouble();
+
+      // Determine refund status
+      String refundStatus;
+      if (totalRefunded >= totalAmount) {
+        refundStatus = 'refunded';
+      } else if (totalRefunded > 0) {
+        refundStatus = 'partial';
+      } else {
+        refundStatus = 'pending';
+      }
+
+      // Update credit note
+      await txn.rawUpdate(
+        '''UPDATE credit_notes
+           SET refunded_amount = ?, refund_status = ?, updated_at = ?
+           WHERE id = ?''',
+        [totalRefunded, refundStatus, now.toIso8601String(), creditNoteId],
+      );
+    });
+  }
 }
