@@ -48,6 +48,11 @@ class AppSidebar extends StatelessWidget {
                   title: 'Transactions',
                 ),
                 _buildMenuItem(
+                  index: 9,
+                  icon: Icons.account_balance_wallet,
+                  title: 'Payments',
+                ),
+                _buildMenuItem(
                   index: 3,
                   icon: Icons.category,
                   title: 'Masters',

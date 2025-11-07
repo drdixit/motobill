@@ -112,6 +112,8 @@ final creditNoteDetailsProvider =
       final subtotal = creditNote['subtotal'] as num? ?? 0;
       final taxAmount = creditNote['tax_amount'] as num? ?? 0;
       final total = creditNote['total_amount'] as num? ?? 0;
+      final maxRefundable =
+          (creditNote['max_refundable_amount'] as num?)?.toDouble() ?? 0.0;
       final refundedAmount =
           (creditNote['refunded_amount'] as num?)?.toDouble() ?? 0.0;
       final refundStatus = creditNote['refund_status'] as String? ?? 'pending';
@@ -154,6 +156,7 @@ final creditNoteDetailsProvider =
           'subtotal': subtotal,
           'tax_amount': taxAmount,
           'total': total,
+          'max_refundable_amount': maxRefundable,
           'refunded_amount': refundedAmount,
           'refund_status': refundStatus,
         },
@@ -567,10 +570,13 @@ class CreditNoteDetailsScreen extends ConsumerWidget {
     WidgetRef ref,
   ) {
     final totalAmount = (creditNote['total'] as num).toDouble();
+    final maxRefundableAmount =
+        (creditNote['max_refundable_amount'] as num?)?.toDouble() ??
+        totalAmount;
     final refundedAmount =
         (creditNote['refunded_amount'] as num?)?.toDouble() ?? 0.0;
     final refundStatus = creditNote['refund_status'] as String? ?? 'pending';
-    final remainingAmount = totalAmount - refundedAmount;
+    final remainingAmount = maxRefundableAmount - refundedAmount;
 
     // Status badge color
     Color statusColor;
@@ -637,7 +643,7 @@ class CreditNoteDetailsScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Total Amount',
+                      'Return Amount',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey.shade600,
@@ -649,6 +655,29 @@ class CreditNoteDetailsScreen extends ConsumerWidget {
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Customer Paid',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '₹${maxRefundableAmount.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
                       ),
                     ),
                   ],
@@ -739,7 +768,7 @@ class CreditNoteDetailsScreen extends ConsumerWidget {
                 onPressed: () => _showAddRefundDialog(
                   context,
                   ref,
-                  totalAmount,
+                  maxRefundableAmount,
                   remainingAmount,
                 ),
                 icon: const Icon(Icons.account_balance_wallet),

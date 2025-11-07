@@ -18,7 +18,8 @@ final creditNotesProviderForTransactions =
       final result = await db.rawQuery(
         '''SELECT cn.*, c.name as customer_name,
            COALESCE(cn.refunded_amount, 0) as refunded_amount,
-           COALESCE(cn.refund_status, 'pending') as refund_status
+           COALESCE(cn.refund_status, 'pending') as refund_status,
+           COALESCE(cn.max_refundable_amount, 0) as max_refundable_amount
      FROM credit_notes cn
      LEFT JOIN customers c ON cn.customer_id = c.id
      WHERE cn.is_deleted = 0
@@ -219,10 +220,13 @@ class _SalesReturnsScreenState extends ConsumerState<SalesReturnsScreen> {
     final customerName =
         creditNote['customer_name'] as String? ?? 'Unknown Customer';
     final totalAmount = (creditNote['total_amount'] as num).toDouble();
+    final maxRefundable =
+        (creditNote['max_refundable_amount'] as num?)?.toDouble() ??
+        totalAmount;
     final refundedAmount =
         (creditNote['refunded_amount'] as num?)?.toDouble() ?? 0.0;
     final refundStatus = creditNote['refund_status'] as String? ?? 'pending';
-    final remainingAmount = totalAmount - refundedAmount;
+    final remainingAmount = maxRefundable - refundedAmount;
     final createdAt = DateTime.parse(creditNote['created_at'] as String);
 
     // Status badge color and text
@@ -236,6 +240,10 @@ class _SalesReturnsScreenState extends ConsumerState<SalesReturnsScreen> {
       case 'partial':
         statusColor = Colors.orange;
         statusText = 'Partial';
+        break;
+      case 'adjusted':
+        statusColor = Colors.blue;
+        statusText = 'Adjusted';
         break;
       default:
         statusColor = Colors.red;
@@ -326,7 +334,27 @@ class _SalesReturnsScreenState extends ConsumerState<SalesReturnsScreen> {
                           color: AppColors.textSecondary,
                         ),
                       ),
-                      if (refundStatus != 'pending') ...[
+                      if (refundStatus == 'adjusted') ...[
+                        Text(
+                          'Adjusted to bill remaining',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.blue,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                      if (refundStatus == 'refunded') ...[
+                        Text(
+                          'Refunded: ₹${refundedAmount.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.green,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                      if (refundStatus == 'partial') ...[
                         Text(
                           'Refunded: ₹${refundedAmount.toStringAsFixed(2)}',
                           style: const TextStyle(
@@ -337,6 +365,7 @@ class _SalesReturnsScreenState extends ConsumerState<SalesReturnsScreen> {
                         ),
                       ],
                       if (refundStatus != 'refunded' &&
+                          refundStatus != 'adjusted' &&
                           remainingAmount > 0.01) ...[
                         Text(
                           'Remaining: ₹${remainingAmount.toStringAsFixed(2)}',
@@ -360,8 +389,11 @@ class _SalesReturnsScreenState extends ConsumerState<SalesReturnsScreen> {
               ],
             ),
 
-            // Add Refund button for pending/partial credit notes
-            if (refundStatus != 'refunded' && remainingAmount > 0.01) ...[
+            // Add Refund button for pending/partial credit notes only
+            // Don't show for adjusted (already settled) or refunded
+            if (refundStatus != 'refunded' &&
+                refundStatus != 'adjusted' &&
+                remainingAmount > 0.01) ...[
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,

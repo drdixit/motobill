@@ -341,11 +341,23 @@ class BillRepository {
     final endStr = endDate.toIso8601String().split('T')[0];
 
     return await _db.rawQuery(
-      '''SELECT b.*, c.name as customer_name, c.gst_number as customer_gst
+      '''SELECT b.*,
+         c.name as customer_name,
+         c.gst_number as customer_gst,
+         COALESCE(SUM(
+           CASE
+             WHEN cn.refund_status != 'refunded'
+             THEN cn.max_refundable_amount - COALESCE(cn.refunded_amount, 0)
+             ELSE 0
+           END
+         ), 0) as pending_refunds,
+         COALESCE(SUM(cn.total_amount), 0) as total_returned
       FROM bills b
       LEFT JOIN customers c ON b.customer_id = c.id
+      LEFT JOIN credit_notes cn ON b.id = cn.bill_id AND cn.is_deleted = 0
       WHERE b.is_deleted = 0
       AND DATE(b.created_at) BETWEEN ? AND ?
+      GROUP BY b.id
       ORDER BY b.id DESC''',
       [startStr, endStr],
     );
@@ -442,10 +454,87 @@ class BillRepository {
       final creditNoteNumber =
           '$datePrefix${sequenceNumber.toString().padLeft(5, '0')}';
 
+      // Get bill's total, paid amount and already allocated refund amounts
+      final billResult = await txn.rawQuery(
+        'SELECT total_amount, paid_amount FROM bills WHERE id = ?',
+        [creditNoteData['bill_id']],
+      );
+
+      if (billResult.isEmpty) {
+        throw Exception('Bill not found');
+      }
+
+      final totalAmount = (billResult.first['total_amount'] as num).toDouble();
+      final paidAmount = (billResult.first['paid_amount'] as num).toDouble();
+      final billRemaining = totalAmount - paidAmount;
+
+      // Get total return amount and max_refundable from all previous credit notes
+      final previousResult = await txn.rawQuery(
+        '''SELECT
+           COALESCE(SUM(total_amount), 0) as total_returned,
+           COALESCE(SUM(max_refundable_amount), 0) as total_allocated
+           FROM credit_notes
+           WHERE bill_id = ? AND is_deleted = 0''',
+        [creditNoteData['bill_id']],
+      );
+
+      final totalReturned = previousResult.isNotEmpty
+          ? (previousResult.first['total_returned'] as num).toDouble()
+          : 0.0;
+      final alreadyAllocated = previousResult.isNotEmpty
+          ? (previousResult.first['total_allocated'] as num).toDouble()
+          : 0.0;
+
+      final creditNoteAmount = (creditNoteData['total_amount'] as num)
+          .toDouble();
+
+      // Calculate max refundable based on business logic:
+      // Customer should only get refund for the VALUE OF RETURNED PRODUCTS
+      // Limited by how much they actually paid
+
+      final netBillRemaining =
+          billRemaining - totalReturned; // Remaining after previous returns
+      final newNetRemaining =
+          netBillRemaining - creditNoteAmount; // After this return
+
+      double maxRefundableAmount;
+      String refundStatus;
+
+      if (newNetRemaining >= 0.01) {
+        // Customer still owes money after return, no cash refund
+        // Amount adjusted to bill remaining
+        maxRefundableAmount = 0.0;
+        refundStatus =
+            'adjusted'; // Mark as adjusted since no cash refund needed
+      } else {
+        // Return value exceeds bill remaining, customer eligible for refund
+        // Refund amount = value of THIS return that exceeds bill remaining
+        // But limited to what customer actually paid minus already allocated refunds
+
+        // Calculate how much of THIS credit note is refundable
+        double thisReturnRefundable;
+        if (netBillRemaining >= 0.01) {
+          // Previous returns didn't cover bill remaining yet
+          // Only refund the portion that exceeds bill remaining
+          thisReturnRefundable = creditNoteAmount - netBillRemaining;
+        } else {
+          // Previous returns already covered bill remaining
+          // Refund the full return value of this credit note
+          thisReturnRefundable = creditNoteAmount;
+        }
+
+        // Limit by available funds (what's left from paid amount)
+        final availableToRefund = paidAmount - alreadyAllocated;
+        maxRefundableAmount = (thisReturnRefundable < availableToRefund)
+            ? thisReturnRefundable
+            : (availableToRefund > 0 ? availableToRefund : 0.0);
+        refundStatus = 'pending'; // Cash refund pending
+      }
+
       final creditNoteId = await txn.rawInsert(
         '''INSERT INTO credit_notes
-          (bill_id, credit_note_number, customer_id, reason, subtotal, tax_amount, total_amount, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))''',
+          (bill_id, credit_note_number, customer_id, reason, subtotal, tax_amount, total_amount, max_refundable_amount, refund_status, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))''',
         [
           creditNoteData['bill_id'],
           creditNoteNumber,
@@ -454,6 +543,8 @@ class BillRepository {
           creditNoteData['subtotal'],
           creditNoteData['tax_amount'],
           creditNoteData['total_amount'],
+          maxRefundableAmount,
+          refundStatus,
         ],
       );
 
@@ -926,17 +1017,26 @@ class BillRepository {
 
       final totalRefunded = (result.first['total_refunded'] as num).toDouble();
 
-      // Get credit note total
+      // Get credit note max refundable amount (based on bill's paid amount)
       final cnResult = await txn.rawQuery(
-        'SELECT total_amount FROM credit_notes WHERE id = ?',
+        'SELECT max_refundable_amount FROM credit_notes WHERE id = ?',
         [creditNoteId],
       );
 
-      final totalAmount = (cnResult.first['total_amount'] as num).toDouble();
+      final maxRefundable = (cnResult.first['max_refundable_amount'] as num)
+          .toDouble();
+
+      // Validate refund doesn't exceed max refundable amount
+      if (totalRefunded > maxRefundable + 0.01) {
+        throw Exception(
+          'Total refund amount (₹${totalRefunded.toStringAsFixed(2)}) exceeds maximum refundable amount (₹${maxRefundable.toStringAsFixed(2)}). Customer had only paid ₹${maxRefundable.toStringAsFixed(2)} for this bill.',
+        );
+      }
 
       // Determine refund status (using epsilon for floating-point comparison)
+      // Status is based on max_refundable_amount, not total_amount
       String refundStatus;
-      if (totalRefunded >= totalAmount - 0.01) {
+      if (totalRefunded >= maxRefundable - 0.01) {
         refundStatus = 'refunded';
       } else if (totalRefunded > 0) {
         refundStatus = 'partial';
@@ -1000,17 +1100,19 @@ class BillRepository {
 
       final totalRefunded = (result.first['total_refunded'] as num).toDouble();
 
-      // Get credit note total
+      // Get credit note max refundable amount
       final cnResult = await txn.rawQuery(
-        'SELECT total_amount FROM credit_notes WHERE id = ?',
+        'SELECT max_refundable_amount FROM credit_notes WHERE id = ?',
         [creditNoteId],
       );
 
-      final totalAmount = (cnResult.first['total_amount'] as num).toDouble();
+      final maxRefundable = (cnResult.first['max_refundable_amount'] as num)
+          .toDouble();
 
       // Determine refund status (using epsilon for floating-point comparison)
+      // Status is based on max_refundable_amount, not total_amount
       String refundStatus;
-      if (totalRefunded >= totalAmount - 0.01) {
+      if (totalRefunded >= maxRefundable - 0.01) {
         refundStatus = 'refunded';
       } else if (totalRefunded > 0) {
         refundStatus = 'partial';

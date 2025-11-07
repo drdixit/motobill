@@ -85,13 +85,30 @@ final billDetailsProvider = FutureProvider.family<Map<String, dynamic>?, int>((
   // Fetch credit notes associated with this bill
   final creditNotesResult = await db.rawQuery(
     '''
-    SELECT id, credit_note_number, reason, subtotal, tax_amount, total_amount
+    SELECT id, credit_note_number, reason, subtotal, tax_amount, total_amount,
+           max_refundable_amount, refunded_amount, refund_status
     FROM credit_notes
     WHERE bill_id = ? AND is_deleted = 0
     ORDER BY created_at DESC
     ''',
     [billId],
   );
+
+  // Calculate pending refunds
+  double pendingRefunds = 0.0;
+  double totalReturned = 0.0;
+  for (final cn in creditNotesResult) {
+    final refundStatus = cn['refund_status'] as String? ?? 'pending';
+    final totalAmount = (cn['total_amount'] as num?)?.toDouble() ?? 0.0;
+    totalReturned += totalAmount;
+
+    if (refundStatus != 'refunded') {
+      final maxRefundable =
+          (cn['max_refundable_amount'] as num?)?.toDouble() ?? 0.0;
+      final refunded = (cn['refunded_amount'] as num?)?.toDouble() ?? 0.0;
+      pendingRefunds += (maxRefundable - refunded);
+    }
+  }
 
   // Fetch items for each credit note
   final creditNotesWithItems = <Map<String, dynamic>>[];
@@ -199,6 +216,8 @@ final billDetailsProvider = FutureProvider.family<Map<String, dynamic>?, int>((
       'total': total,
       'paid_amount': bill['paid_amount'] ?? 0,
       'payment_status': bill['payment_status'] ?? 'unpaid',
+      'pending_refunds': pendingRefunds,
+      'total_returned': totalReturned,
     },
     'taxableItems': transformedTaxableItems,
     'nonTaxableItems': transformedNonTaxableItems,
@@ -247,7 +266,9 @@ class BillDetailsScreen extends ConsumerWidget {
                     children: [
                       Expanded(child: _buildCustomerDetails(bill)),
                       const SizedBox(width: 48),
-                      Expanded(child: _buildBillInfo(bill, payments, ref)),
+                      Expanded(
+                        child: _buildPaymentStatusSection(bill, payments, ref),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 32),
@@ -330,9 +351,9 @@ class BillDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildBillInfo(
+  Widget _buildPaymentStatusSection(
     Map<String, dynamic> bill,
-    List<Map<String, dynamic>> payments,
+    List<dynamic> payments,
     WidgetRef ref,
   ) {
     final billNumber = bill['bill_number'] as String? ?? 'N/A';
@@ -340,7 +361,23 @@ class BillDetailsScreen extends ConsumerWidget {
     final paymentStatus = bill['payment_status'] as String? ?? 'unpaid';
     final paidAmount = (bill['paid_amount'] as num?)?.toDouble() ?? 0.0;
     final totalAmount = (bill['total'] as num?)?.toDouble() ?? 0.0;
-    final remainingAmount = totalAmount - paidAmount;
+    final pendingRefunds = (bill['pending_refunds'] as num?)?.toDouble() ?? 0.0;
+    final totalReturned = (bill['total_returned'] as num?)?.toDouble() ?? 0.0;
+
+    // Calculate net remaining after returns
+    // When products are returned, the bill amount is reduced by return value
+    final billRemaining = totalAmount - paidAmount;
+    final netRemaining = billRemaining - totalReturned;
+
+    // If product is fully or mostly returned (return >= bill total - 0.01 tolerance),
+    // no payment should be collected
+    final isFullyReturned = totalReturned >= (totalAmount - 0.01);
+
+    // Remaining amount is net remaining (considering returns)
+    // But if fully returned, show 0
+    final remainingAmount = (!isFullyReturned && netRemaining > 0.01)
+        ? netRemaining
+        : 0.0;
 
     // Determine status color and label
     Color statusColor;
@@ -414,6 +451,66 @@ class BillDetailsScreen extends ConsumerWidget {
                 const SizedBox(height: 4),
                 _buildPaymentRow('Remaining', remainingAmount, Colors.orange),
               ],
+              if (pendingRefunds > 0.01) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        size: 16,
+                        color: Colors.blue.shade700,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Pending Refund: ₹${pendingRefunds.toStringAsFixed(2)}\n(Return kiya hai, refund pending)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.blue.shade700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              if (isFullyReturned && billRemaining > 0.01) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.assignment_return,
+                        size: 16,
+                        color: Colors.grey.shade600,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Product Fully Returned\n(No payment collection needed)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               if (payments.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 OutlinedButton.icon(
@@ -421,9 +518,10 @@ class BillDetailsScreen extends ConsumerWidget {
                     showDialog(
                       context: ref.context,
                       builder: (context) => PaymentHistoryDialog(
-                        payments: payments,
+                        payments: payments.cast<Map<String, dynamic>>(),
                         totalAmount: totalAmount,
                         paidAmount: paidAmount,
+                        totalReturned: totalReturned,
                       ),
                     );
                   },

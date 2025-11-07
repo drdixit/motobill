@@ -6,17 +6,22 @@ class PaymentHistoryDialog extends StatelessWidget {
   final List<Map<String, dynamic>> payments;
   final double totalAmount;
   final double paidAmount;
+  final double totalReturned;
 
   const PaymentHistoryDialog({
     super.key,
     required this.payments,
     required this.totalAmount,
     required this.paidAmount,
+    this.totalReturned = 0.0,
   });
 
   @override
   Widget build(BuildContext context) {
-    final remainingAmount = totalAmount - paidAmount;
+    // Net remaining = (bill total - paid) - returned products value
+    final billRemaining = totalAmount - paidAmount;
+    final netRemaining = billRemaining - totalReturned;
+    final remainingAmount = netRemaining > 0 ? netRemaining : 0.0;
 
     return Dialog(
       shape: RoundedRectangleBorder(
@@ -98,6 +103,14 @@ class PaymentHistoryDialog extends StatelessWidget {
                     '₹${paidAmount.toStringAsFixed(2)}',
                     Colors.green,
                   ),
+                  if (totalReturned > 0.01) ...[
+                    const Divider(height: AppSizes.paddingM),
+                    _buildSummaryRow(
+                      'Returned (Products)',
+                      '- ₹${totalReturned.toStringAsFixed(2)}',
+                      Colors.blue,
+                    ),
+                  ],
                   const Divider(height: AppSizes.paddingM),
                   _buildSummaryRow(
                     'Remaining',

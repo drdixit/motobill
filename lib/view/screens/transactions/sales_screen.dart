@@ -214,7 +214,24 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     final totalAmount = (bill['total_amount'] as num).toDouble();
     final paidAmount = (bill['paid_amount'] as num?)?.toDouble() ?? 0.0;
     final paymentStatus = bill['payment_status'] as String? ?? 'unpaid';
-    final remainingAmount = totalAmount - paidAmount;
+    final pendingRefunds = (bill['pending_refunds'] as num?)?.toDouble() ?? 0.0;
+    final totalReturned = (bill['total_returned'] as num?)?.toDouble() ?? 0.0;
+
+    // Calculate net remaining after returns
+    // When products are returned, the bill amount is reduced by return value
+    final billRemaining = totalAmount - paidAmount;
+    final netRemaining = billRemaining - totalReturned;
+
+    // If product is fully or mostly returned (return >= bill total - 0.01 tolerance),
+    // no payment should be collected
+    final isFullyReturned = totalReturned >= (totalAmount - 0.01);
+
+    // Remaining amount is net remaining (considering returns)
+    // But if fully returned or customer overpaid (negative), show 0
+    final remainingAmount = (!isFullyReturned && netRemaining > 0.01)
+        ? netRemaining
+        : 0.0;
+
     final createdAt = DateTime.parse(bill['created_at'] as String);
 
     // Determine status color and label
@@ -405,6 +422,37 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   ),
               ],
             ),
+            // Show pending refunds chip if any
+            if (pendingRefunds > 0.01) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      size: 14,
+                      color: Colors.blue.shade700,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Pending Refund: ₹${pendingRefunds.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue.shade700,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             // Action buttons row
             const SizedBox(height: 12),
             Row(
@@ -425,8 +473,13 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     ),
                   ),
                 ),
-                // Add Payment button for unpaid/partial bills
-                if (paymentStatus != 'paid') ...[
+                // Add Payment button - only show if:
+                // 1. Not fully paid
+                // 2. Effective remaining > 0
+                // 3. NO pending refunds (customer should settle refund first)
+                if (paymentStatus != 'paid' &&
+                    remainingAmount > 0.01 &&
+                    pendingRefunds <= 0.01) ...[
                   const SizedBox(width: 8),
                   Expanded(
                     flex: 2,
@@ -452,6 +505,90 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     ),
                   ),
                 ],
+                // Show message if there are pending refunds blocking payment
+                if (pendingRefunds > 0.01 &&
+                    paymentStatus != 'paid' &&
+                    billRemaining > 0.01) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 2,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 10,
+                        horizontal: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.orange.shade200),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            size: 16,
+                            color: Colors.orange.shade700,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Settle refund first',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.orange.shade700,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+                // Show message if products are fully returned
+                if (isFullyReturned &&
+                    paymentStatus != 'paid' &&
+                    billRemaining > 0.01) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 2,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 10,
+                        horizontal: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.assignment_return,
+                            size: 16,
+                            color: Colors.grey.shade600,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Fully Returned',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade700,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ],
@@ -467,7 +604,12 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     final billId = bill['id'] as int;
     final totalAmount = (bill['total_amount'] as num).toDouble();
     final paidAmount = (bill['paid_amount'] as num?)?.toDouble() ?? 0.0;
-    final remainingAmount = totalAmount - paidAmount;
+    final totalReturned = (bill['total_returned'] as num?)?.toDouble() ?? 0.0;
+
+    // Calculate net remaining after returns
+    final billRemaining = totalAmount - paidAmount;
+    final netRemaining = billRemaining - totalReturned;
+    final remainingAmount = netRemaining > 0 ? netRemaining : 0.0;
 
     final paymentResult = await showDialog<Map<String, dynamic>>(
       context: context,
