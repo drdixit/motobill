@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/providers/database_provider.dart';
 import '../../model/payment_summary.dart';
 import '../../view_model/payment_viewmodel.dart';
+import 'transactions/bill_details_screen.dart';
 
 class PaymentNavigationScreen extends ConsumerStatefulWidget {
   const PaymentNavigationScreen({super.key});
@@ -16,6 +18,8 @@ class _PaymentNavigationScreenState
     extends ConsumerState<PaymentNavigationScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -30,7 +34,36 @@ class _PaymentNavigationScreenState
   @override
   void dispose() {
     _tabController.dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  bool _fuzzyMatch(String text, String query) {
+    if (query.isEmpty) return true;
+    if (text.isEmpty) return false;
+
+    int textIndex = 0;
+    int queryIndex = 0;
+
+    while (textIndex < text.length && queryIndex < query.length) {
+      if (text[textIndex] == query[queryIndex]) {
+        queryIndex++;
+      }
+      textIndex++;
+    }
+
+    return queryIndex == query.length;
+  }
+
+  List<PaymentSummary> _filterItems(List<PaymentSummary> items) {
+    if (_searchQuery.isEmpty) return items;
+
+    final query = _searchQuery.toLowerCase();
+    return items.where((item) {
+      final name = item.name.toLowerCase();
+      final phone = (item.phone ?? '').toLowerCase();
+      return _fuzzyMatch(name, query) || _fuzzyMatch(phone, query);
+    }).toList();
   }
 
   String _formatCurrency(double amount) {
@@ -269,7 +302,57 @@ class _PaymentNavigationScreenState
           );
         }
 
-        return _buildPaymentList(list, isReceivable: true);
+        final filteredList = _filterItems(list);
+
+        return Column(
+          children: [
+            // Search Bar
+            Container(
+              padding: const EdgeInsets.all(16),
+              color: Colors.white,
+              child: TextField(
+                controller: _searchController,
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value;
+                  });
+                },
+                decoration: InputDecoration(
+                  hintText: 'Search by name or phone...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            setState(() {
+                              _searchController.clear();
+                              _searchQuery = '';
+                            });
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                ),
+              ),
+            ),
+            // List
+            Expanded(
+              child: filteredList.isEmpty
+                  ? _buildEmptyState(
+                      icon: Icons.search_off,
+                      message: 'No results found',
+                      subtitle: 'Try a different search term',
+                    )
+                  : _buildPaymentList(filteredList, isReceivable: true),
+            ),
+          ],
+        );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stack) => Center(
@@ -291,7 +374,57 @@ class _PaymentNavigationScreenState
           );
         }
 
-        return _buildPaymentList(list, isReceivable: false);
+        final filteredList = _filterItems(list);
+
+        return Column(
+          children: [
+            // Search Bar
+            Container(
+              padding: const EdgeInsets.all(16),
+              color: Colors.white,
+              child: TextField(
+                controller: _searchController,
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value;
+                  });
+                },
+                decoration: InputDecoration(
+                  hintText: 'Search by vendor name or phone...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            setState(() {
+                              _searchController.clear();
+                              _searchQuery = '';
+                            });
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                ),
+              ),
+            ),
+            // List
+            Expanded(
+              child: filteredList.isEmpty
+                  ? _buildEmptyState(
+                      icon: Icons.search_off,
+                      message: 'No results found',
+                      subtitle: 'Try a different search term',
+                    )
+                  : _buildPaymentList(filteredList, isReceivable: false),
+            ),
+          ],
+        );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stack) => Center(
@@ -313,7 +446,61 @@ class _PaymentNavigationScreenState
           );
         }
 
-        return _buildPaymentList(list, isReceivable: false, isRefund: true);
+        final filteredList = _filterItems(list);
+
+        return Column(
+          children: [
+            // Search Bar
+            Container(
+              padding: const EdgeInsets.all(16),
+              color: Colors.white,
+              child: TextField(
+                controller: _searchController,
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value;
+                  });
+                },
+                decoration: InputDecoration(
+                  hintText: 'Search by customer name or phone...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            setState(() {
+                              _searchController.clear();
+                              _searchQuery = '';
+                            });
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                ),
+              ),
+            ),
+            // List
+            Expanded(
+              child: filteredList.isEmpty
+                  ? _buildEmptyState(
+                      icon: Icons.search_off,
+                      message: 'No results found',
+                      subtitle: 'Try a different search term',
+                    )
+                  : _buildPaymentList(
+                      filteredList,
+                      isReceivable: false,
+                      isRefund: true,
+                    ),
+            ),
+          ],
+        );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stack) => Center(
@@ -386,113 +573,435 @@ class _PaymentNavigationScreenState
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(color: color.withOpacity(0.2)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        onTap: () => _showDetailBottomSheet(item, isReceivable, isRefund),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Icon(
+                      isRefund
+                          ? Icons.receipt_long
+                          : (isReceivable ? Icons.person : Icons.business),
+                      color: color,
+                      size: 24,
+                    ),
                   ),
-                  child: Icon(
-                    isRefund
-                        ? Icons.receipt_long
-                        : (isReceivable ? Icons.person : Icons.business),
-                    color: color,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.name,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      if (item.phone != null && item.phone!.isNotEmpty)
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Text(
-                          item.phone!,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey.shade600,
+                          item.name,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    isRefund
-                        ? '${item.billCount} ${item.billCount == 1 ? 'Credit Note' : 'Credit Notes'}'
-                        : '${item.billCount} ${item.billCount == 1 ? 'Bill' : 'Bills'}',
-                    style: TextStyle(
-                      color: color,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                        if (item.phone != null && item.phone!.isNotEmpty)
+                          Text(
+                            item.phone!,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                children: [
-                  _buildAmountRow(
-                    isRefund ? 'Return Amount' : 'Total Amount',
-                    item.totalAmount,
-                    Colors.grey.shade700,
-                  ),
-                  if (isReceivable || isRefund) ...[
-                    const SizedBox(height: 8),
-                    _buildAmountRow(
-                      isRefund ? 'Refunded' : 'Paid Amount',
-                      item.paidAmount,
-                      Colors.blue.shade700,
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
                     ),
-                  ],
-                  const Divider(height: 20),
-                  _buildAmountRow(
-                    isRefund
-                        ? 'Pending Refund (Dene Hai)'
-                        : (isReceivable
-                              ? 'Remaining (Lene Hai)'
-                              : 'To Pay (Dene Hai)'),
-                    item.remainingAmount,
-                    color,
-                    isBold: true,
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      isRefund
+                          ? '${item.billCount} ${item.billCount == 1 ? 'Credit Note' : 'Credit Notes'}'
+                          : '${item.billCount} ${item.billCount == 1 ? 'Bill' : 'Bills'}',
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ],
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  children: [
+                    _buildAmountRow(
+                      isRefund ? 'Return Amount' : 'Total Amount',
+                      item.totalAmount,
+                      Colors.grey.shade700,
+                    ),
+                    if (isReceivable || isRefund) ...[
+                      const SizedBox(height: 8),
+                      _buildAmountRow(
+                        isRefund ? 'Refunded' : 'Paid Amount',
+                        item.paidAmount,
+                        Colors.blue.shade700,
+                      ),
+                    ],
+                    const Divider(height: 20),
+                    _buildAmountRow(
+                      isRefund
+                          ? 'Pending Refund (Dene Hai)'
+                          : (isReceivable
+                                ? 'Remaining (Lene Hai)'
+                                : 'To Pay (Dene Hai)'),
+                      item.remainingAmount,
+                      color,
+                      isBold: true,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  Future<void> _showDetailBottomSheet(
+    PaymentSummary item,
+    bool isReceivable,
+    bool isRefund,
+  ) async {
+    final db = await ref.read(databaseProvider);
+
+    // Fetch bills or credit notes for this customer/vendor
+    List<Map<String, dynamic>> items;
+
+    if (isRefund) {
+      // Fetch pending credit notes for this customer
+      items = await db.rawQuery(
+        '''
+        SELECT cn.*, b.bill_number
+        FROM credit_notes cn
+        LEFT JOIN bills b ON cn.bill_id = b.id
+        WHERE cn.customer_id = ?
+          AND cn.is_deleted = 0
+          AND cn.refund_status IN ('pending', 'partial')
+          AND (cn.max_refundable_amount - cn.refunded_amount) > 0.01
+        ORDER BY cn.created_at DESC
+        ''',
+        [item.id],
+      );
+    } else if (isReceivable) {
+      // Fetch unpaid/partially paid bills for this customer
+      items = await db.rawQuery(
+        '''
+        SELECT b.*,
+               (b.total_amount - b.paid_amount) as remaining,
+               (SELECT COALESCE(SUM(total_amount), 0) FROM credit_notes WHERE bill_id = b.id AND is_deleted = 0) as total_returned
+        FROM bills b
+        WHERE b.customer_id = ?
+          AND b.is_deleted = 0
+          AND b.payment_status IN ('unpaid', 'partial')
+          AND ((b.total_amount - b.paid_amount) - (SELECT COALESCE(SUM(total_amount), 0) FROM credit_notes WHERE bill_id = b.id AND is_deleted = 0)) > 0.01
+        ORDER BY b.created_at DESC
+        ''',
+        [item.id],
+      );
+    } else {
+      // Fetch unpaid purchases for this vendor
+      items = await db.rawQuery(
+        '''
+        SELECT p.*,
+               (p.total_amount - p.paid_amount) as remaining
+        FROM purchases p
+        WHERE p.vendor_id = ?
+          AND p.is_deleted = 0
+          AND p.payment_status IN ('unpaid', 'partial')
+        ORDER BY p.created_at DESC
+        ''',
+        [item.id],
+      );
+    }
+
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, scrollController) {
+          return Column(
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(20),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      item.name,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (item.phone != null && item.phone!.isNotEmpty)
+                      Text(
+                        item.phone!,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                    Text(
+                      isRefund
+                          ? '${items.length} Credit Note${items.length != 1 ? 's' : ''} Pending'
+                          : '${items.length} ${isReceivable ? 'Bill' : 'Purchase'}${items.length != 1 ? 's' : ''} Pending',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // List
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  padding: const EdgeInsets.all(16),
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final itemData = items[index];
+                    return _buildDetailCard(itemData, isReceivable, isRefund);
+                  },
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildDetailCard(
+    Map<String, dynamic> itemData,
+    bool isReceivable,
+    bool isRefund,
+  ) {
+    final color = isRefund
+        ? Colors.orange
+        : (isReceivable ? Colors.green : Colors.red);
+
+    if (isRefund) {
+      // Credit Note Card
+      final creditNoteNumber = itemData['credit_note_number'] as String;
+      final billNumber = itemData['bill_number'] as String? ?? 'N/A';
+      final totalAmount = (itemData['total_amount'] as num).toDouble();
+      final maxRefundable =
+          (itemData['max_refundable_amount'] as num?)?.toDouble() ?? 0.0;
+      final refunded = (itemData['refunded_amount'] as num?)?.toDouble() ?? 0.0;
+      final remaining = maxRefundable - refunded;
+      final billId = itemData['bill_id'] as int;
+
+      return Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        child: InkWell(
+          onTap: () {
+            Navigator.pop(context);
+            // Navigate to bill details
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => BillDetailsScreen(billId: billId),
+              ),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'CN$creditNoteNumber',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 16,
+                      color: Colors.grey.shade400,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Bill: $billNumber',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Total: ₹${totalAmount.toStringAsFixed(2)}',
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                    Text(
+                      'To Refund: ₹${remaining.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } else {
+      // Bill/Purchase Card
+      final number =
+          itemData[isReceivable ? 'bill_number' : 'purchase_number'] as String;
+      final totalAmount = (itemData['total_amount'] as num).toDouble();
+      final paidAmount = (itemData['paid_amount'] as num?)?.toDouble() ?? 0.0;
+      final remaining = (itemData['remaining'] as num).toDouble();
+      final id = itemData['id'] as int;
+
+      return Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        child: InkWell(
+          onTap: () {
+            Navigator.pop(context);
+            // Navigate to bill/purchase details
+            if (isReceivable) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => BillDetailsScreen(billId: id),
+                ),
+              );
+            }
+            // TODO: Add purchase details navigation when available
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      number,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 16,
+                      color: Colors.grey.shade400,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Total: ₹${totalAmount.toStringAsFixed(2)}',
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                        Text(
+                          'Paid: ₹${paidAmount.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      '₹${remaining.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
   }
 
   Widget _buildAmountRow(
