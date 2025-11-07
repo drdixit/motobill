@@ -16,15 +16,26 @@ final creditNotesProviderForTransactions =
       final endStr = dateRange.end.toIso8601String().split('T')[0];
 
       final result = await db.rawQuery(
-        '''SELECT cn.*, c.name as customer_name,
-           COALESCE(cn.refunded_amount, 0) as refunded_amount,
-           COALESCE(cn.refund_status, 'pending') as refund_status,
-           COALESCE(cn.max_refundable_amount, 0) as max_refundable_amount
-     FROM credit_notes cn
-     LEFT JOIN customers c ON cn.customer_id = c.id
-     WHERE cn.is_deleted = 0
-     AND DATE(cn.created_at) BETWEEN ? AND ?
-     ORDER BY cn.id DESC''',
+        '''
+        SELECT cn.*,
+               c.name as customer_name,
+               b.bill_number,
+               b.total_amount as bill_total,
+               b.paid_amount as bill_paid,
+               COALESCE(cn.refunded_amount, 0) as refunded_amount,
+               COALESCE(cn.refund_status, 'pending') as refund_status,
+               COALESCE(cn.max_refundable_amount, 0) as max_refundable_amount,
+               COUNT(DISTINCT cni.id) as item_count,
+               SUM(cni.quantity) as total_quantity
+        FROM credit_notes cn
+        LEFT JOIN customers c ON cn.customer_id = c.id
+        LEFT JOIN bills b ON cn.bill_id = b.id
+        LEFT JOIN credit_note_items cni ON cn.id = cni.credit_note_id AND cni.is_deleted = 0
+        WHERE cn.is_deleted = 0
+          AND DATE(cn.created_at) BETWEEN ? AND ?
+        GROUP BY cn.id
+        ORDER BY cn.id DESC
+        ''',
         [startStr, endStr],
       );
       return result;
@@ -219,20 +230,31 @@ class _SalesReturnsScreenState extends ConsumerState<SalesReturnsScreen> {
     final creditNoteNumber = creditNote['credit_note_number'] as String;
     final customerName =
         creditNote['customer_name'] as String? ?? 'Unknown Customer';
+    final billNumber = creditNote['bill_number'] as String? ?? 'N/A';
     final totalAmount = (creditNote['total_amount'] as num).toDouble();
     final maxRefundable =
-        (creditNote['max_refundable_amount'] as num?)?.toDouble() ??
-        totalAmount;
+        (creditNote['max_refundable_amount'] as num?)?.toDouble() ?? 0.0;
     final refundedAmount =
         (creditNote['refunded_amount'] as num?)?.toDouble() ?? 0.0;
     final refundStatus = creditNote['refund_status'] as String? ?? 'pending';
-    final remainingAmount = maxRefundable - refundedAmount;
+    final itemCount = (creditNote['item_count'] as num?)?.toInt() ?? 0;
+    final totalQuantity = (creditNote['total_quantity'] as num?)?.toInt() ?? 0;
+
+    // Ensure max_refundable is never negative (floating-point fix)
+    final safeMaxRefundable = maxRefundable < 0.01 ? 0.0 : maxRefundable;
+    final remainingAmount = safeMaxRefundable - refundedAmount;
+
+    // Fix status if max_refundable is 0 but status is pending
+    final actualStatus = (safeMaxRefundable < 0.01 && refundStatus == 'pending')
+        ? 'adjusted'
+        : refundStatus;
+
     final createdAt = DateTime.parse(creditNote['created_at'] as String);
 
     // Status badge color and text
     Color statusColor;
     String statusText;
-    switch (refundStatus) {
+    switch (actualStatus) {
       case 'refunded':
         statusColor = Colors.green;
         statusText = 'Refunded';
@@ -318,6 +340,36 @@ class _SalesReturnsScreenState extends ConsumerState<SalesReturnsScreen> {
               style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
               overflow: TextOverflow.ellipsis,
             ),
+            const SizedBox(height: 4),
+
+            // Bill number and item count
+            Row(
+              children: [
+                Icon(Icons.receipt, size: 14, color: AppColors.textSecondary),
+                const SizedBox(width: 4),
+                Text(
+                  'Bill: $billNumber',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Icon(
+                  Icons.inventory_2,
+                  size: 14,
+                  color: AppColors.textSecondary,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '$totalQuantity items ($itemCount products)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
 
             // Third line: Refund breakdown
@@ -334,7 +386,18 @@ class _SalesReturnsScreenState extends ConsumerState<SalesReturnsScreen> {
                           color: AppColors.textSecondary,
                         ),
                       ),
-                      if (refundStatus == 'adjusted') ...[
+                      if (actualStatus != 'adjusted' &&
+                          safeMaxRefundable > 0.01) ...[
+                        Text(
+                          'Refundable: ₹${safeMaxRefundable.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.blue,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                      if (actualStatus == 'adjusted') ...[
                         Text(
                           'Adjusted to bill remaining',
                           style: const TextStyle(
@@ -344,7 +407,7 @@ class _SalesReturnsScreenState extends ConsumerState<SalesReturnsScreen> {
                           ),
                         ),
                       ],
-                      if (refundStatus == 'refunded') ...[
+                      if (refundedAmount > 0.01) ...[
                         Text(
                           'Refunded: ₹${refundedAmount.toStringAsFixed(2)}',
                           style: const TextStyle(
@@ -354,18 +417,8 @@ class _SalesReturnsScreenState extends ConsumerState<SalesReturnsScreen> {
                           ),
                         ),
                       ],
-                      if (refundStatus == 'partial') ...[
-                        Text(
-                          'Refunded: ₹${refundedAmount.toStringAsFixed(2)}',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Colors.green,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                      if (refundStatus != 'refunded' &&
-                          refundStatus != 'adjusted' &&
+                      if (actualStatus != 'refunded' &&
+                          actualStatus != 'adjusted' &&
                           remainingAmount > 0.01) ...[
                         Text(
                           'Remaining: ₹${remainingAmount.toStringAsFixed(2)}',
@@ -391,8 +444,8 @@ class _SalesReturnsScreenState extends ConsumerState<SalesReturnsScreen> {
 
             // Add Refund button for pending/partial credit notes only
             // Don't show for adjusted (already settled) or refunded
-            if (refundStatus != 'refunded' &&
-                refundStatus != 'adjusted' &&
+            if (actualStatus != 'refunded' &&
+                actualStatus != 'adjusted' &&
                 remainingAmount > 0.01) ...[
               const SizedBox(height: 12),
               SizedBox(

@@ -525,10 +525,18 @@ class BillRepository {
 
         // Limit by available funds (what's left from paid amount)
         final availableToRefund = paidAmount - alreadyAllocated;
-        maxRefundableAmount = (thisReturnRefundable < availableToRefund)
-            ? thisReturnRefundable
-            : (availableToRefund > 0 ? availableToRefund : 0.0);
-        refundStatus = 'pending'; // Cash refund pending
+
+        // Check if there's actually any refundable amount (with epsilon tolerance)
+        if (availableToRefund < 0.01 || thisReturnRefundable < 0.01) {
+          // No refund available or amount too small
+          maxRefundableAmount = 0.0;
+          refundStatus = 'adjusted';
+        } else {
+          maxRefundableAmount = (thisReturnRefundable < availableToRefund)
+              ? thisReturnRefundable
+              : availableToRefund;
+          refundStatus = 'pending'; // Cash refund pending
+        }
       }
 
       final creditNoteId = await txn.rawInsert(

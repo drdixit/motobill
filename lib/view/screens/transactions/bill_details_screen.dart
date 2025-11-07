@@ -85,11 +85,15 @@ final billDetailsProvider = FutureProvider.family<Map<String, dynamic>?, int>((
   // Fetch credit notes associated with this bill
   final creditNotesResult = await db.rawQuery(
     '''
-    SELECT id, credit_note_number, reason, subtotal, tax_amount, total_amount,
-           max_refundable_amount, refunded_amount, refund_status
-    FROM credit_notes
-    WHERE bill_id = ? AND is_deleted = 0
-    ORDER BY created_at DESC
+    SELECT cn.id, cn.credit_note_number, cn.reason, cn.subtotal, cn.tax_amount, cn.total_amount,
+           cn.max_refundable_amount, cn.refunded_amount, cn.refund_status, cn.created_at,
+           COUNT(DISTINCT cni.id) as item_count,
+           SUM(cni.quantity) as total_quantity
+    FROM credit_notes cn
+    LEFT JOIN credit_note_items cni ON cn.id = cni.credit_note_id AND cni.is_deleted = 0
+    WHERE cn.bill_id = ? AND cn.is_deleted = 0
+    GROUP BY cn.id
+    ORDER BY cn.created_at DESC
     ''',
     [billId],
   );
@@ -176,11 +180,18 @@ final billDetailsProvider = FutureProvider.family<Map<String, dynamic>?, int>((
     }).toList();
 
     creditNotesWithItems.add({
+      'id': creditNote['id'],
       'credit_note_number': creditNote['credit_note_number'],
+      'created_at': creditNote['created_at'],
       'reason': creditNote['reason'],
       'subtotal': creditNote['subtotal'],
       'tax_amount': creditNote['tax_amount'],
       'total': creditNote['total_amount'],
+      'max_refundable_amount': creditNote['max_refundable_amount'],
+      'refunded_amount': creditNote['refunded_amount'],
+      'refund_status': creditNote['refund_status'],
+      'item_count': creditNote['item_count'],
+      'total_quantity': creditNote['total_quantity'],
       'taxableItems': transformedTaxable,
       'nonTaxableItems': transformedNonTaxable,
     });
@@ -841,18 +852,171 @@ class BillDetailsScreen extends ConsumerWidget {
     for (final creditNote in creditNotes) {
       final creditNoteNumber = creditNote['credit_note_number'] as String;
       final total = (creditNote['total'] as num?) ?? 0;
+      final refundStatus = creditNote['refund_status'] as String? ?? 'pending';
+      final maxRefundable =
+          (creditNote['max_refundable_amount'] as num?)?.toDouble() ?? 0.0;
+      final refundedAmount =
+          (creditNote['refunded_amount'] as num?)?.toDouble() ?? 0.0;
+      final itemCount = (creditNote['item_count'] as num?)?.toInt() ?? 0;
+      final totalQuantity =
+          (creditNote['total_quantity'] as num?)?.toInt() ?? 0;
       final taxableItems =
           creditNote['taxableItems'] as List<Map<String, dynamic>>;
       final nonTaxableItems =
           creditNote['nonTaxableItems'] as List<Map<String, dynamic>>;
 
+      // Status badge
+      Color statusColor;
+      String statusText;
+
+      switch (refundStatus) {
+        case 'refunded':
+          statusColor = Colors.green;
+          statusText = 'Refunded';
+          break;
+        case 'partial':
+          statusColor = Colors.orange;
+          statusText = 'Partial';
+          break;
+        case 'adjusted':
+          statusColor = Colors.blue;
+          statusText = 'Adjusted';
+          break;
+        default:
+          statusColor = Colors.red;
+          statusText = 'Pending';
+      }
+
       widgets.addAll([
         const SizedBox(height: 32),
         const Divider(thickness: 2),
         const SizedBox(height: 16),
-        Text(
-          'CN$creditNoteNumber - ₹${total.toStringAsFixed(2)}',
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+
+        // Credit Note Header with Status
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Credit Note: $creditNoteNumber',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$totalQuantity items ($itemCount products)',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: statusColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: statusColor),
+              ),
+              child: Text(
+                statusText,
+                style: TextStyle(
+                  color: statusColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // Amounts Summary
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Return Amount:', style: TextStyle(fontSize: 13)),
+                  Text(
+                    '₹${total.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              if (refundStatus != 'adjusted') ...[
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Refundable:', style: TextStyle(fontSize: 13)),
+                    Text(
+                      '₹${maxRefundable.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.blue,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              if (refundedAmount > 0.01) ...[
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Refunded:', style: TextStyle(fontSize: 13)),
+                    Text(
+                      '₹${refundedAmount.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.green,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              if (refundStatus == 'adjusted') ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      size: 16,
+                      color: Colors.blue.shade700,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Adjusted to bill remaining',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.blue.shade700,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
         ),
         const SizedBox(height: 16),
 
