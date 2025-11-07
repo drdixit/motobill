@@ -86,17 +86,36 @@ class BillRepository {
       );
 
       for (final it in items) {
-        // First, check stock availability based on stock type
-        final stockCheck = await txn.rawQuery(
-          '''SELECT COALESCE(SUM(quantity_remaining), 0) as available
-             FROM stock_batches
-             WHERE product_id = ? AND is_deleted = 0 AND quantity_remaining > 0 AND is_taxable = ?''',
-          [it.productId, useTaxableStock ? 1 : 0],
-        );
+        // Stock availability logic:
+        // 1. If creating TAXABLE bill → can ONLY use taxable stock
+        // 2. If creating NON-TAXABLE bill → can use BOTH taxable + non-taxable stock
+        //    (taxable stock can be sold in non-taxable bill, but not vice versa)
 
-        final availableQty = stockCheck.isNotEmpty
-            ? (stockCheck.first['available'] as num).toInt()
-            : 0;
+        int availableQty = 0;
+
+        if (useTaxableStock) {
+          // Taxable bill: check only taxable stock
+          final stockCheck = await txn.rawQuery(
+            '''SELECT COALESCE(SUM(quantity_remaining), 0) as available
+               FROM stock_batches
+               WHERE product_id = ? AND is_deleted = 0 AND quantity_remaining > 0 AND is_taxable = 1''',
+            [it.productId],
+          );
+          availableQty = stockCheck.isNotEmpty
+              ? (stockCheck.first['available'] as num).toInt()
+              : 0;
+        } else {
+          // Non-taxable bill: check both taxable + non-taxable stock
+          final stockCheck = await txn.rawQuery(
+            '''SELECT COALESCE(SUM(quantity_remaining), 0) as available
+               FROM stock_batches
+               WHERE product_id = ? AND is_deleted = 0 AND quantity_remaining > 0''',
+            [it.productId],
+          );
+          availableQty = stockCheck.isNotEmpty
+              ? (stockCheck.first['available'] as num).toInt()
+              : 0;
+        }
 
         // If insufficient stock, check negative_allow flag
         if (availableQty < it.quantity) {
@@ -162,50 +181,132 @@ class BillRepository {
           ],
         );
 
-        // Allocate stock using FIFO (First In First Out) and stock type
+        // Allocate stock using FIFO (First In First Out) with intelligent stock type selection
         int remainingQty = it.quantity;
 
-        // Get stock batches ordered by ID (oldest first) and filtered by stock type
-        final batches = await txn.rawQuery(
-          '''SELECT id, quantity_remaining, cost_price
-             FROM stock_batches
-             WHERE product_id = ? AND is_deleted = 0 AND quantity_remaining > 0 AND is_taxable = ?
-             ORDER BY id ASC''',
-          [it.productId, useTaxableStock ? 1 : 0],
-        );
-
-        for (final batch in batches) {
-          if (remainingQty <= 0) break;
-
-          final batchId = batch['id'] as int;
-          final qtyRemaining = (batch['quantity_remaining'] as num).toInt();
-          final batchCostPrice = (batch['cost_price'] as num).toDouble();
-
-          if (qtyRemaining <= 0) continue;
-
-          // Allocate as much as possible from this batch
-          final allocate = remainingQty > qtyRemaining
-              ? qtyRemaining
-              : remainingQty;
-
-          // Deduct from stock batch
-          await txn.rawUpdate(
-            '''UPDATE stock_batches
-               SET quantity_remaining = quantity_remaining - ?,
-                   updated_at = datetime('now')
-               WHERE id = ?''',
-            [allocate, batchId],
+        if (useTaxableStock) {
+          // Taxable bill: use only taxable stock (ordered by FIFO)
+          final batches = await txn.rawQuery(
+            '''SELECT id, quantity_remaining, cost_price
+               FROM stock_batches
+               WHERE product_id = ? AND is_deleted = 0 AND quantity_remaining > 0 AND is_taxable = 1
+               ORDER BY id ASC''',
+            [it.productId],
           );
 
-          // Record stock batch usage
-          await txn.rawInsert(
-            '''INSERT INTO stock_batch_usage
-               (bill_item_id, stock_batch_id, quantity_used, cost_price, created_at)
-               VALUES (?, ?, ?, ?, datetime('now'))''',
-            [billItemId, batchId, allocate, batchCostPrice],
+          for (final batch in batches) {
+            if (remainingQty <= 0) break;
+
+            final batchId = batch['id'] as int;
+            final qtyRemaining = (batch['quantity_remaining'] as num).toInt();
+            final batchCostPrice = (batch['cost_price'] as num).toDouble();
+
+            if (qtyRemaining <= 0) continue;
+
+            final allocate = remainingQty > qtyRemaining
+                ? qtyRemaining
+                : remainingQty;
+
+            await txn.rawUpdate(
+              '''UPDATE stock_batches
+                 SET quantity_remaining = quantity_remaining - ?,
+                     updated_at = datetime('now')
+                 WHERE id = ?''',
+              [allocate, batchId],
+            );
+
+            await txn.rawInsert(
+              '''INSERT INTO stock_batch_usage
+                 (bill_item_id, stock_batch_id, quantity_used, cost_price, created_at)
+                 VALUES (?, ?, ?, ?, datetime('now'))''',
+              [billItemId, batchId, allocate, batchCostPrice],
+            );
+
+            remainingQty -= allocate;
+          }
+        } else {
+          // Non-taxable bill: prefer non-taxable stock first, then use taxable stock
+          // Step 1: Use non-taxable stock first
+          final nonTaxableBatches = await txn.rawQuery(
+            '''SELECT id, quantity_remaining, cost_price
+               FROM stock_batches
+               WHERE product_id = ? AND is_deleted = 0 AND quantity_remaining > 0 AND is_taxable = 0
+               ORDER BY id ASC''',
+            [it.productId],
           );
 
-          remainingQty -= allocate;
+          for (final batch in nonTaxableBatches) {
+            if (remainingQty <= 0) break;
+
+            final batchId = batch['id'] as int;
+            final qtyRemaining = (batch['quantity_remaining'] as num).toInt();
+            final batchCostPrice = (batch['cost_price'] as num).toDouble();
+
+            if (qtyRemaining <= 0) continue;
+
+            final allocate = remainingQty > qtyRemaining
+                ? qtyRemaining
+                : remainingQty;
+
+            await txn.rawUpdate(
+              '''UPDATE stock_batches
+                 SET quantity_remaining = quantity_remaining - ?,
+                     updated_at = datetime('now')
+                 WHERE id = ?''',
+              [allocate, batchId],
+            );
+
+            await txn.rawInsert(
+              '''INSERT INTO stock_batch_usage
+                 (bill_item_id, stock_batch_id, quantity_used, cost_price, created_at)
+                 VALUES (?, ?, ?, ?, datetime('now'))''',
+              [billItemId, batchId, allocate, batchCostPrice],
+            );
+
+            remainingQty -= allocate;
+          }
+
+          // Step 2: If still remaining, use taxable stock
+          if (remainingQty > 0) {
+            final taxableBatches = await txn.rawQuery(
+              '''SELECT id, quantity_remaining, cost_price
+                 FROM stock_batches
+                 WHERE product_id = ? AND is_deleted = 0 AND quantity_remaining > 0 AND is_taxable = 1
+                 ORDER BY id ASC''',
+              [it.productId],
+            );
+
+            for (final batch in taxableBatches) {
+              if (remainingQty <= 0) break;
+
+              final batchId = batch['id'] as int;
+              final qtyRemaining = (batch['quantity_remaining'] as num).toInt();
+              final batchCostPrice = (batch['cost_price'] as num).toDouble();
+
+              if (qtyRemaining <= 0) continue;
+
+              final allocate = remainingQty > qtyRemaining
+                  ? qtyRemaining
+                  : remainingQty;
+
+              await txn.rawUpdate(
+                '''UPDATE stock_batches
+                   SET quantity_remaining = quantity_remaining - ?,
+                       updated_at = datetime('now')
+                   WHERE id = ?''',
+                [allocate, batchId],
+              );
+
+              await txn.rawInsert(
+                '''INSERT INTO stock_batch_usage
+                   (bill_item_id, stock_batch_id, quantity_used, cost_price, created_at)
+                   VALUES (?, ?, ?, ?, datetime('now'))''',
+                [billItemId, batchId, allocate, batchCostPrice],
+              );
+
+              remainingQty -= allocate;
+            }
+          }
         }
 
         // If there's still remaining quantity (shouldn't happen after validation)

@@ -383,6 +383,23 @@ class PosViewModel extends StateNotifier<PosState> {
     if (existingIndex >= 0) {
       final existingItem = state.cartItems[existingIndex];
       final newQuantity = existingItem.quantity + 1;
+
+      // Check available stock based on bill type
+      final availableStock = product.getAvailableStock(
+        isTaxableBill: state.useTaxableStock,
+      );
+
+      // Validate stock unless negative_allow is enabled
+      if (!product.negativeAllow && newQuantity > availableStock) {
+        // Stock validation failed - show error
+        state = state.copyWith(
+          error: state.useTaxableStock
+              ? 'Insufficient taxable stock for ${product.name}. Available: $availableStock'
+              : 'Insufficient stock for ${product.name}. Available: $availableStock (${product.taxableStock} taxable + ${product.nonTaxableStock} non-taxable)',
+        );
+        return;
+      }
+
       final updatedItem = _createBillItem(
         product,
         newQuantity,
@@ -393,6 +410,22 @@ class PosViewModel extends StateNotifier<PosState> {
       updatedCart = List.from(state.cartItems);
       updatedCart[existingIndex] = updatedItem;
     } else {
+      // Check available stock for new item
+      final availableStock = product.getAvailableStock(
+        isTaxableBill: state.useTaxableStock,
+      );
+
+      // Validate stock unless negative_allow is enabled
+      if (!product.negativeAllow && availableStock < 1) {
+        // Stock validation failed - show error
+        state = state.copyWith(
+          error: state.useTaxableStock
+              ? 'Insufficient taxable stock for ${product.name}. Available: $availableStock'
+              : 'Insufficient stock for ${product.name}. Available: $availableStock (${product.taxableStock} taxable + ${product.nonTaxableStock} non-taxable)',
+        );
+        return;
+      }
+
       final newItem = _createBillItem(product, 1, null, state.selectedCustomer);
       updatedCart = [...state.cartItems, newItem];
     }
@@ -406,9 +439,26 @@ class PosViewModel extends StateNotifier<PosState> {
       return;
     }
 
+    final product = state.allProducts.firstWhere((p) => p.id == productId);
+
+    // Check available stock based on bill type
+    final availableStock = product.getAvailableStock(
+      isTaxableBill: state.useTaxableStock,
+    );
+
+    // Validate stock unless negative_allow is enabled
+    if (!product.negativeAllow && newQuantity > availableStock) {
+      // Stock validation failed - show error
+      state = state.copyWith(
+        error: state.useTaxableStock
+            ? 'Insufficient taxable stock for ${product.name}. Available: $availableStock'
+            : 'Insufficient stock for ${product.name}. Available: $availableStock (${product.taxableStock} taxable + ${product.nonTaxableStock} non-taxable)',
+      );
+      return;
+    }
+
     final updatedCart = state.cartItems.map((item) {
       if (item.productId == productId) {
-        final product = state.allProducts.firstWhere((p) => p.id == productId);
         return _createBillItem(
           product,
           newQuantity,
@@ -731,23 +781,16 @@ class PosViewModel extends StateNotifier<PosState> {
         orElse: () => throw Exception('Product not found'),
       );
 
-      int availableStock;
-      String stockType;
+      // Use the helper method to get correct available stock
+      final availableStock = product.getAvailableStock(
+        isTaxableBill: state.useTaxableStock,
+      );
 
-      if (state.useTaxableStock) {
-        // Using taxable stock
-        availableStock = product.taxableStock;
-        stockType = 'taxable';
-      } else {
-        // Using non-taxable stock
-        availableStock = product.nonTaxableStock;
-        stockType = 'non-taxable';
-      }
-
-      if (item.quantity > availableStock) {
+      if (!product.negativeAllow && item.quantity > availableStock) {
         state = state.copyWith(
-          error:
-              'Insufficient $stockType stock for ${product.name}. Available: $availableStock, Required: ${item.quantity}',
+          error: state.useTaxableStock
+              ? 'Insufficient taxable stock for ${product.name}. Available: $availableStock, Required: ${item.quantity}'
+              : 'Insufficient stock for ${product.name}. Available: $availableStock (${product.taxableStock} taxable + ${product.nonTaxableStock} non-taxable), Required: ${item.quantity}',
         );
         return null;
       }

@@ -87,4 +87,17 @@ class PosProduct {
       negativeAllow: (json['negative_allow'] as int?) == 1,
     );
   }
+
+  /// Get available stock based on bill type
+  /// For taxable bills: only taxable stock
+  /// For non-taxable bills: taxable + non-taxable stock (both can be used)
+  int getAvailableStock({required bool isTaxableBill}) {
+    if (isTaxableBill) {
+      // Taxable bill: can only use taxable stock
+      return taxableStock;
+    } else {
+      // Non-taxable bill: can use both taxable and non-taxable stock
+      return taxableStock + nonTaxableStock;
+    }
+  }
 }
