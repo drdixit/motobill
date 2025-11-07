@@ -679,7 +679,7 @@ class CreditNoteDetailsScreen extends ConsumerWidget {
                   ),
                 ),
               ],
-              if (refundStatus != 'refunded') ...[
+              if (refundStatus != 'refunded' && remainingAmount > 0.01) ...[
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -731,7 +731,7 @@ class CreditNoteDetailsScreen extends ConsumerWidget {
           ],
 
           // Issue Refund button (if not fully refunded)
-          if (refundStatus != 'refunded') ...[
+          if (refundStatus != 'refunded' && remainingAmount > 0.01) ...[
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,

@@ -410,7 +410,7 @@ class BillDetailsScreen extends ConsumerWidget {
                 const SizedBox(height: 4),
                 _buildPaymentRow('Paid Amount', paidAmount, Colors.green),
               ],
-              if (remainingAmount > 0) ...[
+              if (remainingAmount > 0.01) ...[
                 const SizedBox(height: 4),
                 _buildPaymentRow('Remaining', remainingAmount, Colors.orange),
               ],

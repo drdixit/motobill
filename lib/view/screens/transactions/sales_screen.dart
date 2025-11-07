@@ -965,7 +965,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 return pw.TableRow(
                   children: [
                     _buildTableCell('${index + 1}', align: pw.TextAlign.center),
-                    _buildTableCell(productName),
+                    _buildTableCell(productName, allowWrap: true),
                     _buildTableCell(partNumber),
                     _buildTableCell(uqcCode, align: pw.TextAlign.center),
                     _buildTableCell(hsnCode, align: pw.TextAlign.center),
@@ -1079,6 +1079,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     String text, {
     bool isHeader = false,
     pw.TextAlign align = pw.TextAlign.left,
+    bool allowWrap = false,
   }) {
     return pw.Padding(
       padding: const pw.EdgeInsets.all(2),
@@ -1089,8 +1090,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           fontWeight: isHeader ? pw.FontWeight.bold : pw.FontWeight.normal,
         ),
         textAlign: align,
-        maxLines: 1,
-        softWrap: false,
+        maxLines: allowWrap ? 2 : 1,
+        softWrap: allowWrap,
       ),
     );
   }

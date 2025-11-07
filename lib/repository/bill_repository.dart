@@ -781,9 +781,9 @@ class BillRepository {
 
       final totalAmount = (billResult.first['total_amount'] as num).toDouble();
 
-      // Determine payment status
+      // Determine payment status (using epsilon for floating-point comparison)
       String paymentStatus;
-      if (totalPaid >= totalAmount) {
+      if (totalPaid >= totalAmount - 0.01) {
         paymentStatus = 'paid';
       } else if (totalPaid > 0) {
         paymentStatus = 'partial';
@@ -866,9 +866,9 @@ class BillRepository {
 
       final totalAmount = (billResult.first['total_amount'] as num).toDouble();
 
-      // Determine payment status
+      // Determine payment status (using epsilon for floating-point comparison)
       String paymentStatus;
-      if (totalPaid >= totalAmount) {
+      if (totalPaid >= totalAmount - 0.01) {
         paymentStatus = 'paid';
       } else if (totalPaid > 0) {
         paymentStatus = 'partial';
@@ -934,9 +934,9 @@ class BillRepository {
 
       final totalAmount = (cnResult.first['total_amount'] as num).toDouble();
 
-      // Determine refund status
+      // Determine refund status (using epsilon for floating-point comparison)
       String refundStatus;
-      if (totalRefunded >= totalAmount) {
+      if (totalRefunded >= totalAmount - 0.01) {
         refundStatus = 'refunded';
       } else if (totalRefunded > 0) {
         refundStatus = 'partial';
@@ -1008,9 +1008,9 @@ class BillRepository {
 
       final totalAmount = (cnResult.first['total_amount'] as num).toDouble();
 
-      // Determine refund status
+      // Determine refund status (using epsilon for floating-point comparison)
       String refundStatus;
-      if (totalRefunded >= totalAmount) {
+      if (totalRefunded >= totalAmount - 0.01) {
         refundStatus = 'refunded';
       } else if (totalRefunded > 0) {
         refundStatus = 'partial';
