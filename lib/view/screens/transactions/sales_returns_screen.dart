@@ -5,7 +5,7 @@ import '../../../core/providers/database_provider.dart';
 import '../../../repository/bill_repository.dart';
 import '../../widgets/refund_dialog.dart';
 import '../transactions_screen.dart';
-import 'credit_note_details_screen.dart' as transactions;
+import 'credit_note_details_screen.dart' as credit_note_details;
 
 // Provider for credit notes list with date filtering
 final creditNotesProviderForTransactions =
@@ -284,7 +284,7 @@ class _SalesReturnsScreenState extends ConsumerState<SalesReturnsScreen> {
           await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => transactions.CreditNoteDetailsScreen(
+              builder: (context) => credit_note_details.CreditNoteDetailsScreen(
                 creditNoteId: creditNote['id'] as int,
               ),
             ),
@@ -504,8 +504,11 @@ class _SalesReturnsScreenState extends ConsumerState<SalesReturnsScreen> {
               backgroundColor: Colors.green,
             ),
           );
-          // Refresh the list
+          // Refresh the list and credit note details
           ref.invalidate(creditNotesProviderForTransactions);
+          ref.invalidate(
+            credit_note_details.creditNoteDetailsProvider(creditNoteId),
+          );
         }
       } catch (e) {
         if (mounted) {

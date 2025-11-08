@@ -711,6 +711,41 @@ class BillRepository {
         }
       }
 
+      // Update bill payment status if total returns cover the remaining balance
+      final billId = creditNoteData['bill_id'] as int;
+      final billRows = await txn.rawQuery(
+        'SELECT total_amount, paid_amount FROM bills WHERE id = ?',
+        [billId],
+      );
+      if (billRows.isNotEmpty) {
+        final totalAmount = (billRows.first['total_amount'] as num).toDouble();
+        final paidAmount = (billRows.first['paid_amount'] as num).toDouble();
+        final billRemaining = totalAmount - paidAmount;
+
+        // Calculate total returned for this bill
+        final returnRows = await txn.rawQuery(
+          '''SELECT COALESCE(SUM(cn.total_amount), 0) as total_returned
+             FROM credit_notes cn
+             WHERE cn.bill_id = ? AND cn.is_deleted = 0''',
+          [billId],
+        );
+        final totalReturned = returnRows.isNotEmpty
+            ? (returnRows.first['total_returned'] as num).toDouble()
+            : 0.0;
+
+        // If returns cover the remaining balance (with epsilon tolerance), mark as paid
+        const epsilon = 0.01;
+        if (billRemaining - totalReturned <= epsilon) {
+          await txn.rawUpdate(
+            '''UPDATE bills
+               SET payment_status = 'paid',
+                   updated_at = datetime('now')
+               WHERE id = ?''',
+            [billId],
+          );
+        }
+      }
+
       return creditNoteId;
     });
   }
@@ -1059,6 +1094,49 @@ class BillRepository {
            WHERE id = ?''',
         [totalRefunded, refundStatus, now.toIso8601String(), creditNoteId],
       );
+
+      // Update bill payment status if total returns cover the remaining balance
+      final cnBillResult = await txn.rawQuery(
+        'SELECT bill_id FROM credit_notes WHERE id = ?',
+        [creditNoteId],
+      );
+      if (cnBillResult.isNotEmpty) {
+        final billId = cnBillResult.first['bill_id'] as int;
+
+        final billRows = await txn.rawQuery(
+          'SELECT total_amount, paid_amount FROM bills WHERE id = ?',
+          [billId],
+        );
+        if (billRows.isNotEmpty) {
+          final totalAmount = (billRows.first['total_amount'] as num)
+              .toDouble();
+          final paidAmount = (billRows.first['paid_amount'] as num).toDouble();
+          final billRemaining = totalAmount - paidAmount;
+
+          // Calculate total returned for this bill
+          final returnRows = await txn.rawQuery(
+            '''SELECT COALESCE(SUM(cn.total_amount), 0) as total_returned
+               FROM credit_notes cn
+               WHERE cn.bill_id = ? AND cn.is_deleted = 0''',
+            [billId],
+          );
+          final totalReturned = returnRows.isNotEmpty
+              ? (returnRows.first['total_returned'] as num).toDouble()
+              : 0.0;
+
+          // If returns cover the remaining balance (with epsilon tolerance), mark as paid
+          const epsilon = 0.01;
+          if (billRemaining - totalReturned <= epsilon) {
+            await txn.rawUpdate(
+              '''UPDATE bills
+                 SET payment_status = 'paid',
+                     updated_at = datetime('now')
+                 WHERE id = ?''',
+              [billId],
+            );
+          }
+        }
+      }
     });
   }
 
@@ -1135,6 +1213,68 @@ class BillRepository {
            WHERE id = ?''',
         [totalRefunded, refundStatus, now.toIso8601String(), creditNoteId],
       );
+
+      // Update bill payment status if total returns cover the remaining balance
+      final cnBillResult = await txn.rawQuery(
+        'SELECT bill_id FROM credit_notes WHERE id = ?',
+        [creditNoteId],
+      );
+      if (cnBillResult.isNotEmpty) {
+        final billId = cnBillResult.first['bill_id'] as int;
+
+        final billRows = await txn.rawQuery(
+          'SELECT total_amount, paid_amount FROM bills WHERE id = ?',
+          [billId],
+        );
+        if (billRows.isNotEmpty) {
+          final totalAmount = (billRows.first['total_amount'] as num)
+              .toDouble();
+          final paidAmount = (billRows.first['paid_amount'] as num).toDouble();
+          final billRemaining = totalAmount - paidAmount;
+
+          // Calculate total returned for this bill
+          final returnRows = await txn.rawQuery(
+            '''SELECT COALESCE(SUM(cn.total_amount), 0) as total_returned
+               FROM credit_notes cn
+               WHERE cn.bill_id = ? AND cn.is_deleted = 0''',
+            [billId],
+          );
+          final totalReturned = returnRows.isNotEmpty
+              ? (returnRows.first['total_returned'] as num).toDouble()
+              : 0.0;
+
+          // If returns cover the remaining balance, mark as paid
+          // Otherwise, check if it should be marked unpaid or partial
+          const epsilon = 0.01;
+          if (billRemaining - totalReturned <= epsilon) {
+            await txn.rawUpdate(
+              '''UPDATE bills
+                 SET payment_status = 'paid',
+                     updated_at = datetime('now')
+                 WHERE id = ?''',
+              [billId],
+            );
+          } else if (paidAmount <= epsilon) {
+            // No payment made, mark as unpaid
+            await txn.rawUpdate(
+              '''UPDATE bills
+                 SET payment_status = 'unpaid',
+                     updated_at = datetime('now')
+                 WHERE id = ?''',
+              [billId],
+            );
+          } else {
+            // Partial payment made but not covered by returns
+            await txn.rawUpdate(
+              '''UPDATE bills
+                 SET payment_status = 'partial',
+                     updated_at = datetime('now')
+                 WHERE id = ?''',
+              [billId],
+            );
+          }
+        }
+      }
     });
   }
 }

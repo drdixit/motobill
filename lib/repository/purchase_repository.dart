@@ -56,8 +56,8 @@ class PurchaseRepository {
       final purchaseId = await txn.rawInsert(
         '''INSERT INTO purchases
         (purchase_number, purchase_reference_number, purchase_reference_date,
-        vendor_id, subtotal, tax_amount, total_amount, is_taxable_bill, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+        vendor_id, subtotal, tax_amount, total_amount, paid_amount, payment_status, is_taxable_bill, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
         [
           purchase.purchaseNumber,
           purchase.purchaseReferenceNumber,
@@ -66,6 +66,8 @@ class PurchaseRepository {
           purchase.subtotal,
           purchase.taxAmount,
           purchase.totalAmount,
+          purchase.paidAmount,
+          purchase.paymentStatus,
           purchase.isTaxableBill ? 1 : 0,
           purchase.createdAt.toIso8601String(),
           purchase.updatedAt.toIso8601String(),
@@ -424,6 +426,163 @@ class PurchaseRepository {
       }
 
       return purchaseId;
+    });
+  }
+
+  // ==================== PAYMENT METHODS ====================
+
+  /// Add a payment to a purchase
+  Future<void> addPayment({
+    required int purchaseId,
+    required double amount,
+    String paymentMethod = 'cash',
+    DateTime? paymentDate,
+    String? notes,
+  }) async {
+    await _db.transaction((txn) async {
+      final now = DateTime.now();
+      final effectivePaymentDate = paymentDate ?? now;
+
+      // Insert payment record
+      await txn.rawInsert(
+        '''INSERT INTO purchase_payments
+           (purchase_id, amount, payment_method, payment_date, notes, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)''',
+        [
+          purchaseId,
+          amount,
+          paymentMethod,
+          effectivePaymentDate.toIso8601String(),
+          notes,
+          now.toIso8601String(),
+          now.toIso8601String(),
+        ],
+      );
+
+      // Get total paid amount
+      final result = await txn.rawQuery(
+        '''SELECT COALESCE(SUM(amount), 0) as total_paid
+           FROM purchase_payments
+           WHERE purchase_id = ? AND is_deleted = 0''',
+        [purchaseId],
+      );
+
+      final totalPaid = (result.first['total_paid'] as num).toDouble();
+
+      // Get purchase total
+      final purchaseResult = await txn.rawQuery(
+        'SELECT total_amount FROM purchases WHERE id = ?',
+        [purchaseId],
+      );
+
+      final totalAmount = (purchaseResult.first['total_amount'] as num)
+          .toDouble();
+
+      // Determine payment status (using epsilon for floating-point comparison)
+      String paymentStatus;
+      if (totalPaid >= totalAmount - 0.01) {
+        paymentStatus = 'paid';
+      } else if (totalPaid > 0) {
+        paymentStatus = 'partial';
+      } else {
+        paymentStatus = 'unpaid';
+      }
+
+      // Update purchase
+      await txn.rawUpdate(
+        '''UPDATE purchases
+           SET paid_amount = ?, payment_status = ?, updated_at = ?
+           WHERE id = ?''',
+        [totalPaid, paymentStatus, now.toIso8601String(), purchaseId],
+      );
+    });
+  }
+
+  /// Get all payments for a purchase
+  Future<List<Map<String, dynamic>>> getPurchasePayments(int purchaseId) async {
+    final result = await _db.rawQuery(
+      '''SELECT * FROM purchase_payments
+         WHERE purchase_id = ? AND is_deleted = 0
+         ORDER BY payment_date DESC''',
+      [purchaseId],
+    );
+    return result;
+  }
+
+  /// Get purchase with payment info
+  Future<Map<String, dynamic>?> getPurchaseWithPayments(int purchaseId) async {
+    final purchaseResult = await _db.rawQuery(
+      'SELECT * FROM purchases WHERE id = ? AND is_deleted = 0',
+      [purchaseId],
+    );
+
+    if (purchaseResult.isEmpty) return null;
+
+    final purchase = purchaseResult.first;
+    final payments = await getPurchasePayments(purchaseId);
+
+    return {...purchase, 'payments': payments};
+  }
+
+  /// Delete a payment (soft delete)
+  Future<void> deletePayment(int paymentId) async {
+    await _db.transaction((txn) async {
+      final now = DateTime.now();
+
+      // Get payment info before deleting
+      final paymentResult = await txn.rawQuery(
+        'SELECT purchase_id FROM purchase_payments WHERE id = ?',
+        [paymentId],
+      );
+
+      if (paymentResult.isEmpty) return;
+
+      final purchaseId = paymentResult.first['purchase_id'] as int;
+
+      // Soft delete payment
+      await txn.rawUpdate(
+        '''UPDATE purchase_payments
+           SET is_deleted = 1, updated_at = ?
+           WHERE id = ?''',
+        [now.toIso8601String(), paymentId],
+      );
+
+      // Recalculate total paid amount
+      final result = await txn.rawQuery(
+        '''SELECT COALESCE(SUM(amount), 0) as total_paid
+           FROM purchase_payments
+           WHERE purchase_id = ? AND is_deleted = 0''',
+        [purchaseId],
+      );
+
+      final totalPaid = (result.first['total_paid'] as num).toDouble();
+
+      // Get purchase total
+      final purchaseResult = await txn.rawQuery(
+        'SELECT total_amount FROM purchases WHERE id = ?',
+        [purchaseId],
+      );
+
+      final totalAmount = (purchaseResult.first['total_amount'] as num)
+          .toDouble();
+
+      // Determine payment status (using epsilon for floating-point comparison)
+      String paymentStatus;
+      if (totalPaid >= totalAmount - 0.01) {
+        paymentStatus = 'paid';
+      } else if (totalPaid > 0) {
+        paymentStatus = 'partial';
+      } else {
+        paymentStatus = 'unpaid';
+      }
+
+      // Update purchase
+      await txn.rawUpdate(
+        '''UPDATE purchases
+           SET paid_amount = ?, payment_status = ?, updated_at = ?
+           WHERE id = ?''',
+        [totalPaid, paymentStatus, now.toIso8601String(), purchaseId],
+      );
     });
   }
 }

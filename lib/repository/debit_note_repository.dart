@@ -102,9 +102,82 @@ class DebitNoteRepository {
 
       final debitNoteNumber = '$prefix${sequence.toString().padLeft(5, '0')}';
 
+      // Calculate max_refundable_amount based on purchase's paid amount
+      // Similar logic to credit notes but for purchases
+      final purchaseResult = await txn.rawQuery(
+        'SELECT total_amount, paid_amount FROM purchases WHERE id = ?',
+        [debitNoteData['purchase_id']],
+      );
+
+      if (purchaseResult.isEmpty) {
+        throw Exception('Purchase not found');
+      }
+
+      final totalAmount = (purchaseResult.first['total_amount'] as num)
+          .toDouble();
+      final paidAmount = (purchaseResult.first['paid_amount'] as num)
+          .toDouble();
+      final purchaseRemaining = totalAmount - paidAmount;
+
+      // Get total return amount and max_refundable from all previous debit notes
+      final previousResult = await txn.rawQuery(
+        '''SELECT
+           COALESCE(SUM(total_amount), 0) as total_returned,
+           COALESCE(SUM(max_refundable_amount), 0) as total_allocated
+           FROM debit_notes
+           WHERE purchase_id = ? AND is_deleted = 0''',
+        [debitNoteData['purchase_id']],
+      );
+
+      final totalReturned = previousResult.isNotEmpty
+          ? (previousResult.first['total_returned'] as num).toDouble()
+          : 0.0;
+      final alreadyAllocated = previousResult.isNotEmpty
+          ? (previousResult.first['total_allocated'] as num).toDouble()
+          : 0.0;
+
+      final debitNoteAmount = (debitNoteData['total_amount'] as num).toDouble();
+
+      // Calculate max refundable based on business logic:
+      // Vendor should only get refund for the VALUE OF RETURNED PRODUCTS
+      // Limited by how much they actually paid
+
+      final netPurchaseRemaining = purchaseRemaining - totalReturned;
+      final newNetRemaining = netPurchaseRemaining - debitNoteAmount;
+
+      double maxRefundableAmount;
+      String refundStatus;
+
+      if (newNetRemaining >= 0.01) {
+        // Vendor still owes money after return, no cash refund
+        maxRefundableAmount = 0.0;
+        refundStatus = 'adjusted';
+      } else {
+        // Return value exceeds purchase remaining, vendor eligible for refund
+        double thisReturnRefundable;
+        if (netPurchaseRemaining >= 0.01) {
+          thisReturnRefundable = debitNoteAmount - netPurchaseRemaining;
+        } else {
+          thisReturnRefundable = debitNoteAmount;
+        }
+
+        // Limit by available funds (what's left from paid amount)
+        final availableToRefund = paidAmount - alreadyAllocated;
+
+        if (availableToRefund < 0.01 || thisReturnRefundable < 0.01) {
+          maxRefundableAmount = 0.0;
+          refundStatus = 'adjusted';
+        } else {
+          maxRefundableAmount = (thisReturnRefundable < availableToRefund)
+              ? thisReturnRefundable
+              : availableToRefund;
+          refundStatus = 'pending';
+        }
+      }
+
       final debitNoteId = await txn.rawInsert(
-        '''INSERT INTO debit_notes (purchase_id, debit_note_number, vendor_id, reason, subtotal, tax_amount, total_amount, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))''',
+        '''INSERT INTO debit_notes (purchase_id, debit_note_number, vendor_id, reason, subtotal, tax_amount, total_amount, max_refundable_amount, refund_status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))''',
         [
           debitNoteData['purchase_id'],
           debitNoteNumber,
@@ -113,6 +186,8 @@ class DebitNoteRepository {
           debitNoteData['subtotal'],
           debitNoteData['tax_amount'],
           debitNoteData['total_amount'],
+          maxRefundableAmount,
+          refundStatus,
         ],
       );
 
@@ -285,5 +360,157 @@ class DebitNoteRepository {
     }
 
     return stockMap;
+  }
+
+  // ==================== REFUND METHODS ====================
+
+  /// Add a refund to a debit note
+  Future<void> addRefund({
+    required int debitNoteId,
+    required double amount,
+    String refundMethod = 'cash',
+    DateTime? refundDate,
+    String? notes,
+  }) async {
+    await _db.transaction((txn) async {
+      final now = DateTime.now();
+      final effectiveRefundDate = refundDate ?? now;
+
+      // Insert refund record
+      await txn.rawInsert(
+        '''INSERT INTO debit_note_refunds
+           (debit_note_id, amount, refund_method, refund_date, notes, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)''',
+        [
+          debitNoteId,
+          amount,
+          refundMethod,
+          effectiveRefundDate.toIso8601String(),
+          notes,
+          now.toIso8601String(),
+          now.toIso8601String(),
+        ],
+      );
+
+      // Get total refunded amount
+      final result = await txn.rawQuery(
+        '''SELECT COALESCE(SUM(amount), 0) as total_refunded
+           FROM debit_note_refunds
+           WHERE debit_note_id = ? AND is_deleted = 0''',
+        [debitNoteId],
+      );
+
+      final totalRefunded = (result.first['total_refunded'] as num).toDouble();
+
+      // Get debit note max refundable amount (based on purchase's paid amount)
+      final dnResult = await txn.rawQuery(
+        'SELECT max_refundable_amount FROM debit_notes WHERE id = ?',
+        [debitNoteId],
+      );
+
+      final maxRefundable = (dnResult.first['max_refundable_amount'] as num)
+          .toDouble();
+
+      // Validate refund doesn't exceed max refundable amount
+      if (totalRefunded > maxRefundable + 0.01) {
+        throw Exception(
+          'Total refund amount (₹${totalRefunded.toStringAsFixed(2)}) exceeds maximum refundable amount (₹${maxRefundable.toStringAsFixed(2)}). Vendor had only paid ₹${maxRefundable.toStringAsFixed(2)} for this purchase.',
+        );
+      }
+
+      // Determine refund status (using epsilon for floating-point comparison)
+      // Status is based on max_refundable_amount, not total_amount
+      String refundStatus;
+      if (totalRefunded >= maxRefundable - 0.01) {
+        refundStatus = 'refunded';
+      } else if (totalRefunded > 0) {
+        refundStatus = 'partial';
+      } else {
+        refundStatus = 'pending';
+      }
+
+      // Update debit note
+      await txn.rawUpdate(
+        '''UPDATE debit_notes
+           SET refunded_amount = ?, refund_status = ?, updated_at = ?
+           WHERE id = ?''',
+        [totalRefunded, refundStatus, now.toIso8601String(), debitNoteId],
+      );
+    });
+  }
+
+  /// Get all refunds for a debit note
+  Future<List<Map<String, dynamic>>> getDebitNoteRefunds(
+    int debitNoteId,
+  ) async {
+    final result = await _db.rawQuery(
+      '''SELECT * FROM debit_note_refunds
+         WHERE debit_note_id = ? AND is_deleted = 0
+         ORDER BY refund_date DESC''',
+      [debitNoteId],
+    );
+    return result;
+  }
+
+  /// Delete a refund (soft delete)
+  Future<void> deleteRefund(int refundId) async {
+    await _db.transaction((txn) async {
+      final now = DateTime.now();
+
+      // Get refund info before deleting
+      final refundResult = await txn.rawQuery(
+        'SELECT debit_note_id FROM debit_note_refunds WHERE id = ?',
+        [refundId],
+      );
+
+      if (refundResult.isEmpty) return;
+
+      final debitNoteId = refundResult.first['debit_note_id'] as int;
+
+      // Soft delete refund
+      await txn.rawUpdate(
+        '''UPDATE debit_note_refunds
+           SET is_deleted = 1, updated_at = ?
+           WHERE id = ?''',
+        [now.toIso8601String(), refundId],
+      );
+
+      // Recalculate total refunded amount
+      final result = await txn.rawQuery(
+        '''SELECT COALESCE(SUM(amount), 0) as total_refunded
+           FROM debit_note_refunds
+           WHERE debit_note_id = ? AND is_deleted = 0''',
+        [debitNoteId],
+      );
+
+      final totalRefunded = (result.first['total_refunded'] as num).toDouble();
+
+      // Get debit note max refundable amount
+      final dnResult = await txn.rawQuery(
+        'SELECT max_refundable_amount FROM debit_notes WHERE id = ?',
+        [debitNoteId],
+      );
+
+      final maxRefundable = (dnResult.first['max_refundable_amount'] as num)
+          .toDouble();
+
+      // Determine refund status (using epsilon for floating-point comparison)
+      String refundStatus;
+      if (totalRefunded >= maxRefundable - 0.01) {
+        refundStatus = 'refunded';
+      } else if (totalRefunded > 0) {
+        refundStatus = 'partial';
+      } else {
+        refundStatus = 'pending';
+      }
+
+      // Update debit note
+      await txn.rawUpdate(
+        '''UPDATE debit_notes
+           SET refunded_amount = ?, refund_status = ?, updated_at = ?
+           WHERE id = ?''',
+        [totalRefunded, refundStatus, now.toIso8601String(), debitNoteId],
+      );
+    });
   }
 }

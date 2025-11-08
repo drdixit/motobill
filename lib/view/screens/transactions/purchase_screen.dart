@@ -3,8 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../repository/purchase_repository.dart';
+import '../../widgets/payment_dialog.dart';
 import '../transactions_screen.dart';
-import 'purchase_details_screen.dart';
+import 'purchase_details_screen.dart' as purchase_details;
 
 // Provider for purchases list with date filtering
 final purchasesListProvider = FutureProvider<List<Map<String, dynamic>>>((
@@ -204,7 +205,32 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
     final purchaseNumber = purchase['purchase_number'] as String;
     final vendorName = purchase['vendor_name'] as String? ?? 'Unknown Vendor';
     final totalAmount = (purchase['total_amount'] as num).toDouble();
+    final paidAmount = (purchase['paid_amount'] as num?)?.toDouble() ?? 0.0;
+    final paymentStatus = purchase['payment_status'] as String? ?? 'unpaid';
+    final remainingAmount = totalAmount - paidAmount;
     final createdAt = DateTime.parse(purchase['created_at'] as String);
+
+    // Determine status color and label
+    Color statusColor;
+    String statusLabel;
+    IconData statusIcon;
+
+    switch (paymentStatus) {
+      case 'paid':
+        statusColor = Colors.green;
+        statusLabel = 'Paid';
+        statusIcon = Icons.check_circle;
+        break;
+      case 'partial':
+        statusColor = Colors.orange;
+        statusLabel = 'Partial';
+        statusIcon = Icons.access_time;
+        break;
+      default:
+        statusColor = Colors.red;
+        statusLabel = 'Unpaid';
+        statusIcon = Icons.cancel;
+    }
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -214,19 +240,22 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
         border: Border.all(color: AppColors.divider),
       ),
       child: InkWell(
-        onTap: () {
-          Navigator.push(
+        onTap: () async {
+          await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) =>
-                  PurchaseDetailsScreen(purchaseId: purchase['id'] as int),
+              builder: (context) => purchase_details.PurchaseDetailsScreen(
+                purchaseId: purchase['id'] as int,
+              ),
             ),
           );
+          // Refresh purchases list when returning from details
+          ref.invalidate(purchasesListProvider);
         },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // First line: Purchase number (left) and total (right)
+            // First line: Purchase number with status badge
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -242,17 +271,39 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  '₹${totalAmount.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: statusColor.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(statusIcon, size: 14, color: statusColor),
+                      const SizedBox(width: 4),
+                      Text(
+                        statusLabel,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: statusColor,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 4),
-            // Second line: vendor name and date
+            const SizedBox(height: 8),
+            // Vendor name and date
             Row(
               children: [
                 Expanded(
@@ -277,9 +328,166 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> {
                 ),
               ],
             ),
+            const SizedBox(height: 8),
+            const Divider(height: 1),
+            const SizedBox(height: 8),
+            // Payment info
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Total Amount',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    Text(
+                      '₹${totalAmount.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                if (paymentStatus != 'unpaid')
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Paid',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      Text(
+                        '₹${paidAmount.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                if (paymentStatus == 'partial' && remainingAmount > 0.01)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'Remaining',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      Text(
+                        '₹${remainingAmount.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.orange,
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+            // Add Payment button - only show if not fully paid
+            if (paymentStatus != 'paid' && remainingAmount > 0.01) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    await _showAddPaymentDialog(context, purchase);
+                  },
+                  icon: const Icon(Icons.payment, size: 18),
+                  label: Text(
+                    paymentStatus == 'unpaid'
+                        ? 'Add Payment'
+                        : 'Add More Payment',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _showAddPaymentDialog(
+    BuildContext context,
+    Map<String, dynamic> purchase,
+  ) async {
+    final purchaseId = purchase['id'] as int;
+    final totalAmount = (purchase['total_amount'] as num).toDouble();
+    final paidAmount = (purchase['paid_amount'] as num?)?.toDouble() ?? 0.0;
+    final remainingAmount = totalAmount - paidAmount;
+
+    final paymentResult = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => PaymentDialog(
+        totalAmount: remainingAmount,
+        suggestedAmount: remainingAmount,
+        title: 'Add Payment',
+      ),
+    );
+
+    if (paymentResult == null || !context.mounted) return;
+
+    try {
+      final db = await ref.read(databaseProvider);
+      final repository = PurchaseRepository(db);
+
+      await repository.addPayment(
+        purchaseId: purchaseId,
+        amount: paymentResult['amount'],
+        paymentMethod: paymentResult['payment_method'],
+        notes: paymentResult['notes'],
+      );
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Payment of ₹${paymentResult['amount'].toStringAsFixed(2)} added successfully!',
+            ),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+
+      // Refresh purchases list and purchase details
+      ref.invalidate(purchasesListProvider);
+      ref.invalidate(purchase_details.purchaseDetailsProvider(purchaseId));
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to add payment: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 }

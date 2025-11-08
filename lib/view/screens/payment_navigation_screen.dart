@@ -717,12 +717,21 @@ class _PaymentNavigationScreenState
         '''
         SELECT b.*,
                (b.total_amount - b.paid_amount) as remaining,
-               (SELECT COALESCE(SUM(total_amount), 0) FROM credit_notes WHERE bill_id = b.id AND is_deleted = 0) as total_returned
+               COALESCE((SELECT SUM(cn.max_refundable_amount - COALESCE(cn.refunded_amount, 0))
+                         FROM credit_notes cn
+                         WHERE cn.bill_id = b.id
+                         AND cn.is_deleted = 0
+                         AND cn.refund_status != 'refunded'), 0) as pending_refunds
         FROM bills b
         WHERE b.customer_id = ?
           AND b.is_deleted = 0
           AND b.payment_status IN ('unpaid', 'partial')
-          AND ((b.total_amount - b.paid_amount) - (SELECT COALESCE(SUM(total_amount), 0) FROM credit_notes WHERE bill_id = b.id AND is_deleted = 0)) > 0.01
+          AND ((b.total_amount - b.paid_amount) -
+               COALESCE((SELECT SUM(cn.max_refundable_amount - COALESCE(cn.refunded_amount, 0))
+                         FROM credit_notes cn
+                         WHERE cn.bill_id = b.id
+                         AND cn.is_deleted = 0
+                         AND cn.refund_status != 'refunded'), 0)) > 0.01
         ORDER BY b.created_at DESC
         ''',
         [item.id],

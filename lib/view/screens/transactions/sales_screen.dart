@@ -11,7 +11,7 @@ import '../../../view_model/company_info_viewmodel.dart';
 import '../../widgets/payment_dialog.dart';
 import '../../widgets/bill_print_dialog.dart';
 import '../transactions_screen.dart';
-import 'bill_details_screen.dart';
+import 'bill_details_screen.dart' as bill_details;
 
 // Provider for bills list with date filtering
 final billsListProvider = FutureProvider<List<Map<String, dynamic>>>((
@@ -269,7 +269,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             context,
             MaterialPageRoute(
               builder: (context) =>
-                  BillDetailsScreen(billId: bill['id'] as int),
+                  bill_details.BillDetailsScreen(billId: bill['id'] as int),
             ),
           );
           // Refresh bills list when returning from bill details
@@ -645,8 +645,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         );
       }
 
-      // Refresh bills list
+      // Refresh bills list and bill details
       ref.invalidate(billsListProvider);
+      ref.invalidate(bill_details.billDetailsProvider(billId));
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

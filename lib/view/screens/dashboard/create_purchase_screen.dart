@@ -12,6 +12,7 @@ import '../../../view_model/gst_rate_viewmodel.dart';
 import '../../../view_model/pos_viewmodel.dart';
 import '../../../view_model/vendor_viewmodel.dart';
 import '../../widgets/vendor_form_dialog.dart';
+import '../../widgets/payment_dialog.dart';
 import '../debit_notes_screen.dart';
 import 'create_bill_screen.dart';
 
@@ -291,6 +292,16 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
       return;
     }
 
+    // Show payment dialog before creating purchase
+    final paymentResult = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) =>
+          PaymentDialog(totalAmount: _grandTotal, title: 'Purchase Payment'),
+    );
+
+    // If user cancelled payment dialog, return
+    if (paymentResult == null) return;
+
     setState(() {
       _isSaving = true;
     });
@@ -307,13 +318,28 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
         subtotal: _subtotal,
         taxAmount: _totalTax,
         totalAmount: _grandTotal,
+        paidAmount: paymentResult['amount'] as double,
+        paymentStatus: _calculatePaymentStatus(
+          paymentResult['amount'] as double,
+          _grandTotal,
+        ),
         isTaxableBill: _isTaxableBill,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
 
       final items = validRows.map((row) => row.toPurchaseItem()).toList();
-      await repository.createPurchase(purchase, items);
+      final purchaseId = await repository.createPurchase(purchase, items);
+
+      // Add payment if amount is provided
+      if (paymentResult['amount'] > 0) {
+        await repository.addPayment(
+          purchaseId: purchaseId,
+          amount: paymentResult['amount'] as double,
+          paymentMethod: paymentResult['payment_method'] as String,
+          notes: paymentResult['notes'] as String?,
+        );
+      }
 
       if (mounted) {
         // Invalidate POS provider to refresh product stock
@@ -343,6 +369,17 @@ class _CreatePurchaseScreenState extends ConsumerState<CreatePurchaseScreen> {
           _isSaving = false;
         });
       }
+    }
+  }
+
+  String _calculatePaymentStatus(double paidAmount, double totalAmount) {
+    const epsilon = 0.01; // Epsilon for floating-point comparison
+    if (paidAmount >= totalAmount - epsilon) {
+      return 'paid';
+    } else if (paidAmount > 0) {
+      return 'partial';
+    } else {
+      return 'unpaid';
     }
   }
 
