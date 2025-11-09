@@ -26,6 +26,13 @@ final customerRefundablesProvider = FutureProvider<List<PaymentSummary>>((
   return await repository.getCustomerRefundables();
 });
 
+// Provider for sales returns (all credit notes summary)
+final salesReturnsProvider = FutureProvider<List<PaymentSummary>>((ref) async {
+  final db = await ref.watch(databaseProvider);
+  final repository = PaymentRepository(db);
+  return await repository.getSalesReturns();
+});
+
 // Provider for payment statistics
 final paymentStatsProvider = FutureProvider<Map<String, double>>((ref) async {
   final db = await ref.watch(databaseProvider);

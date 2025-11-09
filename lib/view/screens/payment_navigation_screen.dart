@@ -24,7 +24,7 @@ class _PaymentNavigationScreenState
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     // Load data when screen first appears
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refreshData();
@@ -67,7 +67,9 @@ class _PaymentNavigationScreenState
   }
 
   String _formatCurrency(double amount) {
-    return '₹${amount.toStringAsFixed(2)}';
+    // Fix negative zero and very small values (floating point errors)
+    final fixedAmount = amount.abs() < 0.01 ? 0.0 : amount;
+    return '₹${fixedAmount.toStringAsFixed(2)}';
   }
 
   void _refreshData() {
@@ -76,6 +78,7 @@ class _PaymentNavigationScreenState
     ref.invalidate(receivablesProvider);
     ref.invalidate(payablesProvider);
     ref.invalidate(customerRefundablesProvider);
+    ref.invalidate(salesReturnsProvider);
   }
 
   @override
@@ -128,6 +131,7 @@ class _PaymentNavigationScreenState
                 Tab(text: 'Receivables (Lene Hai)'),
                 Tab(text: 'Vendor Payables'),
                 Tab(text: 'Customer Refunds'),
+                Tab(text: 'Sales Returns'),
               ],
             ),
           ),
@@ -140,6 +144,7 @@ class _PaymentNavigationScreenState
                 _buildReceivablesTab(),
                 _buildPayablesTab(),
                 _buildCustomerRefundablesTab(),
+                _buildSalesReturnsTab(),
               ],
             ),
           ),
@@ -152,8 +157,12 @@ class _PaymentNavigationScreenState
     final totalReceivables = stats['total_receivables'] ?? 0.0;
     final totalPayables = stats['total_payables'] ?? 0.0;
     final vendorPayables = stats['vendor_payables'] ?? 0.0;
+    final vendorReceivables = stats['vendor_receivables'] ?? 0.0;
     final customerRefundables = stats['customer_refundables'] ?? 0.0;
     final netPosition = stats['net_position'] ?? 0.0;
+
+    // Calculate customer receivables (bills - returns)
+    final customerReceivables = totalReceivables - vendorReceivables;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -165,7 +174,7 @@ class _PaymentNavigationScreenState
               Expanded(
                 child: _buildStatCard(
                   title: 'Total Receivables',
-                  subtitle: 'Customers se lene hai (after returns)',
+                  subtitle: 'Customers + Vendors se lene hai',
                   amount: totalReceivables,
                   color: Colors.green,
                   icon: Icons.arrow_downward,
@@ -198,21 +207,65 @@ class _PaymentNavigationScreenState
             ],
           ),
           const SizedBox(height: 12),
-          // Breakdown row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildBreakdownChip(
-                'Vendors: ${_formatCurrency(vendorPayables)}',
-                Colors.red.shade700,
-              ),
-              const SizedBox(width: 12),
-              _buildBreakdownChip(
-                'Customer Refunds: ${_formatCurrency(customerRefundables)}',
-                Colors.orange.shade700,
-              ),
-            ],
-          ),
+          // Breakdown row - Receivables
+          if (totalReceivables > 0.01) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'Receivables Breakdown:',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                if (customerReceivables > 0.01)
+                  _buildBreakdownChip(
+                    'Customers: ${_formatCurrency(customerReceivables)}',
+                    Colors.green.shade700,
+                  ),
+                if (customerReceivables > 0.01 && vendorReceivables > 0.01)
+                  const SizedBox(width: 8),
+                if (vendorReceivables > 0.01)
+                  _buildBreakdownChip(
+                    'Vendors: ${_formatCurrency(vendorReceivables)}',
+                    Colors.teal.shade700,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
+          // Breakdown row - Payables
+          if (totalPayables > 0.01) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'Payables Breakdown:',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                if (vendorPayables > 0.01)
+                  _buildBreakdownChip(
+                    'Vendors: ${_formatCurrency(vendorPayables)}',
+                    Colors.red.shade700,
+                  ),
+                if (vendorPayables > 0.01 && customerRefundables > 0.01)
+                  const SizedBox(width: 8),
+                if (customerRefundables > 0.01)
+                  _buildBreakdownChip(
+                    'Customer Refunds: ${_formatCurrency(customerRefundables)}',
+                    Colors.orange.shade700,
+                  ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -509,6 +562,82 @@ class _PaymentNavigationScreenState
     );
   }
 
+  Widget _buildSalesReturnsTab() {
+    final salesReturns = ref.watch(salesReturnsProvider);
+
+    return salesReturns.when(
+      data: (list) {
+        if (list.isEmpty) {
+          return _buildEmptyState(
+            icon: Icons.check_circle_outline,
+            message: 'No sales returns',
+            subtitle: 'No products have been returned!',
+          );
+        }
+
+        final filteredList = _filterItems(list);
+
+        return Column(
+          children: [
+            // Search Bar
+            Container(
+              padding: const EdgeInsets.all(16),
+              color: Colors.white,
+              child: TextField(
+                controller: _searchController,
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value;
+                  });
+                },
+                decoration: InputDecoration(
+                  hintText: 'Search by customer name or phone...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            setState(() {
+                              _searchController.clear();
+                              _searchQuery = '';
+                            });
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                ),
+              ),
+            ),
+            // List
+            Expanded(
+              child: filteredList.isEmpty
+                  ? _buildEmptyState(
+                      icon: Icons.search_off,
+                      message: 'No results found',
+                      subtitle: 'Try a different search term',
+                    )
+                  : _buildPaymentList(
+                      filteredList,
+                      isReceivable: false,
+                      isSalesReturn: true,
+                    ),
+            ),
+          ],
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stack) => Center(
+        child: Text('Error: $error', style: const TextStyle(color: Colors.red)),
+      ),
+    );
+  }
+
   Widget _buildEmptyState({
     required IconData icon,
     required String message,
@@ -542,6 +671,7 @@ class _PaymentNavigationScreenState
     List<PaymentSummary> items, {
     required bool isReceivable,
     bool isRefund = false,
+    bool isSalesReturn = false,
   }) {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
@@ -552,6 +682,7 @@ class _PaymentNavigationScreenState
           item,
           isReceivable: isReceivable,
           isRefund: isRefund,
+          isSalesReturn: isSalesReturn,
         );
       },
     );
@@ -561,10 +692,13 @@ class _PaymentNavigationScreenState
     PaymentSummary item, {
     required bool isReceivable,
     bool isRefund = false,
+    bool isSalesReturn = false,
   }) {
-    final color = isRefund
-        ? Colors.orange
-        : (isReceivable ? Colors.green : Colors.red);
+    final color = isSalesReturn
+        ? Colors.purple
+        : (isRefund
+              ? Colors.orange
+              : (isReceivable ? Colors.green : Colors.red));
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -574,7 +708,8 @@ class _PaymentNavigationScreenState
         side: BorderSide(color: color.withOpacity(0.2)),
       ),
       child: InkWell(
-        onTap: () => _showDetailBottomSheet(item, isReceivable, isRefund),
+        onTap: () =>
+            _showDetailBottomSheet(item, isReceivable, isRefund, isSalesReturn),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -591,9 +726,13 @@ class _PaymentNavigationScreenState
                       borderRadius: BorderRadius.circular(24),
                     ),
                     child: Icon(
-                      isRefund
-                          ? Icons.receipt_long
-                          : (isReceivable ? Icons.person : Icons.business),
+                      isSalesReturn
+                          ? Icons.assignment_return
+                          : (isRefund
+                                ? Icons.receipt_long
+                                : (isReceivable
+                                      ? Icons.person
+                                      : Icons.business)),
                       color: color,
                       size: 24,
                     ),
@@ -631,9 +770,11 @@ class _PaymentNavigationScreenState
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      isRefund
+                      isSalesReturn
                           ? '${item.billCount} ${item.billCount == 1 ? 'Credit Note' : 'Credit Notes'}'
-                          : '${item.billCount} ${item.billCount == 1 ? 'Bill' : 'Bills'}',
+                          : (isRefund
+                                ? '${item.billCount} ${item.billCount == 1 ? 'Credit Note' : 'Credit Notes'}'
+                                : '${item.billCount} ${item.billCount == 1 ? 'Bill' : 'Bills'}'),
                       style: TextStyle(
                         color: color,
                         fontSize: 12,
@@ -653,29 +794,47 @@ class _PaymentNavigationScreenState
                 child: Column(
                   children: [
                     _buildAmountRow(
-                      isRefund ? 'Return Amount' : 'Total Amount',
+                      isSalesReturn
+                          ? 'Total Returns'
+                          : (isRefund ? 'Return Amount' : 'Total Amount'),
                       item.totalAmount,
                       Colors.grey.shade700,
                     ),
-                    if (isReceivable || isRefund) ...[
+                    if (isReceivable || isRefund || isSalesReturn) ...[
                       const SizedBox(height: 8),
                       _buildAmountRow(
-                        isRefund ? 'Refunded' : 'Paid Amount',
+                        isSalesReturn
+                            ? 'Refunded'
+                            : (isRefund ? 'Refunded' : 'Paid Amount'),
                         item.paidAmount,
                         Colors.blue.shade700,
                       ),
                     ],
-                    const Divider(height: 20),
-                    _buildAmountRow(
-                      isRefund
-                          ? 'Pending Refund (Dene Hai)'
-                          : (isReceivable
-                                ? 'Remaining (Lene Hai)'
-                                : 'To Pay (Dene Hai)'),
-                      item.remainingAmount,
-                      color,
-                      isBold: true,
-                    ),
+                    if (!isSalesReturn) ...[
+                      const Divider(height: 20),
+                      _buildAmountRow(
+                        isRefund
+                            ? 'Pending Refund (Dene Hai)'
+                            : (isReceivable
+                                  ? 'Remaining (Lene Hai)'
+                                  : 'To Pay (Dene Hai)'),
+                        item.remainingAmount,
+                        color,
+                        isBold: true,
+                      ),
+                    ],
+                    if (isSalesReturn) ...[
+                      // Only show pending refund if amount > 0
+                      if (item.remainingAmount > 0.01) ...[
+                        const Divider(height: 20),
+                        _buildAmountRow(
+                          'Pending Refund',
+                          item.remainingAmount,
+                          color,
+                          isBold: true,
+                        ),
+                      ],
+                    ],
                   ],
                 ),
               ),
@@ -690,13 +849,27 @@ class _PaymentNavigationScreenState
     PaymentSummary item,
     bool isReceivable,
     bool isRefund,
+    bool isSalesReturn,
   ) async {
     final db = await ref.read(databaseProvider);
 
     // Fetch bills or credit notes for this customer/vendor
     List<Map<String, dynamic>> items;
 
-    if (isRefund) {
+    if (isSalesReturn) {
+      // Fetch all credit notes for this customer
+      items = await db.rawQuery(
+        '''
+        SELECT cn.*, b.bill_number
+        FROM credit_notes cn
+        LEFT JOIN bills b ON cn.bill_id = b.id
+        WHERE cn.customer_id = ?
+          AND cn.is_deleted = 0
+        ORDER BY cn.created_at DESC
+        ''',
+        [item.id],
+      );
+    } else if (isRefund) {
       // Fetch pending credit notes for this customer
       items = await db.rawQuery(
         '''
@@ -834,7 +1007,12 @@ class _PaymentNavigationScreenState
                   itemCount: items.length,
                   itemBuilder: (context, index) {
                     final itemData = items[index];
-                    return _buildDetailCard(itemData, isReceivable, isRefund);
+                    return _buildDetailCard(
+                      itemData,
+                      isReceivable,
+                      isRefund,
+                      isSalesReturn,
+                    );
                   },
                 ),
               ),
@@ -849,12 +1027,15 @@ class _PaymentNavigationScreenState
     Map<String, dynamic> itemData,
     bool isReceivable,
     bool isRefund,
+    bool isSalesReturn,
   ) {
-    final color = isRefund
-        ? Colors.orange
-        : (isReceivable ? Colors.green : Colors.red);
+    final color = isSalesReturn
+        ? Colors.purple
+        : (isRefund
+              ? Colors.orange
+              : (isReceivable ? Colors.green : Colors.red));
 
-    if (isRefund) {
+    if (isSalesReturn || isRefund) {
       // Credit Note Card
       final creditNoteNumber = itemData['credit_note_number'] as String;
       final billNumber = itemData['bill_number'] as String? ?? 'N/A';
@@ -862,7 +1043,9 @@ class _PaymentNavigationScreenState
       final maxRefundable =
           (itemData['max_refundable_amount'] as num?)?.toDouble() ?? 0.0;
       final refunded = (itemData['refunded_amount'] as num?)?.toDouble() ?? 0.0;
-      final remaining = maxRefundable - refunded;
+      final rawRemaining = maxRefundable - refunded;
+      // Fix negative zero and floating point errors
+      final remaining = rawRemaining.abs() < 0.01 ? 0.0 : rawRemaining;
       final billId = itemData['bill_id'] as int;
 
       return Card(
@@ -913,14 +1096,24 @@ class _PaymentNavigationScreenState
                       'Total: ₹${totalAmount.toStringAsFixed(2)}',
                       style: const TextStyle(fontSize: 13),
                     ),
-                    Text(
-                      'To Refund: ₹${remaining.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: color,
+                    if (remaining > 0.01)
+                      Text(
+                        'To Refund: ₹${remaining.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
+                      )
+                    else
+                      Text(
+                        'Fully Refunded',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.green.shade700,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ],

@@ -163,6 +163,38 @@ class PaymentRepository {
     }
   }
 
+  /// Get all sales returns (credit notes) summary by customer
+  Future<List<PaymentSummary>> getSalesReturns() async {
+    try {
+      final result = await _db.rawQuery('''
+        SELECT
+          c.id,
+          c.name,
+          c.phone,
+          'customer' as type,
+          COALESCE(SUM(cn.total_amount), 0) as total_amount,
+          COALESCE(SUM(cn.refunded_amount), 0) as paid_amount,
+          CASE
+            WHEN COALESCE(SUM(cn.max_refundable_amount - COALESCE(cn.refunded_amount, 0)), 0) < 0.01
+            THEN 0
+            ELSE COALESCE(SUM(cn.max_refundable_amount - COALESCE(cn.refunded_amount, 0)), 0)
+          END as remaining_amount,
+          COUNT(cn.id) as bill_count
+        FROM customers c
+        INNER JOIN credit_notes cn ON c.id = cn.customer_id
+        WHERE cn.is_deleted = 0
+          AND c.is_deleted = 0
+        GROUP BY c.id, c.name, c.phone
+        HAVING total_amount > 0.01
+        ORDER BY total_amount DESC
+      ''');
+
+      return result.map((e) => PaymentSummary.fromJson(e)).toList();
+    } catch (e) {
+      throw Exception('Failed to get sales returns: $e');
+    }
+  }
+
   /// Get payment summary statistics
   /// Receivables adjusted for credit notes (only max_refundable_amount)
   /// Payables adjusted for purchase payments and debit notes
