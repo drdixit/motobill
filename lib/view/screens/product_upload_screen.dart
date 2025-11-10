@@ -344,7 +344,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         // set planned defaults so UI doesn't show nulls
         const defaultSubCategoryId = 1;
         const defaultUqcId = 9;
-        const defaultIsTaxable = 0;
+        const defaultIsTaxable = 1;
         const defaultIsEnabled = 1;
         const defaultNegativeAllow = 0;
         p.plannedSubCategoryId = defaultSubCategoryId;
@@ -388,7 +388,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         // set planned defaults to avoid nulls in UI
         const defaultSubCategoryId = 1;
         const defaultUqcId = 9;
-        const defaultIsTaxable = 0;
+        const defaultIsTaxable = 1;
         const defaultIsEnabled = 1;
         const defaultNegativeAllow = 0;
         p.plannedSubCategoryId = defaultSubCategoryId;
@@ -427,7 +427,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         // set planned defaults to avoid null UI values
         const defaultSubCategoryId = 1;
         const defaultUqcId = 9;
-        const defaultIsTaxable = 0;
+        const defaultIsTaxable = 1;
         const defaultIsEnabled = 1;
         const defaultNegativeAllow = 0;
         p.plannedSubCategoryId = defaultSubCategoryId;
@@ -561,7 +561,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
         // For display: planned DB values for new inserts or existing values
         const defaultSubCategoryId = 1;
         const defaultUqcId = 9;
-        const defaultIsTaxable = 0;
+        const defaultIsTaxable = 1;
         const defaultIsEnabled = 1;
         const defaultNegativeAllow = 0;
 
@@ -713,7 +713,7 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
           // Defaults per user instructions
           const defaultSubCategoryId = 1; // assumption: exists
           const defaultUqcId = 9; // as requested
-          const defaultIsTaxable = 0; // 0
+          const defaultIsTaxable = 1; // Always taxable
           const defaultIsEnabled = 1;
 
           // Use planned manufacturer ID (resolved from Excel or dropdown)
@@ -738,11 +738,12 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
             await txn.rawUpdate(
               '''
               UPDATE products SET
-                name = ?, hsn_code_id = ?, uqc_id = ?, cost_price = ?, selling_price = ?, mrp = ?, sub_category_id = ?, manufacturer_id = ?, is_taxable = ?, updated_at = datetime('now')
+                name = ?, description = ?, hsn_code_id = ?, uqc_id = ?, cost_price = ?, selling_price = ?, mrp = ?, sub_category_id = ?, manufacturer_id = ?, is_taxable = 1, updated_at = datetime('now')
               WHERE id = ?
               ''',
               [
                 p.name,
+                null, // description - not available in Excel upload
                 hsnId,
                 defaultUqcId,
                 costToStore,
@@ -750,7 +751,6 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                 mrpToStore,
                 defaultSubCategoryId,
                 manufacturerId,
-                defaultIsTaxable,
                 id,
               ],
             );
@@ -767,12 +767,13 @@ class _ProductUploadScreenState extends ConsumerState<ProductUploadScreen> {
                 : null;
             await txn.rawInsert(
               '''
-              INSERT INTO products (name, part_number, hsn_code_id, uqc_id, cost_price, selling_price, mrp, sub_category_id, manufacturer_id, is_taxable, is_enabled, negative_allow, is_deleted, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'), datetime('now'))
+              INSERT INTO products (name, part_number, description, hsn_code_id, uqc_id, cost_price, selling_price, mrp, sub_category_id, manufacturer_id, is_taxable, is_enabled, negative_allow, is_deleted, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'), datetime('now'))
               ''',
               [
                 p.name,
                 p.partNumber,
+                null, // description - not available in Excel upload
                 hsnId,
                 defaultUqcId,
                 costToStore,

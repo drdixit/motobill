@@ -43,14 +43,15 @@ class ProductRepository {
       final id = await _db.rawInsert(
         '''
         INSERT INTO products (
-          name, part_number, hsn_code_id, uqc_id,
+          name, part_number, description, hsn_code_id, uqc_id,
           cost_price, selling_price, mrp, sub_category_id, manufacturer_id,
           is_taxable, negative_allow, is_enabled, is_deleted, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'), datetime('now'))
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, 0, datetime('now'), datetime('now'))
       ''',
         [
           product.name,
           product.partNumber,
+          product.description,
           product.hsnCodeId,
           product.uqcId,
           product.costPrice,
@@ -58,7 +59,6 @@ class ProductRepository {
           product.mrp,
           product.subCategoryId,
           product.manufacturerId,
-          product.isTaxable ? 1 : 0,
           product.negativeAllow ? 1 : 0,
           product.isEnabled ? 1 : 0,
         ],
@@ -84,14 +84,15 @@ class ProductRepository {
       await _db.rawUpdate(
         '''
         UPDATE products SET
-          name = ?, part_number = ?, hsn_code_id = ?, uqc_id = ?,
+          name = ?, part_number = ?, description = ?, hsn_code_id = ?, uqc_id = ?,
           cost_price = ?, selling_price = ?, mrp = ?, sub_category_id = ?, manufacturer_id = ?,
-          is_taxable = ?, negative_allow = ?, is_enabled = ?, updated_at = datetime('now')
+          is_taxable = 1, negative_allow = ?, is_enabled = ?, updated_at = datetime('now')
         WHERE id = ?
       ''',
         [
           product.name,
           product.partNumber,
+          product.description,
           product.hsnCodeId,
           product.uqcId,
           product.costPrice,
@@ -99,7 +100,6 @@ class ProductRepository {
           product.mrp,
           product.subCategoryId,
           product.manufacturerId,
-          product.isTaxable ? 1 : 0,
           product.negativeAllow ? 1 : 0,
           product.isEnabled ? 1 : 0,
           product.id,

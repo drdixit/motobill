@@ -25,11 +25,11 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _partNumberController;
+  late TextEditingController _descriptionController;
   late TextEditingController _costPriceController;
   late TextEditingController _sellingPriceController;
   late TextEditingController _mrpController;
   late bool _isEnabled;
-  late bool _isTaxable;
   late bool _negativeAllow;
   int? _selectedSubCategoryId;
   int? _selectedManufacturerId;
@@ -51,6 +51,9 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
     _partNumberController = TextEditingController(
       text: widget.product?.partNumber ?? '',
     );
+    _descriptionController = TextEditingController(
+      text: widget.product?.description ?? '',
+    );
     _costPriceController = TextEditingController(
       text: widget.product?.costPrice.toString() ?? '',
     );
@@ -61,7 +64,6 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
       text: widget.product?.mrp?.toString() ?? '',
     );
     _isEnabled = widget.product?.isEnabled ?? true;
-    _isTaxable = widget.product?.isTaxable ?? false;
     _negativeAllow = widget.product?.negativeAllow ?? false;
     _selectedSubCategoryId = widget.product?.subCategoryId;
     _selectedManufacturerId = widget.product?.manufacturerId;
@@ -101,6 +103,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
   void dispose() {
     _nameController.dispose();
     _partNumberController.dispose();
+    _descriptionController.dispose();
     _costPriceController.dispose();
     _sellingPriceController.dispose();
     _mrpController.dispose();
@@ -308,6 +311,9 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
       partNumber: _partNumberController.text.trim().isEmpty
           ? null
           : _partNumberController.text.trim(),
+      description: _descriptionController.text.trim().isEmpty
+          ? null
+          : _descriptionController.text.trim(),
       hsnCodeId: _selectedHsnCodeId!,
       uqcId: _selectedUqcId!,
       costPrice: double.parse(_costPriceController.text),
@@ -315,7 +321,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
       mrp: mrp,
       subCategoryId: _selectedSubCategoryId!,
       manufacturerId: _selectedManufacturerId!,
-      isTaxable: _isTaxable,
+      isTaxable: true,
       negativeAllow: _negativeAllow,
       isEnabled: _isEnabled,
     );
@@ -421,6 +427,24 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                         controller: _partNumberController,
                         decoration: InputDecoration(
                           hintText: 'Enter part number (optional)',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppSizes.radiusS,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: AppSizes.paddingM),
+                      const Text(
+                        'Description',
+                        style: TextStyle(fontSize: AppSizes.fontL),
+                      ),
+                      const SizedBox(height: AppSizes.paddingS),
+                      TextFormField(
+                        controller: _descriptionController,
+                        maxLines: 3,
+                        decoration: InputDecoration(
+                          hintText: 'Enter product description (optional)',
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(
                               AppSizes.radiusS,
@@ -918,16 +942,6 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                       const SizedBox(height: AppSizes.paddingM),
                       Row(
                         children: [
-                          Checkbox(
-                            value: _isTaxable,
-                            onChanged: (value) {
-                              setState(() {
-                                _isTaxable = value ?? false;
-                              });
-                            },
-                          ),
-                          const Text('Taxable'),
-                          const SizedBox(width: AppSizes.paddingL),
                           Checkbox(
                             value: _isEnabled,
                             onChanged: (value) {

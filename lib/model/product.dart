@@ -2,6 +2,7 @@ class Product {
   final int? id;
   final String name;
   final String? partNumber;
+  final String? description;
   final int hsnCodeId;
   final int uqcId;
   final double costPrice;
@@ -20,6 +21,7 @@ class Product {
     this.id,
     required this.name,
     this.partNumber,
+    this.description,
     required this.hsnCodeId,
     required this.uqcId,
     required this.costPrice,
@@ -27,7 +29,7 @@ class Product {
     this.mrp,
     required this.subCategoryId,
     required this.manufacturerId,
-    this.isTaxable = false,
+    this.isTaxable = true,
     this.negativeAllow = false,
     this.isEnabled = true,
     this.isDeleted = false,
@@ -40,6 +42,7 @@ class Product {
       id: json['id'] as int?,
       name: json['name'] as String,
       partNumber: json['part_number'] as String?,
+      description: json['description'] as String?,
       hsnCodeId: json['hsn_code_id'] as int,
       uqcId: json['uqc_id'] as int,
       costPrice: (json['cost_price'] as num).toDouble(),
@@ -65,6 +68,7 @@ class Product {
       if (id != null) 'id': id,
       'name': name,
       'part_number': partNumber,
+      'description': description,
       'hsn_code_id': hsnCodeId,
       'uqc_id': uqcId,
       'cost_price': costPrice,
@@ -83,6 +87,7 @@ class Product {
     int? id,
     String? name,
     String? partNumber,
+    String? description,
     int? hsnCodeId,
     int? uqcId,
     double? costPrice,
@@ -101,6 +106,7 @@ class Product {
       id: id ?? this.id,
       name: name ?? this.name,
       partNumber: partNumber ?? this.partNumber,
+      description: description ?? this.description,
       hsnCodeId: hsnCodeId ?? this.hsnCodeId,
       uqcId: uqcId ?? this.uqcId,
       costPrice: costPrice ?? this.costPrice,
