@@ -10,7 +10,6 @@ class CustomerState {
   final List<Customer> customers;
   final bool isLoading;
   final String? error;
-
   CustomerState({
     this.customers = const [],
     this.isLoading = false,
