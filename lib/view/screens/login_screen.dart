@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
+import '../../view_model/company_info_viewmodel.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -93,15 +95,47 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 32),
-                      // Company Name
-                      Text(
-                        'Umiya Auto Parts',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.blue.shade700,
-                          letterSpacing: 0.5,
-                        ),
+                      // Company Name - Dynamic from database
+                      Consumer(
+                        builder: (context, ref, child) {
+                          final companyInfoAsync = ref.watch(
+                            companyInfoForPrintProvider,
+                          );
+                          return companyInfoAsync.when(
+                            data: (companyInfo) {
+                              final companyName =
+                                  companyInfo?.legalName ?? 'MotoBill';
+                              return Text(
+                                companyName,
+                                style: TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.blue.shade700,
+                                  letterSpacing: 0.5,
+                                ),
+                                textAlign: TextAlign.center,
+                              );
+                            },
+                            loading: () => Text(
+                              'Loading...',
+                              style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.blue.shade700,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            error: (_, __) => Text(
+                              'MotoBill',
+                              style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.blue.shade700,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                       const SizedBox(height: 8),
                       Text(
