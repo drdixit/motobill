@@ -177,7 +177,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
 
     return TextField(
       decoration: InputDecoration(
-        hintText: 'Search by name or part number...',
+        hintText: 'Search by name or part number or description...',
         hintStyle: TextStyle(
           fontSize: AppSizes.fontM,
           color: AppColors.textTertiary,

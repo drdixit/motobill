@@ -28,7 +28,7 @@ final productListForPurchaseProvider =
     FutureProvider<List<Map<String, dynamic>>>((ref) async {
       final db = await ref.watch(databaseProvider);
       return await db.rawQuery('''
-    SELECT p.id, p.name, p.part_number, p.cost_price, p.is_taxable,
+    SELECT p.id, p.name, p.part_number, p.description, p.cost_price, p.is_taxable,
            h.code as hsn_code, u.code as uqc_code
     FROM products p
     LEFT JOIN hsn_codes h ON p.hsn_code_id = h.id
@@ -1228,7 +1228,10 @@ class PurchaseRow {
         return products.where((p) {
           final name = (p['name'] as String).toLowerCase();
           final partNo = (p['part_number'] as String?)?.toLowerCase() ?? '';
-          return name.contains(text) || partNo.contains(text);
+          final desc = (p['description'] as String?)?.toLowerCase() ?? '';
+          return name.contains(text) ||
+              partNo.contains(text) ||
+              desc.contains(text);
         });
       },
       displayStringForOption: (option) {
@@ -1330,7 +1333,7 @@ class PurchaseRow {
             },
             decoration: InputDecoration(
               border: InputBorder.none,
-              hintText: 'Search by name or part number...',
+              hintText: 'Search by name or part number or description...',
               hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
               isDense: true,
               contentPadding: const EdgeInsets.symmetric(

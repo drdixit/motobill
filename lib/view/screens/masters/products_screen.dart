@@ -42,7 +42,10 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
       return products.where((product) {
         final name = product.name.toLowerCase();
         final partNumber = product.partNumber?.toLowerCase() ?? '';
-        return name.contains(query) || partNumber.contains(query);
+        final description = product.description?.toLowerCase() ?? '';
+        return name.contains(query) ||
+            partNumber.contains(query) ||
+            description.contains(query);
       }).toList();
     }
 
@@ -52,17 +55,23 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     for (final product in products) {
       final name = product.name.toLowerCase();
       final partNumber = product.partNumber?.toLowerCase() ?? '';
+      final description = product.description?.toLowerCase() ?? '';
 
       // Check exact matches first (highest priority)
-      if (name.contains(query) || partNumber.contains(query)) {
+      if (name.contains(query) ||
+          partNumber.contains(query) ||
+          description.contains(query)) {
         results.add({'product': product, 'score': 1.0});
         continue;
       }
 
-      // Fuzzy match on name and part number
+      // Fuzzy match on name, part number, and description
       final nameScore = _fuzzyMatchOptimized(query, name);
       final partScore = _fuzzyMatchOptimized(query, partNumber);
-      final maxScore = nameScore > partScore ? nameScore : partScore;
+      final descScore = _fuzzyMatchOptimized(query, description);
+      final maxScore = nameScore > partScore
+          ? (nameScore > descScore ? nameScore : descScore)
+          : (partScore > descScore ? partScore : descScore);
 
       if (maxScore > 0) {
         results.add({'product': product, 'score': maxScore});
@@ -148,7 +157,8 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                       });
                     },
                     decoration: InputDecoration(
-                      hintText: 'Search by name or part number...',
+                      hintText:
+                          'Search by name or part number or description...',
                       hintStyle: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: AppSizes.fontM,

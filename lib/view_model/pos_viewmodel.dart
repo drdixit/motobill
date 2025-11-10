@@ -327,6 +327,12 @@ class PosViewModel extends StateNotifier<PosState> {
       return true;
     }
 
+    // Search in description (if exists)
+    if (product.description != null &&
+        _fuzzyMatch(query, product.description!)) {
+      return true;
+    }
+
     return false;
   }
 
@@ -617,6 +623,7 @@ class PosViewModel extends StateNotifier<PosState> {
       id: product.id,
       name: product.name,
       partNumber: product.partNumber,
+      description: product.description,
       hsnCode: product.hsnCode,
       uqcCode: product.uqcCode,
       hsnCodeId: product.hsnCodeId,

@@ -31,7 +31,7 @@ final productListForBillProvider = FutureProvider<List<Map<String, dynamic>>>((
 ) async {
   final db = await ref.watch(databaseProvider);
   return await db.rawQuery('''
-    SELECT p.id, p.name, p.part_number, p.cost_price, p.selling_price, p.is_taxable, p.negative_allow,
+    SELECT p.id, p.name, p.part_number, p.description, p.cost_price, p.selling_price, p.is_taxable, p.negative_allow,
            h.code as hsn_code, u.code as uqc_code,
            COALESCE(SUM(sb.quantity_remaining), 0) as stock,
            COALESCE(SUM(CASE WHEN sb.is_taxable = 1 THEN sb.quantity_remaining ELSE 0 END), 0) as taxable_stock,
@@ -1206,8 +1206,11 @@ class BillRow {
         return products.where((p) {
           final name = (p['name'] as String).toLowerCase();
           final partNo = (p['part_number'] as String?)?.toLowerCase() ?? '';
-          // Search by both product name and part number
-          return name.contains(text) || partNo.contains(text);
+          final desc = (p['description'] as String?)?.toLowerCase() ?? '';
+          // Search by product name, part number, and description
+          return name.contains(text) ||
+              partNo.contains(text) ||
+              desc.contains(text);
         });
       },
       displayStringForOption: (option) {
@@ -1309,7 +1312,7 @@ class BillRow {
             },
             decoration: InputDecoration(
               border: InputBorder.none,
-              hintText: 'Search by name or part number...',
+              hintText: 'Search by name or part number or description...',
               hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
               isDense: true,
               contentPadding: const EdgeInsets.symmetric(

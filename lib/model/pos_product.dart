@@ -2,6 +2,7 @@ class PosProduct {
   final int id;
   final String name;
   final String? partNumber;
+  final String? description;
   final double sellingPrice;
   final double costPrice;
   final String? imagePath;
@@ -28,6 +29,7 @@ class PosProduct {
     required this.id,
     required this.name,
     this.partNumber,
+    this.description,
     required this.sellingPrice,
     required this.costPrice,
     this.imagePath,
@@ -56,6 +58,7 @@ class PosProduct {
       id: json['id'] as int,
       name: json['name'] as String,
       partNumber: json['part_number'] as String?,
+      description: json['description'] as String?,
       sellingPrice: (json['selling_price'] as num).toDouble(),
       costPrice: (json['cost_price'] as num).toDouble(),
       imagePath: json['image_path'] as String?,

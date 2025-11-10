@@ -21,6 +21,7 @@ class PosRepository {
           p.id,
           p.name,
           p.part_number,
+          p.description,
           p.selling_price,
           p.cost_price,
           p.is_taxable,
@@ -77,10 +78,10 @@ class PosRepository {
 
       if (searchQuery != null && searchQuery.isNotEmpty) {
         query.write(
-          ' AND (p.name LIKE ? OR p.part_number LIKE ? OR m.name LIKE ?)',
+          ' AND (p.name LIKE ? OR p.part_number LIKE ? OR p.description LIKE ? OR m.name LIKE ?)',
         );
         final searchTerm = '%$searchQuery%';
-        args.addAll([searchTerm, searchTerm, searchTerm]);
+        args.addAll([searchTerm, searchTerm, searchTerm, searchTerm]);
       }
 
       query.write(' GROUP BY p.id');
