@@ -132,6 +132,30 @@ class BillRepository {
           if (negativeAllow) {
             // Product allows negative stock - create auto-purchase
             final shortage = it.quantity - availableQty;
+
+            // Get GST rates for the product's HSN code
+            final gstRates = await txn.rawQuery(
+              '''SELECT cgst, sgst, igst, utgst
+                 FROM gst_rates
+                 WHERE hsn_code_id IN (
+                   SELECT hsn_code_id FROM products WHERE id = ?
+                 ) AND is_deleted = 0 AND is_enabled = 1
+                 LIMIT 1''',
+              [it.productId],
+            );
+
+            double cgstRate = 0.0;
+            double sgstRate = 0.0;
+            double igstRate = 0.0;
+            double utgstRate = 0.0;
+
+            if (gstRates.isNotEmpty) {
+              cgstRate = (gstRates.first['cgst'] as num?)?.toDouble() ?? 0.0;
+              sgstRate = (gstRates.first['sgst'] as num?)?.toDouble() ?? 0.0;
+              igstRate = (gstRates.first['igst'] as num?)?.toDouble() ?? 0.0;
+              utgstRate = (gstRates.first['utgst'] as num?)?.toDouble() ?? 0.0;
+            }
+
             await _createAutoPurchaseForShortage(
               txn,
               billId,
@@ -142,6 +166,11 @@ class BillRepository {
               it.uqcCode,
               it.costPrice,
               shortage,
+              useTaxableStock, // Pass taxable flag
+              cgstRate,
+              sgstRate,
+              igstRate,
+              utgstRate,
             );
           } else {
             // Product does NOT allow negative stock - throw error
@@ -771,6 +800,11 @@ class BillRepository {
     String? uqcCode,
     double costPrice,
     int shortage,
+    bool isTaxableBill,
+    double cgstRate,
+    double sgstRate,
+    double igstRate,
+    double utgstRate,
   ) async {
     final now = DateTime.now();
 
@@ -807,39 +841,45 @@ class BillRepository {
     // Auto-stock vendor ID is 7
     const autoStockVendorId = 7;
 
-    // For auto-purchases, we keep it simple: no tax breakdown
+    // Calculate tax amounts with tax
     final subtotal = costPrice * shortage;
-    final totalAmount = subtotal;
+    final cgstAmount = (subtotal * cgstRate) / 100;
+    final sgstAmount = (subtotal * sgstRate) / 100;
+    final igstAmount = (subtotal * igstRate) / 100;
+    final utgstAmount = (subtotal * utgstRate) / 100;
+    final taxAmount = cgstAmount + sgstAmount + igstAmount + utgstAmount;
+    final totalAmount = subtotal + taxAmount;
 
-    // Insert purchase
+    // Insert purchase with tax information and is_taxable_bill flag
     final purchaseId = await txn.rawInsert(
       '''INSERT INTO purchases
       (purchase_number, purchase_reference_number, purchase_reference_date,
       vendor_id, subtotal, tax_amount, total_amount, is_auto_purchase, source_bill_id,
-      created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)''',
+      is_taxable_bill, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)''',
       [
         purchaseNumber,
         null,
         null,
         autoStockVendorId,
         subtotal,
-        0.0,
+        taxAmount,
         totalAmount,
         sourceBillId,
+        isTaxableBill ? 1 : 0,
         now.toIso8601String(),
         now.toIso8601String(),
       ],
     );
 
-    // Insert purchase item
+    // Insert purchase item with tax rates and amounts
     final purchaseItemId = await txn.rawInsert(
       '''INSERT INTO purchase_items
       (purchase_id, product_id, product_name, part_number, hsn_code, uqc_code,
       cost_price, quantity, subtotal, cgst_rate, sgst_rate, igst_rate, utgst_rate,
       cgst_amount, sgst_amount, igst_amount, utgst_amount, tax_amount, total_amount,
       created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 0, 0, 0, 0, ?, datetime('now'), datetime('now'))''',
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))''',
       [
         purchaseId,
         productId,
@@ -850,20 +890,37 @@ class BillRepository {
         costPrice,
         shortage,
         subtotal,
+        cgstRate,
+        sgstRate,
+        igstRate,
+        utgstRate,
+        cgstAmount,
+        sgstAmount,
+        igstAmount,
+        utgstAmount,
+        taxAmount,
         totalAmount,
       ],
     );
 
-    // Create stock batch
+    // Create stock batch with is_taxable flag matching the bill type
     final timestamp = now.millisecondsSinceEpoch;
     final batchNumber = 'BATCH-$purchaseId-$productId-$timestamp';
 
     await txn.rawInsert(
       '''INSERT INTO stock_batches
       (product_id, purchase_item_id, batch_number, quantity_received,
-      quantity_remaining, cost_price, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))''',
-      [productId, purchaseItemId, batchNumber, shortage, shortage, costPrice],
+      quantity_remaining, cost_price, is_taxable, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))''',
+      [
+        productId,
+        purchaseItemId,
+        batchNumber,
+        shortage,
+        shortage,
+        costPrice,
+        isTaxableBill ? 1 : 0,
+      ],
     );
   }
 
