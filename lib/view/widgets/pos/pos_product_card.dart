@@ -173,6 +173,30 @@ class PosProductCard extends StatelessWidget {
                 ),
               ),
             ),
+            // Info Button
+            Positioned(
+              top: 8,
+              right: cartQuantity > 0 ? 48 : 8,
+              child: GestureDetector(
+                onTap: () => _showProductInfo(context),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.9),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppColors.primary.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.info_outline,
+                    size: 18,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+            ),
             // Quantity Badge
             if (cartQuantity > 0)
               Positioned(
@@ -250,6 +274,159 @@ class PosProductCard extends StatelessWidget {
         Icons.inventory_2_outlined,
         size: AppSizes.iconXL,
         color: AppColors.textTertiary,
+      ),
+    );
+  }
+
+  void _showProductInfo(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppSizes.radiusL),
+          ),
+          child: Container(
+            width: 400,
+            padding: const EdgeInsets.all(AppSizes.paddingL),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Product Information',
+                        style: TextStyle(
+                          fontSize: AppSizes.fontXL,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.close, color: AppColors.textSecondary),
+                      onPressed: () => Navigator.of(context).pop(),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+                const Divider(height: AppSizes.paddingL),
+
+                // Product Details
+                _buildInfoRow('Product Name', product.name),
+                if (product.partNumber != null &&
+                    product.partNumber!.isNotEmpty)
+                  _buildInfoRow('Part Number', product.partNumber!),
+                if (product.description != null &&
+                    product.description!.isNotEmpty)
+                  _buildInfoRow('Description', product.description!),
+                if (product.hsnCode != null && product.hsnCode!.isNotEmpty)
+                  _buildInfoRow('HSN Code', product.hsnCode!),
+                if (product.uqcCode != null && product.uqcCode!.isNotEmpty)
+                  _buildInfoRow('UQC', product.uqcCode!),
+
+                const SizedBox(height: AppSizes.paddingM),
+
+                // Pricing
+                Text(
+                  'Pricing',
+                  style: TextStyle(
+                    fontSize: AppSizes.fontL,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: AppSizes.paddingS),
+                _buildInfoRow(
+                  'Cost Price',
+                  '₹${product.costPrice.toStringAsFixed(2)}',
+                ),
+                _buildInfoRow(
+                  'Selling Price',
+                  '₹${product.sellingPrice.toStringAsFixed(2)}',
+                ),
+                if (product.isTaxable) ...[
+                  _buildInfoRow('Price with Tax', _getPriceText()),
+                  if (product.cgstRate != null && product.cgstRate! > 0)
+                    _buildInfoRow('CGST Rate', '${product.cgstRate}%'),
+                  if (product.sgstRate != null && product.sgstRate! > 0)
+                    _buildInfoRow('SGST Rate', '${product.sgstRate}%'),
+                  if (product.utgstRate != null && product.utgstRate! > 0)
+                    _buildInfoRow('UTGST Rate', '${product.utgstRate}%'),
+                ],
+
+                const SizedBox(height: AppSizes.paddingM),
+
+                // Stock Information
+                Text(
+                  'Stock Information',
+                  style: TextStyle(
+                    fontSize: AppSizes.fontL,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: AppSizes.paddingS),
+                _buildInfoRow('Total Stock', '${product.stock}'),
+                _buildInfoRow(
+                  'Taxable Stock',
+                  '${product.taxableStock}',
+                  valueColor: Colors.green.shade700,
+                ),
+                _buildInfoRow(
+                  'Non-Taxable Stock',
+                  '${product.nonTaxableStock}',
+                  valueColor: Colors.orange.shade700,
+                ),
+                if (product.negativeAllow)
+                  _buildInfoRow(
+                    'Negative Allowed',
+                    'Yes',
+                    valueColor: Colors.red.shade700,
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value, {Color? valueColor}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 140,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: AppSizes.fontM,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSizes.paddingM),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: AppSizes.fontM,
+                fontWeight: FontWeight.w600,
+                color: valueColor ?? AppColors.textPrimary,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
