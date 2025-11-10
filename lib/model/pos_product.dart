@@ -5,6 +5,7 @@ class PosProduct {
   final String? description;
   final double sellingPrice;
   final double costPrice;
+  final double? mrp;
   final String? imagePath;
   final String? hsnCode;
   final String? uqcCode;
@@ -32,6 +33,7 @@ class PosProduct {
     this.description,
     required this.sellingPrice,
     required this.costPrice,
+    this.mrp,
     this.imagePath,
     this.hsnCode,
     this.uqcCode,
@@ -61,6 +63,7 @@ class PosProduct {
       description: json['description'] as String?,
       sellingPrice: (json['selling_price'] as num).toDouble(),
       costPrice: (json['cost_price'] as num).toDouble(),
+      mrp: json['mrp'] != null ? (json['mrp'] as num).toDouble() : null,
       imagePath: json['image_path'] as String?,
       hsnCode: json['hsn_code'] as String?,
       uqcCode: json['uqc_code'] as String?,

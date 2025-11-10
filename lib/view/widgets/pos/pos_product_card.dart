@@ -351,6 +351,8 @@ class PosProductCard extends StatelessWidget {
                   'Selling Price',
                   '₹${product.sellingPrice.toStringAsFixed(2)}',
                 ),
+                if (product.mrp != null && product.mrp! > 0)
+                  _buildInfoRow('MRP', '₹${product.mrp!.toStringAsFixed(2)}'),
                 if (product.isTaxable) ...[
                   _buildInfoRow('Price with Tax', _getPriceText()),
                   if (product.cgstRate != null && product.cgstRate! > 0)
@@ -358,7 +360,7 @@ class PosProductCard extends StatelessWidget {
                   if (product.sgstRate != null && product.sgstRate! > 0)
                     _buildInfoRow('SGST Rate', '${product.sgstRate}%'),
                   if (product.utgstRate != null && product.utgstRate! > 0)
-                    _buildInfoRow('UTGST Rate', '${product.utgstRate}%'),
+                    _buildInfoRow('CESS Rate', '${product.utgstRate}%'),
                 ],
 
                 const SizedBox(height: AppSizes.paddingM),

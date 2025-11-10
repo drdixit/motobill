@@ -24,6 +24,7 @@ class PosRepository {
           p.description,
           p.selling_price,
           p.cost_price,
+          p.mrp,
           p.is_taxable,
           p.negative_allow,
           p.hsn_code_id,
