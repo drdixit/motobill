@@ -11,10 +11,7 @@ import 'view/screens/pos_screen.dart';
 import 'view/screens/transactions_screen.dart';
 import 'view/screens/masters_screen.dart';
 import 'view/screens/settings_screen.dart';
-import 'view/screens/testing_screen.dart';
-import 'view/screens/product_upload_screen.dart';
-import 'view/screens/uploaded_excels_screen.dart';
-import 'view/screens/dashboard/api_test_screen.dart';
+import 'view/screens/upload_screen.dart';
 import 'view/screens/payment_navigation_screen.dart';
 
 void main() {
@@ -101,13 +98,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       case 4:
         return const SettingsScreen();
       case 5:
-        return const TestingScreen();
-      case 6:
-        return const ProductUploadScreen();
-      case 7:
-        return const UploadedExcelsScreen();
-      case 8:
-        return const ApiTestScreen();
+        return const UploadScreen();
       case 9:
         return const PaymentNavigationScreen();
       default:

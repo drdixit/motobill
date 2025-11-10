@@ -58,26 +58,15 @@ class AppSidebar extends StatelessWidget {
                   title: 'Masters',
                 ),
                 _buildMenuItem(
+                  index: 5,
+                  icon: Icons.cloud_upload,
+                  title: 'Upload',
+                ),
+                _buildMenuItem(
                   index: 4,
                   icon: Icons.settings,
                   title: 'Settings',
                 ),
-                _buildMenuItem(
-                  index: 5,
-                  icon: Icons.science,
-                  title: 'HSN Upload',
-                ),
-                _buildMenuItem(
-                  index: 6,
-                  icon: Icons.cloud_upload,
-                  title: 'Product Upload',
-                ),
-                _buildMenuItem(
-                  index: 7,
-                  icon: Icons.folder_outlined,
-                  title: 'Uploaded Excels',
-                ),
-                _buildMenuItem(index: 8, icon: Icons.api, title: 'API Test'),
               ],
             ),
           ),
