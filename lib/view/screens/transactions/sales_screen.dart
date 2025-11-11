@@ -282,45 +282,52 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         },
         child: Row(
           children: [
-            // Bill Number
-            Text(
-              billNumber,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
+            // Bill Number - Fixed width
+            SizedBox(
+              width: 120,
+              child: Text(
+                billNumber,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: 8),
-            // Status Badge (compact)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: statusColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: statusColor.withOpacity(0.3),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(statusIcon, size: 13, color: statusColor),
-                  const SizedBox(width: 3),
-                  Text(
-                    statusLabel,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: statusColor,
-                    ),
+            // Status Badge - Fixed width
+            SizedBox(
+              width: 80,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: statusColor.withOpacity(0.3),
+                    width: 1,
                   ),
-                ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(statusIcon, size: 13, color: statusColor),
+                    const SizedBox(width: 3),
+                    Text(
+                      statusLabel,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: statusColor,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(width: 12),
-            // Customer Name
+            // Customer Name - Flexible
             Expanded(
               child: Text(
                 customerName,
@@ -329,153 +336,135 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               ),
             ),
             const SizedBox(width: 12),
-            // Total
-            Text(
-              'Total: ',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-            ),
-            Text(
-              '₹${totalAmount.toStringAsFixed(2)}',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            // Paid (if any)
-            if (paymentStatus != 'unpaid') ...[
-              const SizedBox(width: 12),
-              Text(
-                'Paid: ',
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-              ),
-              Text(
-                '₹${paidAmount.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.green,
-                ),
-              ),
-            ],
-            // Due (if partial)
-            if (paymentStatus == 'partial' && remainingAmount > 0.01) ...[
-              const SizedBox(width: 12),
-              Text(
-                'Due: ',
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-              ),
-              Text(
-                '₹${remainingAmount.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.orange,
-                ),
-              ),
-            ],
-            // Pending Refund (inline chip if exists)
-            if (pendingRefunds > 0.01) ...[
-              const SizedBox(width: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(3),
-                  border: Border.all(color: Colors.blue.shade200),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      size: 12,
-                      color: Colors.blue.shade700,
+            // Total - Fixed width
+            SizedBox(
+              width: 130,
+              child: Row(
+                children: [
+                  Text(
+                    'Total: ',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
                     ),
-                    const SizedBox(width: 3),
-                    Text(
-                      'Refund: ₹${pendingRefunds.toStringAsFixed(2)}',
+                  ),
+                  Expanded(
+                    child: Text(
+                      '₹${totalAmount.toStringAsFixed(2)}',
                       style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.blue.shade700,
-                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-            // Fully Returned (inline chip if exists)
-            if (isFullyReturned &&
-                paymentStatus != 'paid' &&
-                billRemaining > 0.01) ...[
-              const SizedBox(width: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(3),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.assignment_return,
-                      size: 12,
-                      color: Colors.grey.shade600,
-                    ),
-                    const SizedBox(width: 3),
-                    Text(
-                      'Returned',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey.shade700,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            ),
             const SizedBox(width: 12),
-            // Date
-            Text(
-              '${createdAt.day.toString().padLeft(2, '0')}/${createdAt.month.toString().padLeft(2, '0')}/${createdAt.year}',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            // Paid - Fixed width (always reserve space)
+            SizedBox(
+              width: 120,
+              child: paymentStatus != 'unpaid'
+                  ? Row(
+                      children: [
+                        Text(
+                          'Paid: ',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            '₹${paidAmount.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.green,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    )
+                  : const SizedBox.shrink(),
             ),
-            // Add Payment Button (compact, inline)
-            if (paymentStatus != 'paid' &&
-                remainingAmount > 0.01 &&
-                pendingRefunds <= 0.01) ...[
-              const SizedBox(width: 12),
-              ElevatedButton.icon(
-                onPressed: () async {
-                  await _showAddPaymentDialog(context, bill);
-                },
-                icon: const Icon(Icons.payment, size: 16),
-                label: Text(
-                  paymentStatus == 'unpaid' ? 'Pay' : 'Pay More',
-                  style: const TextStyle(fontSize: 13),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 4,
-                  ),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  fixedSize: const Size.fromHeight(28),
-                ),
+            const SizedBox(width: 12),
+            // Due - Fixed width (always reserve space)
+            SizedBox(
+              width: 130,
+              child: (paymentStatus == 'partial' && remainingAmount > 0.01)
+                  ? Row(
+                      children: [
+                        Text(
+                          'Due: ',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            '₹${remainingAmount.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.orange,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    )
+                  : const SizedBox.shrink(),
+            ),
+            const SizedBox(width: 12),
+            // Date - Fixed width
+            SizedBox(
+              width: 90,
+              child: Text(
+                '${createdAt.day.toString().padLeft(2, '0')}/${createdAt.month.toString().padLeft(2, '0')}/${createdAt.year}',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
               ),
-            ],
+            ),
+            const SizedBox(width: 12),
+            // Pay More Button - Fixed width (always reserve space)
+            SizedBox(
+              width: 110,
+              child:
+                  (paymentStatus != 'paid' &&
+                      remainingAmount > 0.01 &&
+                      pendingRefunds <= 0.01)
+                  ? ElevatedButton.icon(
+                      onPressed: () async {
+                        await _showAddPaymentDialog(context, bill);
+                      },
+                      icon: const Icon(Icons.payment, size: 16),
+                      label: Text(
+                        paymentStatus == 'unpaid' ? 'Pay' : 'Pay More',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        fixedSize: const Size.fromHeight(28),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
             const SizedBox(width: 8),
-            // Print Button (compact)
+            // Print Button
             IconButton(
               onPressed: () => _showPrintDialog(context, billNumber),
               icon: const Icon(Icons.print, size: 20),
