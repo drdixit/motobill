@@ -1,6 +1,8 @@
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'dart:io';
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import '../model/api_test_response.dart';
 
 class ApiTestRepository {
@@ -55,5 +57,13 @@ class ApiTestRepository {
       body: response.body,
       bodyLength: response.body.length,
     );
+  }
+
+  /// Calculate SHA-256 hash of a file
+  Future<String> calculateFileHash(String filePath) async {
+    final file = File(filePath);
+    final bytes = await file.readAsBytes();
+    final digest = sha256.convert(bytes);
+    return digest.toString();
   }
 }

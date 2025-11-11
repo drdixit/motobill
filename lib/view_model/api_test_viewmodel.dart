@@ -1,14 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:io';
 import '../repository/api_test_repository.dart';
+import '../repository/api_cache_repository.dart';
 import '../model/api_test_response.dart';
+import '../core/providers/database_provider.dart';
 
 final apiTestRepositoryProvider = Provider((ref) => ApiTestRepository());
 
 final apiTestViewModelProvider =
     StateNotifierProvider<ApiTestViewModel, ApiTestState>((ref) {
       final repository = ref.watch(apiTestRepositoryProvider);
-      return ApiTestViewModel(repository);
+      final dbFuture = ref.watch(databaseProvider);
+      return ApiTestViewModel(repository, dbFuture);
     });
 
 class ApiTestState {
@@ -18,6 +21,7 @@ class ApiTestState {
   final String? error;
   final String fullResponseBody; // Store complete response for parsing
   final int? statusCode; // Store HTTP status code
+  final bool isCachedResponse; // Indicate if response came from cache
 
   ApiTestState({
     this.isLoading = false,
@@ -26,6 +30,7 @@ class ApiTestState {
     this.error,
     this.fullResponseBody = '',
     this.statusCode,
+    this.isCachedResponse = false,
   });
 
   // Check if response is successful (HTTP 200-299)
@@ -39,6 +44,7 @@ class ApiTestState {
     String? error,
     String? fullResponseBody,
     int? statusCode,
+    bool? isCachedResponse,
   }) {
     return ApiTestState(
       isLoading: isLoading ?? this.isLoading,
@@ -47,14 +53,16 @@ class ApiTestState {
       error: error ?? this.error,
       fullResponseBody: fullResponseBody ?? this.fullResponseBody,
       statusCode: statusCode ?? this.statusCode,
+      isCachedResponse: isCachedResponse ?? this.isCachedResponse,
     );
   }
 }
 
 class ApiTestViewModel extends StateNotifier<ApiTestState> {
   final ApiTestRepository _repository;
+  final Future<dynamic> _dbFuture;
 
-  ApiTestViewModel(this._repository) : super(ApiTestState());
+  ApiTestViewModel(this._repository, this._dbFuture) : super(ApiTestState());
 
   Future<void> sendGetRequest(String url) async {
     if (url.isEmpty) {
@@ -122,6 +130,7 @@ class ApiTestViewModel extends StateNotifier<ApiTestState> {
       requestInfo: '',
       error: null,
       statusCode: null,
+      isCachedResponse: false,
     );
 
     await Future.delayed(const Duration(milliseconds: 100));
@@ -129,6 +138,7 @@ class ApiTestViewModel extends StateNotifier<ApiTestState> {
     try {
       String requestInfo;
       ApiTestResponse response;
+      bool usedCache = false;
 
       if (filePath != null && fileName != null) {
         requestInfo = _buildRequestInfoWithFile(
@@ -140,21 +150,66 @@ class ApiTestViewModel extends StateNotifier<ApiTestState> {
 
         state = state.copyWith(
           requestInfo: requestInfo,
-          responseInfo: 'Uploading file...',
+          responseInfo: 'Calculating file hash...',
         );
         await Future.delayed(const Duration(milliseconds: 50));
 
-        state = state.copyWith(responseInfo: 'Sending request...');
+        // Calculate file hash
+        final fileHash = await _repository.calculateFileHash(filePath);
+
+        state = state.copyWith(responseInfo: 'Checking cache...');
         await Future.delayed(const Duration(milliseconds: 50));
 
-        response = await _repository.uploadFile(
-          url: url,
-          filePath: filePath,
-          fileName: fileName,
+        // Get database and cache repository
+        final db = await _dbFuture;
+        final cacheRepository = ApiCacheRepository(db);
+
+        // Check if cached response exists
+        final cachedResponse = await cacheRepository.getCachedResponse(
+          fileHash,
         );
 
-        state = state.copyWith(responseInfo: 'Receiving response...');
-        await Future.delayed(const Duration(milliseconds: 50));
+        if (cachedResponse != null) {
+          // Use cached response
+          usedCache = true;
+          state = state.copyWith(responseInfo: 'Using cached response...');
+          await Future.delayed(const Duration(milliseconds: 50));
+
+          response = ApiTestResponse(
+            statusCode: 200,
+            reasonPhrase: 'OK (Cached)',
+            headers: {'x-cache': 'HIT'},
+            body: cachedResponse,
+            bodyLength: cachedResponse.length,
+          );
+        } else {
+          // No cache, hit the API
+          state = state.copyWith(
+            requestInfo: requestInfo,
+            responseInfo: 'Uploading file...',
+          );
+          await Future.delayed(const Duration(milliseconds: 50));
+
+          state = state.copyWith(responseInfo: 'Sending request...');
+          await Future.delayed(const Duration(milliseconds: 50));
+
+          response = await _repository.uploadFile(
+            url: url,
+            filePath: filePath,
+            fileName: fileName,
+          );
+
+          state = state.copyWith(responseInfo: 'Receiving response...');
+          await Future.delayed(const Duration(milliseconds: 50));
+
+          // If response is successful, cache it
+          if (response.statusCode >= 200 && response.statusCode < 300) {
+            state = state.copyWith(responseInfo: 'Caching response...');
+            await Future.delayed(const Duration(milliseconds: 50));
+
+            await cacheRepository.cacheResponse(fileHash, response.body);
+          }
+        }
       } else {
         requestInfo = _buildRequestInfo('POST', url);
         response = await _repository.sendPostRequest(url);
@@ -163,9 +218,10 @@ class ApiTestViewModel extends StateNotifier<ApiTestState> {
       state = state.copyWith(
         isLoading: false,
         requestInfo: requestInfo,
-        responseInfo: _formatResponse(response),
+        responseInfo: _formatResponse(response, isCached: usedCache),
         fullResponseBody: response.body, // Store full body
         statusCode: response.statusCode, // Store status code
+        isCachedResponse: usedCache,
         error: null,
       );
     } catch (e) {
@@ -175,6 +231,7 @@ class ApiTestViewModel extends StateNotifier<ApiTestState> {
         responseInfo: '\n=== ERROR ===\n$e',
         error: e.toString(),
         statusCode: null,
+        isCachedResponse: false,
       );
     }
   }
@@ -211,8 +268,13 @@ class ApiTestViewModel extends StateNotifier<ApiTestState> {
     }
   }
 
-  String _formatResponse(ApiTestResponse response) {
+  String _formatResponse(ApiTestResponse response, {bool isCached = false}) {
     String result = '\n\n=== RESPONSE ===\n';
+
+    if (isCached) {
+      result += '🔄 CACHED RESPONSE (File already processed)\n\n';
+    }
+
     result += 'Status: ${response.statusCode}\n';
     result += 'Message: ${response.reasonPhrase ?? "OK"}\n\n';
 

@@ -46,6 +46,7 @@ dependencies:
   excel: ^2.0.0
   http: ^1.2.2
   xxh3: ^1.0.1
+  crypto: ^3.0.3
 
 dev_dependencies:
   flutter_test:
