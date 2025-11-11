@@ -9,6 +9,7 @@ import '../repository/product_repository.dart';
 import '../repository/purchase_repository.dart';
 import '../repository/hsn_code_repository.dart';
 import '../repository/gst_rate_repository.dart';
+import '../repository/company_info_repository.dart';
 import '../core/providers/database_provider.dart';
 
 // Repository providers
@@ -35,6 +36,13 @@ final _hsnRepoProvider = FutureProvider<HsnCodeRepository>((ref) async {
 final _gstRateRepoProvider = FutureProvider<GstRateRepository>((ref) async {
   final db = await ref.watch(databaseProvider);
   return GstRateRepository(db);
+});
+
+final _companyInfoRepoProvider = FutureProvider<CompanyInfoRepository>((
+  ref,
+) async {
+  final db = await ref.watch(databaseProvider);
+  return CompanyInfoRepository(db);
 });
 
 // State for purchase bill automation
@@ -109,6 +117,7 @@ class PurchaseBillAutomationViewModel
   final PurchaseRepository? _purchaseRepository;
   final HsnCodeRepository? _hsnRepository;
   final GstRateRepository? _gstRateRepository;
+  final CompanyInfoRepository? _companyInfoRepository;
 
   PurchaseBillAutomationViewModel(
     this._vendorRepository,
@@ -116,6 +125,7 @@ class PurchaseBillAutomationViewModel
     this._purchaseRepository,
     this._hsnRepository,
     this._gstRateRepository,
+    this._companyInfoRepository,
   ) : super(PurchaseBillAutomationState());
 
   // Constructor for loading state
@@ -125,6 +135,7 @@ class PurchaseBillAutomationViewModel
       _purchaseRepository = null,
       _hsnRepository = null,
       _gstRateRepository = null,
+      _companyInfoRepository = null,
       super(PurchaseBillAutomationState());
 
   /// Parse API response and prepare data
@@ -133,7 +144,8 @@ class PurchaseBillAutomationViewModel
         _productRepository == null ||
         _purchaseRepository == null ||
         _hsnRepository == null ||
-        _gstRateRepository == null)
+        _gstRateRepository == null ||
+        _companyInfoRepository == null)
       return;
 
     state = state.copyWith(isLoading: true, error: null, successMessage: null);
@@ -177,6 +189,10 @@ class PurchaseBillAutomationViewModel
         parsed.vendor.gstin,
       );
 
+      // Get primary company info for GST comparison
+      final companyInfo = await _companyInfoRepository.getPrimaryCompanyInfo();
+      final companyGstPrefix = companyInfo?.gstNumber?.substring(0, 2) ?? '';
+
       // Look up products by part number and filter items
       final productMatches = <int, int?>{};
       final matchedItems = <ParsedInvoiceItem>[];
@@ -184,6 +200,11 @@ class PurchaseBillAutomationViewModel
 
       print('\n=== Product Matching Started ===');
       print('Total items in invoice: ${parsed.items.length}');
+      print('Company GST Prefix: $companyGstPrefix');
+      if (vendor != null) {
+        final vendorGstPrefix = vendor.gstNumber?.substring(0, 2) ?? '';
+        print('Vendor GST Prefix: $vendorGstPrefix');
+      }
 
       for (int i = 0; i < parsed.items.length; i++) {
         final item = parsed.items[i];
@@ -211,62 +232,103 @@ class PurchaseBillAutomationViewModel
             }
           }
 
-          // Check if price is present in bill (rate > 0 and totalAmount > 0)
-          final hasPriceInBill = item.rate > 0 && item.totalAmount > 0;
-          bool isPriceFromBill = hasPriceInBill;
+          // Always calculate GST reverse from total (bill prices include GST)
+          // Determine if we use CGST+SGST or IGST based on vendor GST prefix
+          final vendorGstPrefix = vendor?.gstNumber?.substring(0, 2) ?? '';
+          final isSameState =
+              vendorGstPrefix == companyGstPrefix &&
+              vendorGstPrefix.isNotEmpty &&
+              companyGstPrefix.isNotEmpty;
+          final useIGST = !isSameState && vendorGstPrefix.isNotEmpty;
 
-          double finalRate = item.rate;
-          double finalCgstRate = item.cgstRate;
-          double finalSgstRate = item.sgstRate;
-          double finalCgstAmount = item.cgstAmount;
-          double finalSgstAmount = item.sgstAmount;
+          print('  → Same State: $isSameState, Use IGST: $useIGST');
+
+          // Get GST rates from database
+          final gstRate = await _gstRateRepository.getGstRateByHsnCodeId(
+            product.hsnCodeId,
+          );
+
+          double finalRate;
+          double finalCgstRate = 0;
+          double finalSgstRate = 0;
+          double finalIgstRate = 0;
+          double finalCgstAmount = 0;
+          double finalSgstAmount = 0;
+          double finalIgstAmount = 0;
           double finalTotalAmount = item.totalAmount;
+          bool isPriceFromBill = item.totalAmount > 0;
 
-          if (!hasPriceInBill) {
-            // No price in bill - use database price and calculate taxes
-            print(
-              '  → No price in bill, using database price: ${product.costPrice}',
-            );
-            isPriceFromBill = false;
-
-            // Base price from database
-            finalRate = product.costPrice;
-
-            // Get GST rates from database
-            final gstRate = await _gstRateRepository.getGstRateByHsnCodeId(
-              product.hsnCodeId,
-            );
-
+          if (item.totalAmount > 0 && item.quantity > 0) {
+            // Reverse calculate: Total includes GST
             if (gstRate != null) {
-              finalCgstRate = gstRate.cgst;
-              finalSgstRate = gstRate.sgst;
+              if (useIGST) {
+                // IGST calculation
+                finalIgstRate = gstRate.igst;
+                final totalGstRate = finalIgstRate;
 
-              // Calculate tax amounts on base price
-              final baseAmount = finalRate * item.quantity;
-              finalCgstAmount = (baseAmount * finalCgstRate) / 100;
-              finalSgstAmount = (baseAmount * finalSgstRate) / 100;
-              finalTotalAmount = baseAmount + finalCgstAmount + finalSgstAmount;
+                // Reverse calculation: basePrice = total / (1 + totalGstRate/100)
+                final baseAmount =
+                    item.totalAmount / (1 + (totalGstRate / 100));
+                finalRate = baseAmount / item.quantity;
+                finalIgstAmount = baseAmount * (finalIgstRate / 100);
 
-              print(
-                '  → Applied GST: CGST ${finalCgstRate}%, SGST ${finalSgstRate}%',
-              );
-              print('  → Calculated Total: ₹$finalTotalAmount');
+                print('  → IGST: ${finalIgstRate}%');
+                print(
+                  '  → Base Amount: ₹${baseAmount.toStringAsFixed(2)}, Rate: ₹${finalRate.toStringAsFixed(2)}',
+                );
+              } else {
+                // CGST + SGST calculation
+                finalCgstRate = gstRate.cgst;
+                finalSgstRate = gstRate.sgst;
+                final totalGstRate = finalCgstRate + finalSgstRate;
+
+                // Reverse calculation: basePrice = total / (1 + totalGstRate/100)
+                final baseAmount =
+                    item.totalAmount / (1 + (totalGstRate / 100));
+                finalRate = baseAmount / item.quantity;
+                finalCgstAmount = baseAmount * (finalCgstRate / 100);
+                finalSgstAmount = baseAmount * (finalSgstRate / 100);
+
+                print('  → CGST: ${finalCgstRate}%, SGST: ${finalSgstRate}%');
+                print(
+                  '  → Base Amount: ₹${baseAmount.toStringAsFixed(2)}, Rate: ₹${finalRate.toStringAsFixed(2)}',
+                );
+              }
             } else {
-              // No GST rate found - use base price without tax
-              finalCgstRate = 0;
-              finalSgstRate = 0;
-              finalCgstAmount = 0;
-              finalSgstAmount = 0;
-              finalTotalAmount = finalRate * item.quantity;
-              print('  → No GST rate found, using price without tax');
+              // No GST rate found - assume total is base price
+              finalRate = item.totalAmount / item.quantity;
+              print('  → No GST rate found, treating total as base price');
             }
           } else {
+            // No price in bill - use database cost price
             print(
-              '  → Using price from bill: Rate ₹${item.rate}, Total ₹${item.totalAmount}',
+              '  → No price in bill, using database cost price: ${product.costPrice}',
             );
+            isPriceFromBill = false;
+            finalRate = product.costPrice;
+
+            if (gstRate != null) {
+              if (useIGST) {
+                finalIgstRate = gstRate.igst;
+                final baseAmount = finalRate * item.quantity;
+                finalIgstAmount = baseAmount * (finalIgstRate / 100);
+                finalTotalAmount = baseAmount + finalIgstAmount;
+              } else {
+                finalCgstRate = gstRate.cgst;
+                finalSgstRate = gstRate.sgst;
+                final baseAmount = finalRate * item.quantity;
+                finalCgstAmount = baseAmount * (finalCgstRate / 100);
+                finalSgstAmount = baseAmount * (finalSgstRate / 100);
+                finalTotalAmount =
+                    baseAmount + finalCgstAmount + finalSgstAmount;
+              }
+            } else {
+              finalTotalAmount = finalRate * item.quantity;
+            }
           }
 
           // Create enriched item
+          // Note: For IGST transactions, we store IGST in cgstRate/cgstAmount fields
           final enrichedItem = ParsedInvoiceItem(
             partNumber: item.partNumber,
             description: item.description,
@@ -274,10 +336,10 @@ class PurchaseBillAutomationViewModel
             quantity: item.quantity,
             uqc: item.uqc,
             rate: finalRate,
-            cgstRate: finalCgstRate,
-            sgstRate: finalSgstRate,
-            cgstAmount: finalCgstAmount,
-            sgstAmount: finalSgstAmount,
+            cgstRate: useIGST ? finalIgstRate : finalCgstRate,
+            sgstRate: useIGST ? 0 : finalSgstRate,
+            cgstAmount: useIGST ? finalIgstAmount : finalCgstAmount,
+            sgstAmount: useIGST ? 0 : finalSgstAmount,
             totalAmount: finalTotalAmount,
             isApproved: false,
             isTaxable: item.isTaxable,
@@ -623,13 +685,15 @@ final purchaseBillAutomationViewModelProvider =
       final purchaseRepoAsync = ref.watch(_purchaseRepoProvider);
       final hsnRepoAsync = ref.watch(_hsnRepoProvider);
       final gstRateRepoAsync = ref.watch(_gstRateRepoProvider);
+      final companyInfoRepoAsync = ref.watch(_companyInfoRepoProvider);
 
       // All repos must be loaded
       if (vendorRepoAsync.isLoading ||
           productRepoAsync.isLoading ||
           purchaseRepoAsync.isLoading ||
           hsnRepoAsync.isLoading ||
-          gstRateRepoAsync.isLoading) {
+          gstRateRepoAsync.isLoading ||
+          companyInfoRepoAsync.isLoading) {
         return PurchaseBillAutomationViewModel._loading();
       }
 
@@ -637,7 +701,8 @@ final purchaseBillAutomationViewModelProvider =
           productRepoAsync.hasError ||
           purchaseRepoAsync.hasError ||
           hsnRepoAsync.hasError ||
-          gstRateRepoAsync.hasError) {
+          gstRateRepoAsync.hasError ||
+          companyInfoRepoAsync.hasError) {
         return PurchaseBillAutomationViewModel._loading();
       }
 
@@ -647,5 +712,6 @@ final purchaseBillAutomationViewModelProvider =
         purchaseRepoAsync.value,
         hsnRepoAsync.value,
         gstRateRepoAsync.value,
+        companyInfoRepoAsync.value,
       );
     });

@@ -640,9 +640,16 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                     ],
                     rows: List.generate(invoice.items.length, (index) {
                       final item = invoice.items[index];
+                      // Check if entry is falsy (Rate > Total)
+                      final isFalsyEntry = item.rate > item.totalAmount;
+
                       return DataRow(
                         color: MaterialStateProperty.all(
-                          item.isApproved ? Colors.green[50] : null,
+                          isFalsyEntry
+                              ? Colors.red[50] // Light red for falsy entries
+                              : item.isApproved
+                              ? Colors.green[50]
+                              : null,
                         ),
                         cells: [
                           DataCell(
