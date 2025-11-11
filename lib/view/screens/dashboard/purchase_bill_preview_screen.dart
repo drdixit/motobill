@@ -631,6 +631,7 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                     dataTextStyle: const TextStyle(fontSize: 14),
                     columns: const [
                       DataColumn(label: Text('Approve')),
+                      DataColumn(label: Text('Name')),
                       DataColumn(label: Text('Part Number')),
                       DataColumn(label: Text('Description')),
                       DataColumn(label: Text('HSN')),
@@ -663,6 +664,22 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                             ),
                           ),
                           DataCell(
+                            SizedBox(
+                              width: 180,
+                              child: Text(
+                                item.dbProductName != null
+                                    ? '${item.partNumber}\n(${item.dbProductName})'
+                                    : item.partNumber,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                          DataCell(
                             Text(
                               item.partNumber,
                               style: const TextStyle(
@@ -675,8 +692,10 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                             SizedBox(
                               width: 200,
                               child: Text(
-                                item.description,
-                                maxLines: 2,
+                                item.dbProductDescription != null
+                                    ? '${item.description}\n(${item.dbProductDescription})'
+                                    : item.description,
+                                maxLines: 3,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(fontSize: 14),
                               ),
@@ -795,6 +814,7 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                           ),
                           dataTextStyle: const TextStyle(fontSize: 14),
                           columns: const [
+                            DataColumn(label: Text('Name')),
                             DataColumn(label: Text('Part Number')),
                             DataColumn(label: Text('Description')),
                             DataColumn(label: Text('HSN')),
@@ -805,6 +825,20 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                           rows: state.unmatchedItems.map((item) {
                             return DataRow(
                               cells: [
+                                DataCell(
+                                  SizedBox(
+                                    width: 180,
+                                    child: Text(
+                                      item.partNumber,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ),
+                                ),
                                 DataCell(
                                   Text(
                                     item.partNumber,

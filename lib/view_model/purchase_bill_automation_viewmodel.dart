@@ -233,13 +233,20 @@ class PurchaseBillAutomationViewModel
           }
 
           // Always calculate GST reverse from total (bill prices include GST)
-          // Determine if we use CGST+SGST or IGST based on vendor GST prefix
+          // Determine GST calculation method based on vendor GST prefix
           final vendorGstPrefix = vendor?.gstNumber?.substring(0, 2) ?? '';
+
+          // Case 1: Same state (both GST prefixes match) -> CGST + SGST + UTGST
+          // Case 2: Different state (GST prefixes don't match and vendor has GST) -> IGST + UTGST
+          // Case 3: No vendor GST -> CGST + SGST + UTGST
           final isSameState =
-              vendorGstPrefix == companyGstPrefix &&
               vendorGstPrefix.isNotEmpty &&
-              companyGstPrefix.isNotEmpty;
-          final useIGST = !isSameState && vendorGstPrefix.isNotEmpty;
+              companyGstPrefix.isNotEmpty &&
+              vendorGstPrefix == companyGstPrefix;
+          final useIGST =
+              vendorGstPrefix.isNotEmpty &&
+              companyGstPrefix.isNotEmpty &&
+              vendorGstPrefix != companyGstPrefix;
 
           print('  → Same State: $isSameState, Use IGST: $useIGST');
 
@@ -252,35 +259,41 @@ class PurchaseBillAutomationViewModel
           double finalCgstRate = 0;
           double finalSgstRate = 0;
           double finalIgstRate = 0;
+          double finalUtgstRate = 0;
           double finalCgstAmount = 0;
           double finalSgstAmount = 0;
           double finalIgstAmount = 0;
+          double finalUtgstAmount = 0;
           double finalTotalAmount = item.totalAmount;
           bool isPriceFromBill = item.totalAmount > 0;
 
           if (item.totalAmount > 0 && item.quantity > 0) {
             // Reverse calculate: Total includes GST
             if (gstRate != null) {
+              finalUtgstRate = gstRate.utgst; // UTGST always applied
+
               if (useIGST) {
-                // IGST calculation
+                // Case 2: Different state -> IGST + UTGST
                 finalIgstRate = gstRate.igst;
-                final totalGstRate = finalIgstRate;
+                final totalGstRate = finalIgstRate + finalUtgstRate;
 
                 // Reverse calculation: basePrice = total / (1 + totalGstRate/100)
                 final baseAmount =
                     item.totalAmount / (1 + (totalGstRate / 100));
                 finalRate = baseAmount / item.quantity;
                 finalIgstAmount = baseAmount * (finalIgstRate / 100);
+                finalUtgstAmount = baseAmount * (finalUtgstRate / 100);
 
-                print('  → IGST: ${finalIgstRate}%');
+                print('  → IGST: ${finalIgstRate}%, UTGST: ${finalUtgstRate}%');
                 print(
                   '  → Base Amount: ₹${baseAmount.toStringAsFixed(2)}, Rate: ₹${finalRate.toStringAsFixed(2)}',
                 );
               } else {
-                // CGST + SGST calculation
+                // Case 1 & 3: Same state or No GST -> CGST + SGST + UTGST
                 finalCgstRate = gstRate.cgst;
                 finalSgstRate = gstRate.sgst;
-                final totalGstRate = finalCgstRate + finalSgstRate;
+                final totalGstRate =
+                    finalCgstRate + finalSgstRate + finalUtgstRate;
 
                 // Reverse calculation: basePrice = total / (1 + totalGstRate/100)
                 final baseAmount =
@@ -288,8 +301,11 @@ class PurchaseBillAutomationViewModel
                 finalRate = baseAmount / item.quantity;
                 finalCgstAmount = baseAmount * (finalCgstRate / 100);
                 finalSgstAmount = baseAmount * (finalSgstRate / 100);
+                finalUtgstAmount = baseAmount * (finalUtgstRate / 100);
 
-                print('  → CGST: ${finalCgstRate}%, SGST: ${finalSgstRate}%');
+                print(
+                  '  → CGST: ${finalCgstRate}%, SGST: ${finalSgstRate}%, UTGST: ${finalUtgstRate}%',
+                );
                 print(
                   '  → Base Amount: ₹${baseAmount.toStringAsFixed(2)}, Rate: ₹${finalRate.toStringAsFixed(2)}',
                 );
@@ -308,19 +324,29 @@ class PurchaseBillAutomationViewModel
             finalRate = product.costPrice;
 
             if (gstRate != null) {
+              finalUtgstRate = gstRate.utgst;
+
               if (useIGST) {
+                // Case 2: IGST + UTGST
                 finalIgstRate = gstRate.igst;
                 final baseAmount = finalRate * item.quantity;
                 finalIgstAmount = baseAmount * (finalIgstRate / 100);
-                finalTotalAmount = baseAmount + finalIgstAmount;
+                finalUtgstAmount = baseAmount * (finalUtgstRate / 100);
+                finalTotalAmount =
+                    baseAmount + finalIgstAmount + finalUtgstAmount;
               } else {
+                // Case 1 & 3: CGST + SGST + UTGST
                 finalCgstRate = gstRate.cgst;
                 finalSgstRate = gstRate.sgst;
                 final baseAmount = finalRate * item.quantity;
                 finalCgstAmount = baseAmount * (finalCgstRate / 100);
                 finalSgstAmount = baseAmount * (finalSgstRate / 100);
+                finalUtgstAmount = baseAmount * (finalUtgstRate / 100);
                 finalTotalAmount =
-                    baseAmount + finalCgstAmount + finalSgstAmount;
+                    baseAmount +
+                    finalCgstAmount +
+                    finalSgstAmount +
+                    finalUtgstAmount;
               }
             } else {
               finalTotalAmount = finalRate * item.quantity;
@@ -328,7 +354,6 @@ class PurchaseBillAutomationViewModel
           }
 
           // Create enriched item
-          // Note: For IGST transactions, we store IGST in cgstRate/cgstAmount fields
           final enrichedItem = ParsedInvoiceItem(
             partNumber: item.partNumber,
             description: item.description,
@@ -336,14 +361,20 @@ class PurchaseBillAutomationViewModel
             quantity: item.quantity,
             uqc: item.uqc,
             rate: finalRate,
-            cgstRate: useIGST ? finalIgstRate : finalCgstRate,
-            sgstRate: useIGST ? 0 : finalSgstRate,
-            cgstAmount: useIGST ? finalIgstAmount : finalCgstAmount,
-            sgstAmount: useIGST ? 0 : finalSgstAmount,
+            cgstRate: finalCgstRate,
+            sgstRate: finalSgstRate,
+            igstRate: finalIgstRate,
+            utgstRate: finalUtgstRate,
+            cgstAmount: finalCgstAmount,
+            sgstAmount: finalSgstAmount,
+            igstAmount: finalIgstAmount,
+            utgstAmount: finalUtgstAmount,
             totalAmount: finalTotalAmount,
             isApproved: false,
             isTaxable: item.isTaxable,
             isPriceFromBill: isPriceFromBill,
+            dbProductName: product.name,
+            dbProductDescription: product.description,
           );
 
           productMatches[matchedItems.length] = product.id;
@@ -428,9 +459,11 @@ class PurchaseBillAutomationViewModel
   void selectAllValidProducts() {
     if (state.parsedInvoice == null) return;
 
-    final items = state.parsedInvoice!.items
-        .map((item) => item.copyWith(isApproved: true))
-        .toList();
+    final items = state.parsedInvoice!.items.map((item) {
+      // Only approve items where Rate <= Total (valid entries)
+      final isValid = item.rate <= item.totalAmount;
+      return item.copyWith(isApproved: isValid);
+    }).toList();
 
     final updatedInvoice = _recalculateTotals(items);
     state = state.copyWith(parsedInvoice: updatedInvoice);
@@ -530,6 +563,36 @@ class PurchaseBillAutomationViewModel
       final parsed = state.parsedInvoice!;
       final vendorId = state.selectedVendorId!;
 
+      // Get selected vendor from database to check GST
+      final selectedVendor = await _vendorRepository!.getVendorById(vendorId);
+      if (selectedVendor == null) {
+        state = state.copyWith(
+          isCreating: false,
+          error: 'Selected vendor not found in database',
+        );
+        return;
+      }
+
+      // Get primary company info for GST comparison
+      final companyInfo = await _companyInfoRepository!.getPrimaryCompanyInfo();
+      final companyGstPrefix = companyInfo?.gstNumber?.substring(0, 2) ?? '';
+      final vendorGstPrefix = selectedVendor.gstNumber?.substring(0, 2) ?? '';
+
+      // Determine GST calculation method
+      // Case 1: Same state (both GST prefixes match) -> CGST + SGST + UTGST
+      // Case 2: No vendor GST -> CGST + SGST + UTGST
+      // Case 3: Different state -> IGST + UTGST
+      final useIGST =
+          vendorGstPrefix.isNotEmpty &&
+          companyGstPrefix.isNotEmpty &&
+          vendorGstPrefix != companyGstPrefix;
+
+      print('\n=== GST Calculation for Purchase Bill ===');
+      print('Company GST Prefix: $companyGstPrefix');
+      print('Selected Vendor GST Prefix: $vendorGstPrefix');
+      print('Use IGST: $useIGST');
+      print('=========================================\n');
+
       // Filter approved items only
       final approvedItems = <ParsedInvoiceItem>[];
       final approvedIndices = <int>[];
@@ -547,6 +610,90 @@ class PurchaseBillAutomationViewModel
           error: 'No items approved. Please approve at least one item.',
         );
         return;
+      }
+
+      // Recalculate GST for approved items based on selected vendor
+      for (int i = 0; i < approvedItems.length; i++) {
+        final item = approvedItems[i];
+        final index = approvedIndices[i];
+
+        // Get product to fetch HSN code ID
+        final productId = state.productMatches[index];
+        if (productId == null) continue;
+
+        final product = await _productRepository!.getProductById(productId);
+        if (product == null) continue;
+
+        // Get GST rates from database using HSN code ID
+        final gstRate = await _gstRateRepository!.getGstRateByHsnCodeId(
+          product.hsnCodeId,
+        );
+
+        double cgstRate = 0;
+        double sgstRate = 0;
+        double igstRate = 0;
+        double utgstRate = 0;
+
+        if (gstRate != null) {
+          // Determine tax type based on vendor GST
+          if (useIGST) {
+            // Different state: Use IGST + UTGST
+            igstRate = gstRate.igst;
+            utgstRate = gstRate.utgst;
+          } else {
+            // Same state or no vendor GST: Use CGST + SGST + UTGST
+            cgstRate = gstRate.cgst;
+            sgstRate = gstRate.sgst;
+            utgstRate = gstRate.utgst;
+          }
+
+          // Reverse calculate base amount and tax amounts
+          final totalGstRate = cgstRate + sgstRate + igstRate + utgstRate;
+          final baseAmount = totalGstRate > 0
+              ? item.totalAmount / (1 + (totalGstRate / 100))
+              : item.totalAmount;
+
+          final cgstAmount = (baseAmount * cgstRate) / 100;
+          final sgstAmount = (baseAmount * sgstRate) / 100;
+          final igstAmount = (baseAmount * igstRate) / 100;
+          final utgstAmount = (baseAmount * utgstRate) / 100;
+
+          // Calculate rate (per unit price with tax)
+          final rate = item.quantity > 0
+              ? item.totalAmount / item.quantity
+              : 0.0;
+
+          // Update the approved item with recalculated GST
+          approvedItems[i] = ParsedInvoiceItem(
+            partNumber: item.partNumber,
+            description: item.description,
+            hsnCode: item.hsnCode,
+            uqc: item.uqc,
+            quantity: item.quantity,
+            rate: rate,
+            cgstRate: cgstRate,
+            sgstRate: sgstRate,
+            igstRate: igstRate,
+            utgstRate: utgstRate,
+            cgstAmount: cgstAmount,
+            sgstAmount: sgstAmount,
+            igstAmount: igstAmount,
+            utgstAmount: utgstAmount,
+            totalAmount: item.totalAmount,
+            isPriceFromBill: item.isPriceFromBill,
+            isApproved: item.isApproved,
+            dbProductName: item.dbProductName,
+            dbProductDescription: item.dbProductDescription,
+          );
+
+          print(
+            'Item ${item.partNumber}: Total=${item.totalAmount}, '
+            'CGST=${cgstRate.toStringAsFixed(2)}%, '
+            'SGST=${sgstRate.toStringAsFixed(2)}%, '
+            'IGST=${igstRate.toStringAsFixed(2)}%, '
+            'UTGST=${utgstRate.toStringAsFixed(2)}%',
+          );
+        }
       }
 
       // All items in the list already have product matches (filtered during parse)
@@ -592,10 +739,18 @@ class PurchaseBillAutomationViewModel
       double subtotal = 0;
       double taxAmount = 0;
       for (final item in approvedItems) {
-        final baseAmount =
-            item.totalAmount / (1 + ((item.cgstRate + item.sgstRate) / 100));
+        // Calculate base amount (without tax)
+        final totalGstRate =
+            item.igstRate + item.utgstRate + item.cgstRate + item.sgstRate;
+        final baseAmount = totalGstRate > 0
+            ? item.totalAmount / (1 + (totalGstRate / 100))
+            : item.totalAmount;
         subtotal += baseAmount;
-        taxAmount += item.cgstAmount + item.sgstAmount;
+        taxAmount +=
+            item.cgstAmount +
+            item.sgstAmount +
+            item.igstAmount +
+            item.utgstAmount;
       }
       final totalAmount = subtotal + taxAmount;
 
@@ -613,16 +768,21 @@ class PurchaseBillAutomationViewModel
         updatedAt: DateTime.now(),
       );
 
-      // Create purchase items
+      // Create purchase items using recalculated GST values
       final purchaseItems = <PurchaseItem>[];
       final taxableFlags = <bool>[];
 
-      for (final index in approvedIndices) {
-        final item = parsed.items[index];
+      for (int i = 0; i < approvedItems.length; i++) {
+        final item = approvedItems[i]; // Use recalculated items
+        final index = approvedIndices[i];
         final productId = state.productMatches[index]!;
 
-        final baseAmount =
-            item.totalAmount / (1 + ((item.cgstRate + item.sgstRate) / 100));
+        // Calculate base amount (without tax)
+        final totalGstRate =
+            item.igstRate + item.utgstRate + item.cgstRate + item.sgstRate;
+        final baseAmount = totalGstRate > 0
+            ? item.totalAmount / (1 + (totalGstRate / 100))
+            : item.totalAmount;
 
         purchaseItems.add(
           PurchaseItem(
@@ -636,11 +796,17 @@ class PurchaseBillAutomationViewModel
             subtotal: baseAmount,
             cgstRate: item.cgstRate,
             sgstRate: item.sgstRate,
-            igstAmount: 0.0,
-            utgstAmount: 0.0,
+            igstRate: item.igstRate,
+            utgstRate: item.utgstRate,
             cgstAmount: item.cgstAmount,
             sgstAmount: item.sgstAmount,
-            taxAmount: item.cgstAmount + item.sgstAmount,
+            igstAmount: item.igstAmount,
+            utgstAmount: item.utgstAmount,
+            taxAmount:
+                item.cgstAmount +
+                item.sgstAmount +
+                item.igstAmount +
+                item.utgstAmount,
             totalAmount: item.totalAmount,
           ),
         );

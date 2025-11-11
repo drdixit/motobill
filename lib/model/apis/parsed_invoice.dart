@@ -47,13 +47,19 @@ class ParsedInvoiceItem {
   final double rate;
   final double cgstRate;
   final double sgstRate;
+  final double igstRate;
+  final double utgstRate;
   final double cgstAmount;
   final double sgstAmount;
+  final double igstAmount;
+  final double utgstAmount;
   final double totalAmount;
   bool isApproved;
   bool isTaxable;
   final bool
   isPriceFromBill; // Track if price is from bill (true) or database (false)
+  final String? dbProductName; // Product name from database
+  final String? dbProductDescription; // Product description from database
 
   ParsedInvoiceItem({
     required this.partNumber,
@@ -64,12 +70,18 @@ class ParsedInvoiceItem {
     required this.rate,
     required this.cgstRate,
     required this.sgstRate,
+    required this.igstRate,
+    required this.utgstRate,
     required this.cgstAmount,
     required this.sgstAmount,
+    required this.igstAmount,
+    required this.utgstAmount,
     required this.totalAmount,
     this.isApproved = false,
     this.isTaxable = true,
     this.isPriceFromBill = true, // Default: assume price is from bill
+    this.dbProductName,
+    this.dbProductDescription,
   });
 
   ParsedInvoiceItem copyWith({
@@ -79,9 +91,15 @@ class ParsedInvoiceItem {
     double? rate,
     double? cgstRate,
     double? sgstRate,
+    double? igstRate,
+    double? utgstRate,
     double? cgstAmount,
     double? sgstAmount,
+    double? igstAmount,
+    double? utgstAmount,
     double? totalAmount,
+    String? dbProductName,
+    String? dbProductDescription,
   }) {
     return ParsedInvoiceItem(
       partNumber: partNumber,
@@ -92,12 +110,18 @@ class ParsedInvoiceItem {
       rate: rate ?? this.rate,
       cgstRate: cgstRate ?? this.cgstRate,
       sgstRate: sgstRate ?? this.sgstRate,
+      igstRate: igstRate ?? this.igstRate,
+      utgstRate: utgstRate ?? this.utgstRate,
       cgstAmount: cgstAmount ?? this.cgstAmount,
       sgstAmount: sgstAmount ?? this.sgstAmount,
+      igstAmount: igstAmount ?? this.igstAmount,
+      utgstAmount: utgstAmount ?? this.utgstAmount,
       totalAmount: totalAmount ?? this.totalAmount,
       isApproved: isApproved ?? this.isApproved,
       isTaxable: isTaxable ?? this.isTaxable,
       isPriceFromBill: isPriceFromBill ?? this.isPriceFromBill,
+      dbProductName: dbProductName ?? this.dbProductName,
+      dbProductDescription: dbProductDescription ?? this.dbProductDescription,
     );
   }
 }
