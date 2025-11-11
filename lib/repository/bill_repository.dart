@@ -922,6 +922,28 @@ class BillRepository {
         isTaxableBill ? 1 : 0,
       ],
     );
+
+    // Automatically add payment for auto-purchase (mark as paid with cash)
+    await txn.rawInsert(
+      '''INSERT INTO purchase_payments
+         (purchase_id, amount, payment_method, payment_date, notes, created_at, updated_at)
+         VALUES (?, ?, 'cash', ?, 'Auto-payment for auto-generated purchase', ?, ?)''',
+      [
+        purchaseId,
+        totalAmount,
+        now.toIso8601String(),
+        now.toIso8601String(),
+        now.toIso8601String(),
+      ],
+    );
+
+    // Update purchase to mark as paid
+    await txn.rawUpdate(
+      '''UPDATE purchases
+         SET paid_amount = ?, payment_status = 'paid', updated_at = ?
+         WHERE id = ?''',
+      [totalAmount, now.toIso8601String(), purchaseId],
+    );
   }
 
   // ==================== PAYMENT METHODS ====================

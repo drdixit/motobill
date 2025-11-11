@@ -81,6 +81,56 @@ final availableStockForPurchaseProvider =
       return repo.getAvailableStockForPurchase(purchaseId);
     });
 
+// Check if purchase has any returnable stock (for showing Create Debit Note button)
+final purchaseHasReturnableStockProvider = FutureProvider.family<bool, int>((
+  ref,
+  purchaseId,
+) async {
+  final db = await ref.watch(databaseProvider);
+
+  // Get purchase items
+  final purchaseRepo = PurchaseRepository(db);
+  final items = await purchaseRepo.getPurchaseItems(purchaseId);
+  if (items.isEmpty) return false;
+
+  // Get returned quantities
+  final debitNoteRepo = DebitNoteRepository(db);
+  final returnedMap = <int, int>{};
+  final returnedRows = await db.rawQuery(
+    '''SELECT dni.purchase_item_id, SUM(dni.quantity) as returned_qty
+       FROM debit_note_items dni
+       INNER JOIN debit_notes dn ON dni.debit_note_id = dn.id
+       WHERE dn.purchase_id = ? AND dni.is_deleted = 0 AND dn.is_deleted = 0
+       GROUP BY dni.purchase_item_id''',
+    [purchaseId],
+  );
+  for (final r in returnedRows) {
+    returnedMap[r['purchase_item_id'] as int] = (r['returned_qty'] as num)
+        .toInt();
+  }
+
+  // Get available stock
+  final availableStock = await debitNoteRepo.getAvailableStockForPurchase(
+    purchaseId,
+  );
+
+  // Check if any item has both remaining quantity and available stock
+  for (final item in items) {
+    final itemId = item['id'] as int;
+    final boughtQty = item['quantity'] as int;
+    final alreadyReturned = returnedMap[itemId] ?? 0;
+    final remaining = boughtQty - alreadyReturned;
+    final stock = availableStock[itemId] ?? 0;
+
+    // If there's anything that can be returned (both remaining and stock available)
+    if (remaining > 0 && stock > 0) {
+      return true;
+    }
+  }
+
+  return false;
+});
+
 class DebitNotesScreen extends ConsumerStatefulWidget {
   const DebitNotesScreen({super.key});
 
@@ -276,17 +326,45 @@ class _DebitNotesScreenState extends ConsumerState<DebitNotesScreen>
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            // Don't show Create Debit Note button for auto purchases
-                            if ((p['is_auto_purchase'] as int? ?? 0) == 0)
-                              IconButton(
-                                icon: const Icon(Icons.note_add_outlined),
-                                color: AppColors.primary,
-                                onPressed: () => _openCreateDebitNote(
-                                  context,
-                                  p['id'] as int,
-                                ),
-                                tooltip: 'Create Debit Note',
-                              ),
+                            // Show Create Debit Note button only if purchase has returnable stock
+                            Consumer(
+                              builder: (context, ref, child) {
+                                final hasStockAsync = ref.watch(
+                                  purchaseHasReturnableStockProvider(
+                                    p['id'] as int,
+                                  ),
+                                );
+                                return hasStockAsync.when(
+                                  data: (hasStock) {
+                                    if (!hasStock)
+                                      return const SizedBox.shrink();
+                                    return IconButton(
+                                      icon: const Icon(Icons.note_add_outlined),
+                                      color: AppColors.primary,
+                                      onPressed: () => _openCreateDebitNote(
+                                        context,
+                                        p['id'] as int,
+                                      ),
+                                      tooltip: 'Create Debit Note',
+                                    );
+                                  },
+                                  loading: () => const SizedBox(
+                                    width: 48,
+                                    height: 48,
+                                    child: Center(
+                                      child: SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  error: (_, __) => const SizedBox.shrink(),
+                                );
+                              },
+                            ),
                             IconButton(
                               icon: const Icon(Icons.receipt_long),
                               onPressed: () =>
