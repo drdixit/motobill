@@ -337,18 +337,6 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                             fontFamily: 'Roboto',
                           ),
                         ),
-                      if (product.isTaxable)
-                        const Padding(
-                          padding: EdgeInsets.only(left: AppSizes.paddingM),
-                          child: Text(
-                            '(Taxable)',
-                            style: TextStyle(
-                              fontSize: AppSizes.fontS,
-                              color: AppColors.textSecondary,
-                              fontFamily: 'Roboto',
-                            ),
-                          ),
-                        ),
                     ],
                   ),
                 ],
