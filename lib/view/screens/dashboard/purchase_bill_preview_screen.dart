@@ -168,7 +168,7 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Invoice Header
-                _buildInvoiceHeader(invoice, state),
+                _buildInvoiceHeader(invoice, state, viewModel),
                 const SizedBox(height: 8),
 
                 // Vendor Info
@@ -211,7 +211,9 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: state.isCreating
+                    onPressed:
+                        (state.isCreating ||
+                            !invoice.items.any((item) => item.isApproved))
                         ? null
                         : () => viewModel.createPurchaseBill(),
                     icon: state.isCreating
@@ -233,6 +235,8 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey.shade300,
+                      disabledForegroundColor: Colors.grey.shade600,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(6),
@@ -250,9 +254,13 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
   Widget _buildInvoiceHeader(
     ParsedInvoice invoice,
     PurchaseBillAutomationState state,
+    PurchaseBillAutomationViewModel viewModel,
   ) {
     // Format invoice number in our format (e.g., PB-001)
     final formattedInvoiceNumber = 'PB-${invoice.invoiceNumber}';
+
+    // Get next purchase bill number from state
+    final nextBillNumber = state.nextPurchaseNumber ?? 'Loading...';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -285,6 +293,20 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
           ),
           const SizedBox(width: 16),
           const Text(
+            'Will Create:',
+            style: TextStyle(color: Colors.grey, fontSize: 11),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            nextBillNumber,
+            style: const TextStyle(
+              fontWeight: FontWeight.w500,
+              fontSize: 12,
+              color: Colors.blue,
+            ),
+          ),
+          const SizedBox(width: 16),
+          const Text(
             'Invoice Date:',
             style: TextStyle(color: Colors.grey, fontSize: 11),
           ),
@@ -292,6 +314,51 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
           Text(
             invoice.invoiceDate,
             style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+          ),
+          const SizedBox(width: 16),
+          // Stock Type Toggle
+          const Text(
+            'Stock Type:',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(width: 8),
+          // Non-Taxable (Orange)
+          InkWell(
+            onTap: () {
+              if (state.isBillTaxable) {
+                viewModel.toggleBillTaxable();
+              }
+            },
+            child: Container(
+              width: 40,
+              height: 20,
+              decoration: BoxDecoration(
+                color: !state.isBillTaxable ? Colors.orange : Colors.grey[300],
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(10),
+                  bottomLeft: Radius.circular(10),
+                ),
+              ),
+            ),
+          ),
+          // Taxable (Green)
+          InkWell(
+            onTap: () {
+              if (!state.isBillTaxable) {
+                viewModel.toggleBillTaxable();
+              }
+            },
+            child: Container(
+              width: 40,
+              height: 20,
+              decoration: BoxDecoration(
+                color: state.isBillTaxable ? Colors.green : Colors.grey[300],
+                borderRadius: const BorderRadius.only(
+                  topRight: Radius.circular(10),
+                  bottomRight: Radius.circular(10),
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -363,10 +430,14 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
-                _buildInfoRow('Name', invoice.vendor.name),
-                _buildInfoRow('GSTIN', invoice.vendor.gstin),
-                _buildInfoRow('City', invoice.vendor.city),
-                _buildInfoRow('State', invoice.vendor.state),
+                if (invoice.vendor.name.isNotEmpty)
+                  _buildInfoRow('Name', invoice.vendor.name),
+                if (invoice.vendor.gstin.isNotEmpty)
+                  _buildInfoRow('GSTIN', invoice.vendor.gstin),
+                if (invoice.vendor.city.isNotEmpty)
+                  _buildInfoRow('City', invoice.vendor.city),
+                if (invoice.vendor.state.isNotEmpty)
+                  _buildInfoRow('State', invoice.vendor.state),
               ],
             ),
           ),
@@ -440,84 +511,6 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                     ),
                   const SizedBox(height: 12),
                 ],
-
-                // Stock Type Toggle
-                const Text(
-                  'Stock Type:',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Non-Taxable (Orange)
-                    InkWell(
-                      onTap: () {
-                        if (state.isBillTaxable) {
-                          viewModel.toggleBillTaxable();
-                        }
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: !state.isBillTaxable
-                              ? Colors.orange
-                              : Colors.grey[200],
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(6),
-                            bottomLeft: Radius.circular(6),
-                          ),
-                        ),
-                        child: Text(
-                          'Non-Taxable',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: !state.isBillTaxable
-                                ? Colors.white
-                                : Colors.grey[600],
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Taxable (Green)
-                    InkWell(
-                      onTap: () {
-                        if (!state.isBillTaxable) {
-                          viewModel.toggleBillTaxable();
-                        }
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: state.isBillTaxable
-                              ? Colors.green
-                              : Colors.grey[200],
-                          borderRadius: const BorderRadius.only(
-                            topRight: Radius.circular(6),
-                            bottomRight: Radius.circular(6),
-                          ),
-                        ),
-                        child: Text(
-                          'Taxable',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: state.isBillTaxable
-                                ? Colors.white
-                                : Colors.grey[600],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
               ],
             ),
           ),
@@ -571,7 +564,7 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(8),
             child: Row(
               children: [
                 const Icon(
@@ -625,16 +618,17 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                     headingRowColor: MaterialStateProperty.all(
                       Colors.grey[100],
                     ),
-                    dataRowMinHeight: 36,
-                    dataRowMaxHeight: 60,
-                    columnSpacing: 12,
-                    horizontalMargin: 12,
+                    dataRowMinHeight: 32,
+                    dataRowMaxHeight: 52,
+                    columnSpacing: 6,
+                    horizontalMargin: 6,
+                    headingRowHeight: 36,
                     headingTextStyle: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 11,
+                      fontSize: 13,
                       color: Colors.black87,
                     ),
-                    dataTextStyle: const TextStyle(fontSize: 11),
+                    dataTextStyle: const TextStyle(fontSize: 13),
                     columns: const [
                       DataColumn(label: Text('Approve')),
                       DataColumn(label: Text('Part Number')),
@@ -666,7 +660,7 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                               item.partNumber,
                               style: const TextStyle(
                                 fontWeight: FontWeight.w500,
-                                fontSize: 11,
+                                fontSize: 13,
                               ),
                             ),
                           ),
@@ -677,32 +671,42 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                                 item.description,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 11),
+                                style: const TextStyle(fontSize: 13),
                               ),
                             ),
                           ),
                           DataCell(
                             Text(
                               item.hsnCode,
-                              style: const TextStyle(fontSize: 11),
+                              style: const TextStyle(fontSize: 13),
                             ),
                           ),
                           DataCell(
                             Text(
                               item.quantity.toString(),
-                              style: const TextStyle(fontSize: 11),
+                              style: const TextStyle(fontSize: 13),
                             ),
                           ),
                           DataCell(
                             Text(
                               '₹${item.rate.toStringAsFixed(2)}',
-                              style: const TextStyle(fontSize: 11),
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: item.isPriceFromBill
+                                    ? Colors.black
+                                    : Colors.blue[700],
+                              ),
                             ),
                           ),
                           DataCell(
                             Text(
                               '₹${item.totalAmount.toStringAsFixed(2)}',
-                              style: const TextStyle(fontSize: 11),
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: item.isPriceFromBill
+                                    ? Colors.black
+                                    : Colors.blue[700],
+                              ),
                             ),
                           ),
                         ],
@@ -729,7 +733,7 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(8),
             child: Row(
               children: [
                 const Icon(Icons.warning_amber, color: Colors.orange, size: 16),
@@ -751,7 +755,7 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
           ),
           const Divider(height: 1),
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -772,16 +776,17 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                           headingRowColor: MaterialStateProperty.all(
                             Colors.orange[100],
                           ),
-                          dataRowMinHeight: 36,
-                          dataRowMaxHeight: 60,
-                          columnSpacing: 12,
+                          dataRowMinHeight: 32,
+                          dataRowMaxHeight: 52,
+                          columnSpacing: 6,
                           horizontalMargin: 0,
+                          headingRowHeight: 36,
                           headingTextStyle: const TextStyle(
                             fontWeight: FontWeight.bold,
-                            fontSize: 11,
+                            fontSize: 13,
                             color: Colors.black87,
                           ),
-                          dataTextStyle: const TextStyle(fontSize: 11),
+                          dataTextStyle: const TextStyle(fontSize: 13),
                           columns: const [
                             DataColumn(label: Text('Part Number')),
                             DataColumn(label: Text('Description')),
@@ -798,7 +803,7 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                                     item.partNumber,
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w500,
-                                      fontSize: 11,
+                                      fontSize: 13,
                                     ),
                                   ),
                                 ),
@@ -809,32 +814,32 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                                       item.description,
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(fontSize: 11),
+                                      style: const TextStyle(fontSize: 13),
                                     ),
                                   ),
                                 ),
                                 DataCell(
                                   Text(
                                     item.hsnCode,
-                                    style: const TextStyle(fontSize: 11),
+                                    style: const TextStyle(fontSize: 13),
                                   ),
                                 ),
                                 DataCell(
                                   Text(
                                     item.quantity.toString(),
-                                    style: const TextStyle(fontSize: 11),
+                                    style: const TextStyle(fontSize: 13),
                                   ),
                                 ),
                                 DataCell(
                                   Text(
                                     '₹${item.rate.toStringAsFixed(2)}',
-                                    style: const TextStyle(fontSize: 11),
+                                    style: const TextStyle(fontSize: 13),
                                   ),
                                 ),
                                 DataCell(
                                   Text(
                                     '₹${item.totalAmount.toStringAsFixed(2)}',
-                                    style: const TextStyle(fontSize: 11),
+                                    style: const TextStyle(fontSize: 13),
                                   ),
                                 ),
                               ],

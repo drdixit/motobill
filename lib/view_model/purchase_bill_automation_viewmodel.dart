@@ -8,6 +8,7 @@ import '../repository/vendor_repository.dart';
 import '../repository/product_repository.dart';
 import '../repository/purchase_repository.dart';
 import '../repository/hsn_code_repository.dart';
+import '../repository/gst_rate_repository.dart';
 import '../core/providers/database_provider.dart';
 
 // Repository providers
@@ -31,6 +32,11 @@ final _hsnRepoProvider = FutureProvider<HsnCodeRepository>((ref) async {
   return HsnCodeRepository(db);
 });
 
+final _gstRateRepoProvider = FutureProvider<GstRateRepository>((ref) async {
+  final db = await ref.watch(databaseProvider);
+  return GstRateRepository(db);
+});
+
 // State for purchase bill automation
 class PurchaseBillAutomationState {
   final bool isLoading;
@@ -45,6 +51,7 @@ class PurchaseBillAutomationState {
   final List<Vendor> availableVendors; // For vendor selection
   final List<Product> availableProducts; // For product selection
   final List<ParsedInvoiceItem> unmatchedItems; // Items not found in database
+  final String? nextPurchaseNumber; // Next purchase bill number to be created
 
   PurchaseBillAutomationState({
     this.isLoading = false,
@@ -59,6 +66,7 @@ class PurchaseBillAutomationState {
     this.availableVendors = const [],
     this.availableProducts = const [],
     this.unmatchedItems = const [],
+    this.nextPurchaseNumber,
   });
 
   PurchaseBillAutomationState copyWith({
@@ -74,6 +82,7 @@ class PurchaseBillAutomationState {
     List<Vendor>? availableVendors,
     List<Product>? availableProducts,
     List<ParsedInvoiceItem>? unmatchedItems,
+    String? nextPurchaseNumber,
   }) {
     return PurchaseBillAutomationState(
       isLoading: isLoading ?? this.isLoading,
@@ -88,6 +97,7 @@ class PurchaseBillAutomationState {
       availableVendors: availableVendors ?? this.availableVendors,
       availableProducts: availableProducts ?? this.availableProducts,
       unmatchedItems: unmatchedItems ?? this.unmatchedItems,
+      nextPurchaseNumber: nextPurchaseNumber ?? this.nextPurchaseNumber,
     );
   }
 }
@@ -98,12 +108,14 @@ class PurchaseBillAutomationViewModel
   final ProductRepository? _productRepository;
   final PurchaseRepository? _purchaseRepository;
   final HsnCodeRepository? _hsnRepository;
+  final GstRateRepository? _gstRateRepository;
 
   PurchaseBillAutomationViewModel(
     this._vendorRepository,
     this._productRepository,
     this._purchaseRepository,
     this._hsnRepository,
+    this._gstRateRepository,
   ) : super(PurchaseBillAutomationState());
 
   // Constructor for loading state
@@ -112,6 +124,7 @@ class PurchaseBillAutomationViewModel
       _productRepository = null,
       _purchaseRepository = null,
       _hsnRepository = null,
+      _gstRateRepository = null,
       super(PurchaseBillAutomationState());
 
   /// Parse API response and prepare data
@@ -119,7 +132,8 @@ class PurchaseBillAutomationViewModel
     if (_vendorRepository == null ||
         _productRepository == null ||
         _purchaseRepository == null ||
-        _hsnRepository == null)
+        _hsnRepository == null ||
+        _gstRateRepository == null)
       return;
 
     state = state.copyWith(isLoading: true, error: null, successMessage: null);
@@ -175,7 +189,7 @@ class PurchaseBillAutomationViewModel
         final item = parsed.items[i];
         print('\nChecking item ${i + 1}: "${item.partNumber}"');
 
-        final product = await _productRepository!.getProductByPartNumber(
+        final product = await _productRepository.getProductByPartNumber(
           item.partNumber,
         );
 
@@ -188,7 +202,7 @@ class PurchaseBillAutomationViewModel
           String finalHsnCode = item.hsnCode;
           if (finalHsnCode.isEmpty || finalHsnCode.trim().isEmpty) {
             // Get HSN code from database
-            final hsnCodeObj = await _hsnRepository!.getHsnCodeById(
+            final hsnCodeObj = await _hsnRepository.getHsnCodeById(
               product.hsnCodeId,
             );
             if (hsnCodeObj != null) {
@@ -197,21 +211,77 @@ class PurchaseBillAutomationViewModel
             }
           }
 
-          // Create enriched item with database HSN code
+          // Check if price is present in bill (rate > 0 and totalAmount > 0)
+          final hasPriceInBill = item.rate > 0 && item.totalAmount > 0;
+          bool isPriceFromBill = hasPriceInBill;
+
+          double finalRate = item.rate;
+          double finalCgstRate = item.cgstRate;
+          double finalSgstRate = item.sgstRate;
+          double finalCgstAmount = item.cgstAmount;
+          double finalSgstAmount = item.sgstAmount;
+          double finalTotalAmount = item.totalAmount;
+
+          if (!hasPriceInBill) {
+            // No price in bill - use database price and calculate taxes
+            print(
+              '  → No price in bill, using database price: ${product.costPrice}',
+            );
+            isPriceFromBill = false;
+
+            // Base price from database
+            finalRate = product.costPrice;
+
+            // Get GST rates from database
+            final gstRate = await _gstRateRepository.getGstRateByHsnCodeId(
+              product.hsnCodeId,
+            );
+
+            if (gstRate != null) {
+              finalCgstRate = gstRate.cgst;
+              finalSgstRate = gstRate.sgst;
+
+              // Calculate tax amounts on base price
+              final baseAmount = finalRate * item.quantity;
+              finalCgstAmount = (baseAmount * finalCgstRate) / 100;
+              finalSgstAmount = (baseAmount * finalSgstRate) / 100;
+              finalTotalAmount = baseAmount + finalCgstAmount + finalSgstAmount;
+
+              print(
+                '  → Applied GST: CGST ${finalCgstRate}%, SGST ${finalSgstRate}%',
+              );
+              print('  → Calculated Total: ₹$finalTotalAmount');
+            } else {
+              // No GST rate found - use base price without tax
+              finalCgstRate = 0;
+              finalSgstRate = 0;
+              finalCgstAmount = 0;
+              finalSgstAmount = 0;
+              finalTotalAmount = finalRate * item.quantity;
+              print('  → No GST rate found, using price without tax');
+            }
+          } else {
+            print(
+              '  → Using price from bill: Rate ₹${item.rate}, Total ₹${item.totalAmount}',
+            );
+          }
+
+          // Create enriched item
           final enrichedItem = ParsedInvoiceItem(
             partNumber: item.partNumber,
             description: item.description,
             hsnCode: finalHsnCode,
             quantity: item.quantity,
             uqc: item.uqc,
-            rate: item.rate,
-            cgstRate: item.cgstRate,
-            sgstRate: item.sgstRate,
-            cgstAmount: item.cgstAmount,
-            sgstAmount: item.sgstAmount,
-            totalAmount: item.totalAmount,
+            rate: finalRate,
+            cgstRate: finalCgstRate,
+            sgstRate: finalSgstRate,
+            cgstAmount: finalCgstAmount,
+            sgstAmount: finalSgstAmount,
+            totalAmount: finalTotalAmount,
             isApproved: false,
             isTaxable: item.isTaxable,
+            isPriceFromBill: isPriceFromBill,
           );
 
           productMatches[matchedItems.length] = product.id;
@@ -248,6 +318,10 @@ class PurchaseBillAutomationViewModel
         availableVendors = await _vendorRepository.getAllVendors();
       }
 
+      // Get next purchase number
+      final nextPurchaseNumber = await _purchaseRepository
+          .generatePurchaseNumber();
+
       state = state.copyWith(
         isLoading: false,
         parsedInvoice: filteredInvoice,
@@ -257,6 +331,7 @@ class PurchaseBillAutomationViewModel
         availableVendors: availableVendors,
         availableProducts: [], // Don't load all products - too slow
         unmatchedItems: unmatchedItems, // Store unmatched items
+        nextPurchaseNumber: nextPurchaseNumber,
       );
 
       // Show info about unmatched items
@@ -547,19 +622,22 @@ final purchaseBillAutomationViewModelProvider =
       final productRepoAsync = ref.watch(_productRepoProvider);
       final purchaseRepoAsync = ref.watch(_purchaseRepoProvider);
       final hsnRepoAsync = ref.watch(_hsnRepoProvider);
+      final gstRateRepoAsync = ref.watch(_gstRateRepoProvider);
 
       // All repos must be loaded
       if (vendorRepoAsync.isLoading ||
           productRepoAsync.isLoading ||
           purchaseRepoAsync.isLoading ||
-          hsnRepoAsync.isLoading) {
+          hsnRepoAsync.isLoading ||
+          gstRateRepoAsync.isLoading) {
         return PurchaseBillAutomationViewModel._loading();
       }
 
       if (vendorRepoAsync.hasError ||
           productRepoAsync.hasError ||
           purchaseRepoAsync.hasError ||
-          hsnRepoAsync.hasError) {
+          hsnRepoAsync.hasError ||
+          gstRateRepoAsync.hasError) {
         return PurchaseBillAutomationViewModel._loading();
       }
 
@@ -568,5 +646,6 @@ final purchaseBillAutomationViewModelProvider =
         productRepoAsync.value,
         purchaseRepoAsync.value,
         hsnRepoAsync.value,
+        gstRateRepoAsync.value,
       );
     });

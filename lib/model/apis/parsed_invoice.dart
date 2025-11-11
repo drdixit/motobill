@@ -52,6 +52,8 @@ class ParsedInvoiceItem {
   final double totalAmount;
   bool isApproved;
   bool isTaxable;
+  final bool
+  isPriceFromBill; // Track if price is from bill (true) or database (false)
 
   ParsedInvoiceItem({
     required this.partNumber,
@@ -67,23 +69,35 @@ class ParsedInvoiceItem {
     required this.totalAmount,
     this.isApproved = false,
     this.isTaxable = true,
+    this.isPriceFromBill = true, // Default: assume price is from bill
   });
 
-  ParsedInvoiceItem copyWith({bool? isApproved, bool? isTaxable}) {
+  ParsedInvoiceItem copyWith({
+    bool? isApproved,
+    bool? isTaxable,
+    bool? isPriceFromBill,
+    double? rate,
+    double? cgstRate,
+    double? sgstRate,
+    double? cgstAmount,
+    double? sgstAmount,
+    double? totalAmount,
+  }) {
     return ParsedInvoiceItem(
       partNumber: partNumber,
       description: description,
       hsnCode: hsnCode,
       quantity: quantity,
       uqc: uqc,
-      rate: rate,
-      cgstRate: cgstRate,
-      sgstRate: sgstRate,
-      cgstAmount: cgstAmount,
-      sgstAmount: sgstAmount,
-      totalAmount: totalAmount,
+      rate: rate ?? this.rate,
+      cgstRate: cgstRate ?? this.cgstRate,
+      sgstRate: sgstRate ?? this.sgstRate,
+      cgstAmount: cgstAmount ?? this.cgstAmount,
+      sgstAmount: sgstAmount ?? this.sgstAmount,
+      totalAmount: totalAmount ?? this.totalAmount,
       isApproved: isApproved ?? this.isApproved,
       isTaxable: isTaxable ?? this.isTaxable,
+      isPriceFromBill: isPriceFromBill ?? this.isPriceFromBill,
     );
   }
 }
