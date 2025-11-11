@@ -196,14 +196,14 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
         // Bottom action bar
         if (state.successMessage == null)
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
                   color: Colors.grey.shade300,
-                  blurRadius: 3,
-                  offset: const Offset(0, -1),
+                  blurRadius: 4,
+                  offset: const Offset(0, -2),
                 ),
               ],
             ),
@@ -218,28 +218,28 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                         : () => viewModel.createPurchaseBill(),
                     icon: state.isCreating
                         ? const SizedBox(
-                            width: 16,
-                            height: 16,
+                            width: 18,
+                            height: 18,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               color: Colors.white,
                             ),
                           )
-                        : const Icon(Icons.check, size: 16),
+                        : const Icon(Icons.check, size: 18),
                     label: Text(
                       state.isCreating
                           ? 'Creating Purchase Bill...'
                           : 'Create Purchase Bill',
-                      style: const TextStyle(fontSize: 12),
+                      style: const TextStyle(fontSize: 15),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
                       disabledBackgroundColor: Colors.grey.shade300,
                       disabledForegroundColor: Colors.grey.shade600,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                     ),
                   ),
@@ -263,15 +263,15 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
     final nextBillNumber = state.nextPurchaseNumber ?? 'Loading...';
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.shade200,
-            blurRadius: 3,
-            offset: const Offset(0, 1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -279,49 +279,49 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
         children: [
           const Text(
             'Invoice Details',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 20),
           const Text(
             'Invoice Number:',
-            style: TextStyle(color: Colors.grey, fontSize: 11),
+            style: TextStyle(color: Colors.grey, fontSize: 14),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 6),
           Text(
             formattedInvoiceNumber,
-            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 20),
           const Text(
             'Will Create:',
-            style: TextStyle(color: Colors.grey, fontSize: 11),
+            style: TextStyle(color: Colors.grey, fontSize: 14),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 6),
           Text(
             nextBillNumber,
             style: const TextStyle(
               fontWeight: FontWeight.w500,
-              fontSize: 12,
+              fontSize: 14,
               color: Colors.blue,
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 20),
           const Text(
             'Invoice Date:',
-            style: TextStyle(color: Colors.grey, fontSize: 11),
+            style: TextStyle(color: Colors.grey, fontSize: 14),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 6),
           Text(
             invoice.invoiceDate,
-            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
           ),
-          const SizedBox(width: 16),
-          // Stock Type Toggle
+          const Spacer(),
+          // Stock Type Toggle - moved to right side
           const Text(
             'Stock Type:',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 12),
           // Non-Taxable (Orange)
           InkWell(
             onTap: () {
@@ -330,8 +330,8 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
               }
             },
             child: Container(
-              width: 40,
-              height: 20,
+              width: 50,
+              height: 28,
               decoration: BoxDecoration(
                 color: !state.isBillTaxable ? Colors.orange : Colors.grey[300],
                 borderRadius: const BorderRadius.only(
@@ -349,13 +349,13 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
               }
             },
             child: Container(
-              width: 40,
-              height: 20,
+              width: 50,
+              height: 28,
               decoration: BoxDecoration(
                 color: state.isBillTaxable ? Colors.green : Colors.grey[300],
                 borderRadius: const BorderRadius.only(
-                  topRight: Radius.circular(10),
-                  bottomRight: Radius.circular(10),
+                  topRight: Radius.circular(14),
+                  bottomRight: Radius.circular(14),
                 ),
               ),
             ),
@@ -374,15 +374,15 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
     final vendorSelected = state.selectedVendorId != null;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.shade200,
-            blurRadius: 3,
-            offset: const Offset(0, 1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -400,21 +400,21 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                     const Text(
                       'Vendor Information',
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 12),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
+                        horizontal: 8,
+                        vertical: 3,
                       ),
                       decoration: BoxDecoration(
                         color: vendorExists
                             ? Colors.green[100]
                             : Colors.orange[100],
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
                         vendorExists ? 'Found' : 'Not Found',
@@ -422,14 +422,14 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                           color: vendorExists
                               ? Colors.green[700]
                               : Colors.orange[700],
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 if (invoice.vendor.name.isNotEmpty)
                   _buildInfoRow('Name', invoice.vendor.name),
                 if (invoice.vendor.gstin.isNotEmpty)
@@ -442,7 +442,7 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
             ),
           ),
 
-          const SizedBox(width: 16),
+          const SizedBox(width: 20),
 
           // Vendor Selection & Stock Type (Right Side)
           Expanded(
@@ -456,16 +456,16 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                     'Select Vendor:',
                     style: TextStyle(
                       fontWeight: FontWeight.w500,
-                      fontSize: 11,
+                      fontSize: 14,
                       color: Colors.black87,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
                       border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<int>(
@@ -473,9 +473,9 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                         value: state.selectedVendorId,
                         hint: const Text(
                           'Choose...',
-                          style: TextStyle(fontSize: 11),
+                          style: TextStyle(fontSize: 14),
                         ),
-                        menuMaxHeight: 250,
+                        menuMaxHeight: 300,
                         items: state.availableVendors.map((vendor) {
                           return DropdownMenuItem<int>(
                             value: vendor.id,
@@ -484,7 +484,7 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                                       vendor.gstNumber!.isNotEmpty
                                   ? '${vendor.name} (${vendor.gstNumber})'
                                   : vendor.name,
-                              style: const TextStyle(fontSize: 11),
+                              style: const TextStyle(fontSize: 14),
                               overflow: TextOverflow.ellipsis,
                             ),
                           );
@@ -499,17 +499,17 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                   ),
                   if (!vendorSelected)
                     Padding(
-                      padding: const EdgeInsets.only(top: 4),
+                      padding: const EdgeInsets.only(top: 6),
                       child: Text(
                         'Please select a vendor to continue.',
                         style: TextStyle(
                           color: Colors.red[700],
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
                 ],
               ],
             ),
@@ -521,21 +521,21 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
 
   Widget _buildInfoRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 70,
+            width: 80,
             child: Text(
               '$label:',
-              style: const TextStyle(color: Colors.grey, fontSize: 11),
+              style: const TextStyle(color: Colors.grey, fontSize: 13),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 11),
+              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
             ),
           ),
         ],
@@ -551,12 +551,12 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.shade200,
-            blurRadius: 3,
-            offset: const Offset(0, 1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -564,19 +564,19 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(12),
             child: Row(
               children: [
                 const Icon(
                   Icons.check_circle_outline,
                   color: Colors.green,
-                  size: 16,
+                  size: 20,
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 8),
                 Text(
                   'Matched Items (${invoice.items.length})',
                   style: const TextStyle(
-                    fontSize: 13,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -584,25 +584,25 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                 // Select All button
                 ElevatedButton.icon(
                   onPressed: () => viewModel.selectAllValidProducts(),
-                  icon: const Icon(Icons.check_box, size: 14),
+                  icon: const Icon(Icons.check_box, size: 16),
                   label: const Text(
                     'Select All',
-                    style: TextStyle(fontSize: 11),
+                    style: TextStyle(fontSize: 13),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green[600],
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
+                      horizontal: 14,
+                      vertical: 10,
                     ),
                     minimumSize: const Size(0, 0),
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 10),
                 Text(
                   'Products found in database',
-                  style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                  style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                 ),
               ],
             ),
@@ -618,17 +618,17 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                     headingRowColor: MaterialStateProperty.all(
                       Colors.grey[100],
                     ),
-                    dataRowMinHeight: 32,
-                    dataRowMaxHeight: 52,
-                    columnSpacing: 6,
-                    horizontalMargin: 6,
-                    headingRowHeight: 36,
+                    dataRowMinHeight: 40,
+                    dataRowMaxHeight: 60,
+                    columnSpacing: 10,
+                    horizontalMargin: 12,
+                    headingRowHeight: 44,
                     headingTextStyle: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 13,
+                      fontSize: 14,
                       color: Colors.black87,
                     ),
-                    dataTextStyle: const TextStyle(fontSize: 13),
+                    dataTextStyle: const TextStyle(fontSize: 14),
                     columns: const [
                       DataColumn(label: Text('Approve')),
                       DataColumn(label: Text('Part Number')),
@@ -660,38 +660,38 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                               item.partNumber,
                               style: const TextStyle(
                                 fontWeight: FontWeight.w500,
-                                fontSize: 13,
+                                fontSize: 14,
                               ),
                             ),
                           ),
                           DataCell(
                             SizedBox(
-                              width: 180,
+                              width: 200,
                               child: Text(
                                 item.description,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 13),
+                                style: const TextStyle(fontSize: 14),
                               ),
                             ),
                           ),
                           DataCell(
                             Text(
                               item.hsnCode,
-                              style: const TextStyle(fontSize: 13),
+                              style: const TextStyle(fontSize: 14),
                             ),
                           ),
                           DataCell(
                             Text(
                               item.quantity.toString(),
-                              style: const TextStyle(fontSize: 13),
+                              style: const TextStyle(fontSize: 14),
                             ),
                           ),
                           DataCell(
                             Text(
                               '₹${item.rate.toStringAsFixed(2)}',
                               style: TextStyle(
-                                fontSize: 13,
+                                fontSize: 14,
                                 color: item.isPriceFromBill
                                     ? Colors.black
                                     : Colors.blue[700],
@@ -702,7 +702,7 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                             Text(
                               '₹${item.totalAmount.toStringAsFixed(2)}',
                               style: TextStyle(
-                                fontSize: 13,
+                                fontSize: 14,
                                 color: item.isPriceFromBill
                                     ? Colors.black
                                     : Colors.blue[700],
@@ -727,43 +727,43 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
       decoration: BoxDecoration(
         color: Colors.orange[50],
         border: Border.all(color: Colors.orange[200]!),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                const Icon(Icons.warning_amber, color: Colors.orange, size: 16),
-                const SizedBox(width: 6),
+                const Icon(Icons.warning_amber, color: Colors.orange, size: 20),
+                const SizedBox(width: 8),
                 Text(
                   'Excluded Items (${state.unmatchedItems.length})',
                   style: const TextStyle(
-                    fontSize: 13,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 const Spacer(),
                 Text(
                   'Products NOT found in database',
-                  style: TextStyle(fontSize: 10, color: Colors.grey[700]),
+                  style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                 ),
               ],
             ),
           ),
           const Divider(height: 1),
           Padding(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'These items were not included in the bill because they are not in your product database. Add them to your database and re-parse the invoice to include them.',
-                  style: TextStyle(fontSize: 10, color: Colors.grey[700]),
+                  style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 LayoutBuilder(
                   builder: (context, constraints) {
                     return SingleChildScrollView(
@@ -776,17 +776,17 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                           headingRowColor: MaterialStateProperty.all(
                             Colors.orange[100],
                           ),
-                          dataRowMinHeight: 32,
-                          dataRowMaxHeight: 52,
-                          columnSpacing: 6,
+                          dataRowMinHeight: 40,
+                          dataRowMaxHeight: 60,
+                          columnSpacing: 10,
                           horizontalMargin: 0,
-                          headingRowHeight: 36,
+                          headingRowHeight: 44,
                           headingTextStyle: const TextStyle(
                             fontWeight: FontWeight.bold,
-                            fontSize: 13,
+                            fontSize: 14,
                             color: Colors.black87,
                           ),
-                          dataTextStyle: const TextStyle(fontSize: 13),
+                          dataTextStyle: const TextStyle(fontSize: 14),
                           columns: const [
                             DataColumn(label: Text('Part Number')),
                             DataColumn(label: Text('Description')),
@@ -803,43 +803,43 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                                     item.partNumber,
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w500,
-                                      fontSize: 13,
+                                      fontSize: 14,
                                     ),
                                   ),
                                 ),
                                 DataCell(
                                   SizedBox(
-                                    width: 180,
+                                    width: 200,
                                     child: Text(
                                       item.description,
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(fontSize: 13),
+                                      style: const TextStyle(fontSize: 14),
                                     ),
                                   ),
                                 ),
                                 DataCell(
                                   Text(
                                     item.hsnCode,
-                                    style: const TextStyle(fontSize: 13),
+                                    style: const TextStyle(fontSize: 14),
                                   ),
                                 ),
                                 DataCell(
                                   Text(
                                     item.quantity.toString(),
-                                    style: const TextStyle(fontSize: 13),
+                                    style: const TextStyle(fontSize: 14),
                                   ),
                                 ),
                                 DataCell(
                                   Text(
                                     '₹${item.rate.toStringAsFixed(2)}',
-                                    style: const TextStyle(fontSize: 13),
+                                    style: const TextStyle(fontSize: 14),
                                   ),
                                 ),
                                 DataCell(
                                   Text(
                                     '₹${item.totalAmount.toStringAsFixed(2)}',
-                                    style: const TextStyle(fontSize: 13),
+                                    style: const TextStyle(fontSize: 14),
                                   ),
                                 ),
                               ],
@@ -860,15 +860,15 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
 
   Widget _buildTotals(ParsedInvoice invoice) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.shade200,
-            blurRadius: 3,
-            offset: const Offset(0, 1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -877,9 +877,9 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
         children: [
           const Text(
             'Total',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           _buildTotalRow('Grand Total', invoice.totalAmount, isBold: true),
         ],
       ),
@@ -888,14 +888,14 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
 
   Widget _buildTotalRow(String label, double amount, {bool isBold = false}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
             label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 14,
               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
               color: isBold ? Colors.black : Colors.grey[700],
             ),
@@ -903,7 +903,7 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
           Text(
             '₹${amount.toStringAsFixed(2)}',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 14,
               fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
             ),
           ),
