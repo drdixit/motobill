@@ -244,6 +244,87 @@ class PosProductCard extends StatelessWidget {
     return '₹${product.sellingPrice.toStringAsFixed(0)}';
   }
 
+  String _getCostPriceWithTax() {
+    if (product.isTaxable) {
+      // Calculate cost price with tax (CGST + SGST + CESS)
+      final cgstRate = product.cgstRate ?? 0.0;
+      final sgstRate = product.sgstRate ?? 0.0;
+      final utgstRate = product.utgstRate ?? 0.0; // CESS
+      final totalTaxRate = cgstRate + sgstRate + utgstRate;
+      final priceWithTax = product.costPrice * (1 + totalTaxRate / 100);
+      return '₹${priceWithTax.toStringAsFixed(2)}';
+    }
+    return '₹${product.costPrice.toStringAsFixed(2)}';
+  }
+
+  String _getSellingPriceWithTax() {
+    if (product.isTaxable) {
+      // Calculate selling price with tax (CGST + SGST + CESS)
+      final cgstRate = product.cgstRate ?? 0.0;
+      final sgstRate = product.sgstRate ?? 0.0;
+      final utgstRate = product.utgstRate ?? 0.0; // CESS
+      final totalTaxRate = cgstRate + sgstRate + utgstRate;
+      final priceWithTax = product.sellingPrice * (1 + totalTaxRate / 100);
+      return '₹${priceWithTax.toStringAsFixed(2)}';
+    }
+    return '₹${product.sellingPrice.toStringAsFixed(2)}';
+  }
+
+  Widget _buildStockRow() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 140,
+            child: Text(
+              'Total Stock',
+              style: TextStyle(
+                fontSize: AppSizes.fontM,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSizes.paddingM),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: TextStyle(
+                  fontSize: AppSizes.fontM,
+                  fontWeight: FontWeight.w600,
+                ),
+                children: [
+                  TextSpan(
+                    text: '${product.stock}',
+                    style: TextStyle(color: AppColors.textPrimary),
+                  ),
+                  TextSpan(
+                    text: ' / ',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                  TextSpan(
+                    text: '${product.taxableStock}',
+                    style: TextStyle(color: Colors.green.shade700),
+                  ),
+                  TextSpan(
+                    text: ' / ',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                  TextSpan(
+                    text: '${product.nonTaxableStock}',
+                    style: TextStyle(color: Colors.orange.shade700),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildProductImage() {
     if (product.imagePath != null && product.imagePath!.isNotEmpty) {
       final imagePath = 'C:\\motobill\\database\\images\\${product.imagePath}';
@@ -343,25 +424,10 @@ class PosProductCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: AppSizes.paddingS),
-                _buildInfoRow(
-                  'Cost Price',
-                  '₹${product.costPrice.toStringAsFixed(2)}',
-                ),
-                _buildInfoRow(
-                  'Selling Price',
-                  '₹${product.sellingPrice.toStringAsFixed(2)}',
-                ),
+                _buildInfoRow('Cost Price', _getCostPriceWithTax()),
+                _buildInfoRow('Selling Price', _getSellingPriceWithTax()),
                 if (product.mrp != null && product.mrp! > 0)
                   _buildInfoRow('MRP', '₹${product.mrp!.toStringAsFixed(2)}'),
-                if (product.isTaxable) ...[
-                  _buildInfoRow('Price with Tax', _getPriceText()),
-                  if (product.cgstRate != null && product.cgstRate! > 0)
-                    _buildInfoRow('CGST Rate', '${product.cgstRate}%'),
-                  if (product.sgstRate != null && product.sgstRate! > 0)
-                    _buildInfoRow('SGST Rate', '${product.sgstRate}%'),
-                  if (product.utgstRate != null && product.utgstRate! > 0)
-                    _buildInfoRow('CESS Rate', '${product.utgstRate}%'),
-                ],
 
                 const SizedBox(height: AppSizes.paddingM),
 
@@ -375,17 +441,7 @@ class PosProductCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: AppSizes.paddingS),
-                _buildInfoRow('Total Stock', '${product.stock}'),
-                _buildInfoRow(
-                  'Taxable Stock',
-                  '${product.taxableStock}',
-                  valueColor: Colors.green.shade700,
-                ),
-                _buildInfoRow(
-                  'Non-Taxable Stock',
-                  '${product.nonTaxableStock}',
-                  valueColor: Colors.orange.shade700,
-                ),
+                _buildStockRow(),
                 if (product.negativeAllow)
                   _buildInfoRow(
                     'Negative Allowed',
