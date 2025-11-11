@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../repository/purchase_repository.dart';
+import '../../widgets/payment_history_dialog.dart';
 
 // Provider for purchase details
 final purchaseDetailsProvider = FutureProvider.family<Map<String, dynamic>?, int>((
@@ -15,6 +16,9 @@ final purchaseDetailsProvider = FutureProvider.family<Map<String, dynamic>?, int
   if (purchase == null) return null;
 
   final items = await repository.getPurchaseItems(purchaseId);
+
+  // Fetch purchase payments
+  final payments = await repository.getPurchasePayments(purchaseId);
 
   // Separate taxable and non-taxable items
   final taxableItems = items.where((item) {
@@ -200,6 +204,7 @@ final purchaseDetailsProvider = FutureProvider.family<Map<String, dynamic>?, int
     'taxableItems': transformedTaxableItems,
     'nonTaxableItems': transformedNonTaxableItems,
     'debitNotes': debitNotesWithItems,
+    'payments': payments,
   };
 });
 
@@ -228,6 +233,7 @@ class PurchaseDetailsScreen extends ConsumerWidget {
           final nonTaxableItems =
               data['nonTaxableItems'] as List<Map<String, dynamic>>;
           final debitNotes = data['debitNotes'] as List<Map<String, dynamic>>;
+          final payments = data['payments'] as List<Map<String, dynamic>>;
 
           return Container(
             color: Colors.white,
@@ -236,13 +242,19 @@ class PurchaseDetailsScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Vendor Details and Purchase Information side by side
+                  // Vendor Details and Payment Status side by side
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(child: _buildVendorDetails(purchase)),
                       const SizedBox(width: 48),
-                      Expanded(child: _buildPurchaseInfo(purchase)),
+                      Expanded(
+                        child: _buildPaymentStatusSection(
+                          purchase,
+                          payments,
+                          ref,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 32),
@@ -315,27 +327,6 @@ class PurchaseDetailsScreen extends ConsumerWidget {
         if (vendorEmail != null && vendorEmail.isNotEmpty)
           _buildDetailRow('Email', vendorEmail),
         if (address != null) _buildDetailRow('Address', address),
-      ],
-    );
-  }
-
-  Widget _buildPurchaseInfo(Map<String, dynamic> purchase) {
-    final purchaseNumber = purchase['purchase_number'] as String? ?? 'N/A';
-    final referenceNumber = purchase['reference_number'] as String?;
-    final purchaseDate = purchase['purchase_date'] as String? ?? 'N/A';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'PURCHASE INFORMATION',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 12),
-        _buildDetailRow('Purchase Number', purchaseNumber),
-        if (referenceNumber != null && referenceNumber.isNotEmpty)
-          _buildDetailRow('Reference Number', referenceNumber),
-        _buildDetailRow('Purchase Date', purchaseDate),
       ],
     );
   }
@@ -589,6 +580,150 @@ class PurchaseDetailsScreen extends ConsumerWidget {
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
           ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPaymentStatusSection(
+    Map<String, dynamic> purchase,
+    List<dynamic> payments,
+    WidgetRef ref,
+  ) {
+    final purchaseNumber = purchase['purchase_number'] as String? ?? 'N/A';
+    final purchaseDate = purchase['purchase_date'] as String? ?? 'N/A';
+    final total = (purchase['total'] as num?)?.toDouble() ?? 0.0;
+    final paidAmount = payments.fold<double>(
+      0,
+      (sum, payment) => sum + ((payment['amount'] as num?)?.toDouble() ?? 0),
+    );
+    final remainingAmount = total - paidAmount;
+
+    // Determine payment status
+    String paymentStatus;
+    if (paidAmount <= 0) {
+      paymentStatus = 'unpaid';
+    } else if (paidAmount >= total) {
+      paymentStatus = 'paid';
+    } else {
+      paymentStatus = 'partial';
+    }
+
+    // Determine status color, label, and icon
+    Color statusColor;
+    String statusLabel;
+    IconData statusIcon;
+
+    switch (paymentStatus) {
+      case 'paid':
+        statusColor = Colors.green;
+        statusLabel = 'Fully Paid';
+        statusIcon = Icons.check_circle;
+        break;
+      case 'partial':
+        statusColor = Colors.orange;
+        statusLabel = 'Partially Paid';
+        statusIcon = Icons.access_time;
+        break;
+      default:
+        statusColor = Colors.red;
+        statusLabel = 'Unpaid';
+        statusIcon = Icons.cancel;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'PURCHASE INFORMATION',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        _buildDetailRow('Purchase Number', purchaseNumber),
+        _buildDetailRow('Purchase Date', purchaseDate),
+        const SizedBox(height: 12),
+        const Text(
+          'PAYMENT STATUS',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: statusColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: statusColor.withOpacity(0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(statusIcon, color: statusColor, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    statusLabel,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: statusColor,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _buildPaymentRow('Total Amount', total, Colors.black87),
+              if (paidAmount > 0) ...[
+                const SizedBox(height: 4),
+                _buildPaymentRow('Paid Amount', paidAmount, Colors.green),
+              ],
+              if (remainingAmount > 0.01) ...[
+                const SizedBox(height: 4),
+                _buildPaymentRow('Remaining', remainingAmount, Colors.orange),
+              ],
+              if (payments.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    showDialog(
+                      context: ref.context,
+                      builder: (context) => PaymentHistoryDialog(
+                        payments: payments.cast<Map<String, dynamic>>(),
+                        totalAmount: total,
+                        paidAmount: paidAmount,
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.receipt_long),
+                  label: Text('View ${payments.length} Payment(s)'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: statusColor,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPaymentRow(String label, double amount, Color color) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 14, color: color.withOpacity(0.8)),
+        ),
+        Text(
+          '₹${amount.toStringAsFixed(2)}',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
         ),
       ],
     );

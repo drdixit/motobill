@@ -325,6 +325,52 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 ),
                         ),
                       ),
+                      const SizedBox(height: 16),
+                      // Temporary Quick Login Button for Testing
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: OutlinedButton(
+                          onPressed: _isLoading
+                              ? null
+                              : () {
+                                  Navigator.of(
+                                    context,
+                                  ).pushReplacementNamed('/home');
+                                },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.orange.shade600,
+                            side: BorderSide(
+                              color: Colors.orange.shade600,
+                              width: 2,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            backgroundColor: Colors.orange.shade50,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.flash_on,
+                                color: Colors.orange.shade600,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Quick Login (Testing)',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  letterSpacing: 0.5,
+                                  color: Colors.orange.shade600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
