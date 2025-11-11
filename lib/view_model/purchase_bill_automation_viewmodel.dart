@@ -138,6 +138,40 @@ class PurchaseBillAutomationViewModel
       _companyInfoRepository = null,
       super(PurchaseBillAutomationState());
 
+  /// Helper function to extract part number from product description
+  /// Examples:
+  /// "TVS SIDE TRIM RH IQUBE T.GREY MAT KE22023980" -> "KE22023980"
+  /// "TVS MOBILE CHARGER RADEON/JUPITER ND160350" -> "ND160350"
+  /// "TVS PANEL FR TOP JUPITER 125 GREY KL2205708D" -> "KL2205708D"
+  String? _extractPartNumberFromDescription(String description) {
+    if (description.isEmpty) return null;
+
+    // Pattern: Find the last word that looks like a part number
+    // Part numbers typically end with alphanumeric characters
+    // and are often at the end of the description
+    final words = description.trim().split(RegExp(r'\s+'));
+
+    // Check last few words for part number pattern
+    // Part numbers usually have letters followed by numbers
+    // or mixed alphanumeric (e.g., KE22023980, ND160350, KL2205708D)
+    for (int i = words.length - 1; i >= 0 && i >= words.length - 3; i--) {
+      final word = words[i].toUpperCase();
+
+      // Check if word matches part number pattern:
+      // - At least 6 characters long
+      // - Contains both letters and numbers
+      // - Alphanumeric only (no special chars except maybe dash/underscore)
+      if (word.length >= 6 &&
+          RegExp(r'^[A-Z0-9\-_]+$').hasMatch(word) &&
+          RegExp(r'[A-Z]').hasMatch(word) &&
+          RegExp(r'[0-9]').hasMatch(word)) {
+        return word;
+      }
+    }
+
+    return null;
+  }
+
   /// Parse API response and prepare data
   Future<void> parseInvoiceResponse(String jsonResponse) async {
     if (_vendorRepository == null ||
@@ -210,27 +244,67 @@ class PurchaseBillAutomationViewModel
         final item = parsed.items[i];
         print('\nChecking item ${i + 1}: "${item.partNumber}"');
 
-        final product = await _productRepository.getProductByPartNumber(
+        Product? product;
+        String matchedPartNumber = item.partNumber;
+
+        // Step 1: Try direct match with part number from API response
+        product = await _productRepository.getProductByPartNumber(
           item.partNumber,
         );
 
         if (product != null) {
-          // Product found - enrich with database HSN code if invoice HSN is empty
+          print(
+            '  ✓ MATCHED (API part number) - Found product ID: ${product.id}, Name: ${product.name}, Part: ${product.partNumber}',
+          );
+        } else {
+          // Step 2: Extract part number from description and try matching
+          if (item.description.isNotEmpty) {
+            final extractedPartNumber = _extractPartNumberFromDescription(
+              item.description,
+            );
+
+            if (extractedPartNumber != null) {
+              print(
+                '  → Extracted part number from description: "$extractedPartNumber"',
+              );
+
+              // Try matching with extracted part number
+              // getProductByPartNumber already does case-insensitive search
+              product = await _productRepository.getProductByPartNumber(
+                extractedPartNumber,
+              );
+
+              if (product != null) {
+                matchedPartNumber = extractedPartNumber;
+                print(
+                  '  ✓ MATCHED (extracted from description) - Found product ID: ${product.id}, Name: ${product.name}, Part: ${product.partNumber}',
+                );
+              }
+            }
+          }
+        }
+
+        if (product != null) {
+          // Product found - use ALL data from database
           print(
             '  ✓ MATCHED - Found product ID: ${product.id}, Name: ${product.name}',
           );
 
-          String finalHsnCode = item.hsnCode;
-          if (finalHsnCode.isEmpty || finalHsnCode.trim().isEmpty) {
-            // Get HSN code from database
-            final hsnCodeObj = await _hsnRepository.getHsnCodeById(
-              product.hsnCodeId,
-            );
-            if (hsnCodeObj != null) {
-              finalHsnCode = hsnCodeObj.code;
-              print('  → Using HSN code from database: $finalHsnCode');
-            }
+          // Get HSN code from database
+          String finalHsnCode = '';
+          final hsnCodeObj = await _hsnRepository.getHsnCodeById(
+            product.hsnCodeId,
+          );
+          if (hsnCodeObj != null) {
+            finalHsnCode = hsnCodeObj.code;
+            print('  → Using HSN code from database: $finalHsnCode');
           }
+
+          // Get UQC code from database - will be properly fetched in createPurchaseBill
+          // For now, store product UQC ID for later use
+          String finalUqcCode =
+              'UQC_${product.uqcId}'; // Placeholder, will be replaced
+          print('  → UQC ID from database: ${product.uqcId}');
 
           // Always calculate GST reverse from total (bill prices include GST)
           // Determine GST calculation method based on vendor GST prefix
@@ -355,11 +429,12 @@ class PurchaseBillAutomationViewModel
 
           // Create enriched item
           final enrichedItem = ParsedInvoiceItem(
-            partNumber: item.partNumber,
+            partNumber:
+                matchedPartNumber, // Use the matched part number (API or extracted)
             description: item.description,
             hsnCode: finalHsnCode,
             quantity: item.quantity,
-            uqc: item.uqc,
+            uqc: finalUqcCode, // Use UQC placeholder with ID
             rate: finalRate,
             cgstRate: finalCgstRate,
             sgstRate: finalSgstRate,
@@ -662,9 +737,11 @@ class PurchaseBillAutomationViewModel
           final igstAmount = (baseAmount * igstRate) / 100;
           final utgstAmount = (baseAmount * utgstRate) / 100;
 
-          // Calculate rate (per unit price with tax)
+          // Calculate rate (per unit price WITHOUT tax - base price)
           final rate = item.quantity > 0
-              ? item.totalAmount / item.quantity
+              ? baseAmount /
+                    item
+                        .quantity // Base price per unit (without tax)
               : 0.0;
 
           // Update the approved item with recalculated GST
@@ -790,13 +867,26 @@ class PurchaseBillAutomationViewModel
             ? item.totalAmount / (1 + (totalGstRate / 100))
             : item.totalAmount;
 
+        // Fetch UQC code from database using product
+        final product = await _productRepository!.getProductById(productId);
+        String uqcCode = 'PCS'; // Default fallback
+
+        if (product != null && item.uqc.startsWith('UQC_')) {
+          // UQC from database - for now use default
+          // TODO: Add method to fetch UQC code from uqcs table
+          uqcCode = 'PCS';
+        } else if (!item.uqc.startsWith('UQC_')) {
+          uqcCode = item.uqc;
+        }
+
         purchaseItems.add(
           PurchaseItem(
             productId: productId,
-            productName: item.description,
+            productName:
+                item.dbProductName ?? item.description, // Use DB product name
             partNumber: item.partNumber,
             hsnCode: item.hsnCode,
-            uqcCode: item.uqc,
+            uqcCode: uqcCode, // Use fetched UQC code
             costPrice: item.rate,
             quantity: item.quantity,
             subtotal: baseAmount,
