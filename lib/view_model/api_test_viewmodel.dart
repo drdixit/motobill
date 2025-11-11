@@ -17,6 +17,7 @@ class ApiTestState {
   final String responseInfo;
   final String? error;
   final String fullResponseBody; // Store complete response for parsing
+  final int? statusCode; // Store HTTP status code
 
   ApiTestState({
     this.isLoading = false,
@@ -24,7 +25,12 @@ class ApiTestState {
     this.responseInfo = '',
     this.error,
     this.fullResponseBody = '',
+    this.statusCode,
   });
+
+  // Check if response is successful (HTTP 200-299)
+  bool get isSuccess =>
+      statusCode != null && statusCode! >= 200 && statusCode! < 300;
 
   ApiTestState copyWith({
     bool? isLoading,
@@ -32,6 +38,7 @@ class ApiTestState {
     String? responseInfo,
     String? error,
     String? fullResponseBody,
+    int? statusCode,
   }) {
     return ApiTestState(
       isLoading: isLoading ?? this.isLoading,
@@ -39,6 +46,7 @@ class ApiTestState {
       responseInfo: responseInfo ?? this.responseInfo,
       error: error ?? this.error,
       fullResponseBody: fullResponseBody ?? this.fullResponseBody,
+      statusCode: statusCode ?? this.statusCode,
     );
   }
 }
@@ -54,6 +62,7 @@ class ApiTestViewModel extends StateNotifier<ApiTestState> {
         error: 'URL cannot be empty',
         requestInfo: '',
         responseInfo: '',
+        statusCode: null,
       );
       return;
     }
@@ -63,6 +72,7 @@ class ApiTestViewModel extends StateNotifier<ApiTestState> {
       responseInfo: 'Starting request...',
       requestInfo: '',
       error: null,
+      statusCode: null,
     );
 
     await Future.delayed(const Duration(milliseconds: 100));
@@ -77,6 +87,7 @@ class ApiTestViewModel extends StateNotifier<ApiTestState> {
         requestInfo: requestInfo,
         responseInfo: _formatResponse(response),
         fullResponseBody: response.body, // Store full body
+        statusCode: response.statusCode, // Store status code
         error: null,
       );
     } catch (e) {
@@ -85,6 +96,7 @@ class ApiTestViewModel extends StateNotifier<ApiTestState> {
         requestInfo: '',
         responseInfo: '\n=== ERROR ===\n$e',
         error: e.toString(),
+        statusCode: null,
       );
     }
   }
@@ -99,6 +111,7 @@ class ApiTestViewModel extends StateNotifier<ApiTestState> {
         error: 'URL cannot be empty',
         requestInfo: '',
         responseInfo: '',
+        statusCode: null,
       );
       return;
     }
@@ -108,6 +121,7 @@ class ApiTestViewModel extends StateNotifier<ApiTestState> {
       responseInfo: 'Starting request...',
       requestInfo: '',
       error: null,
+      statusCode: null,
     );
 
     await Future.delayed(const Duration(milliseconds: 100));
@@ -151,6 +165,7 @@ class ApiTestViewModel extends StateNotifier<ApiTestState> {
         requestInfo: requestInfo,
         responseInfo: _formatResponse(response),
         fullResponseBody: response.body, // Store full body
+        statusCode: response.statusCode, // Store status code
         error: null,
       );
     } catch (e) {
@@ -159,6 +174,7 @@ class ApiTestViewModel extends StateNotifier<ApiTestState> {
         requestInfo: '',
         responseInfo: '\n=== ERROR ===\n$e',
         error: e.toString(),
+        statusCode: null,
       );
     }
   }

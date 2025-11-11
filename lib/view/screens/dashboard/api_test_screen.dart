@@ -5,7 +5,6 @@ import 'package:file_picker/file_picker.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../view_model/api_test_viewmodel.dart';
 import '../../widgets/api_test/api_url_field.dart';
-import '../../widgets/api_test/api_method_selector.dart';
 import '../../widgets/api_test/api_file_selector.dart';
 import '../../widgets/api_test/api_response_display.dart';
 import 'purchase_bill_preview_screen.dart';
@@ -21,8 +20,6 @@ class _ApiTestScreenState extends ConsumerState<ApiTestScreen> {
   final TextEditingController _urlController = TextEditingController(
     text: 'http://192.168.1.3/ci360/api/DocIntelligenece/Invoices/dummy',
   );
-  final List<String> _methods = ['GET', 'POST'];
-  String _selectedMethod = 'GET';
   File? _selectedFile;
   String? _selectedFileName;
 
@@ -65,18 +62,13 @@ class _ApiTestScreenState extends ConsumerState<ApiTestScreen> {
     final viewModel = ref.read(apiTestViewModelProvider.notifier);
     final url = _urlController.text.trim();
 
-    if (_selectedMethod == 'GET') {
-      viewModel.sendGetRequest(url);
-    } else if (_selectedMethod == 'POST') {
-      if (_selectedFile != null && _selectedFileName != null) {
-        viewModel.sendPostRequest(
-          url,
-          filePath: _selectedFile!.path,
-          fileName: _selectedFileName!,
-        );
-      } else {
-        viewModel.sendPostRequest(url);
-      }
+    // Always POST method with file
+    if (_selectedFile != null && _selectedFileName != null) {
+      viewModel.sendPostRequest(
+        url,
+        filePath: _selectedFile!.path,
+        fileName: _selectedFileName!,
+      );
     }
   }
 
@@ -118,59 +110,46 @@ class _ApiTestScreenState extends ConsumerState<ApiTestScreen> {
                   const SizedBox(height: 16),
                   ApiUrlField(controller: _urlController),
                   const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ApiMethodSelector(
-                          selectedMethod: _selectedMethod,
-                          methods: _methods,
-                          onChanged: (String? newValue) {
-                            if (newValue != null) {
-                              setState(() {
-                                _selectedMethod = newValue;
-                              });
-                            }
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: state.isLoading ? null : _handleTestApi,
-                          icon: state.isLoading
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Icon(Icons.send),
-                          label: Text(
-                            state.isLoading ? 'Processing...' : 'Test API',
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                  // Always show file selector for POST method
+                  ApiFileSelector(
+                    selectedFile: _selectedFile,
+                    selectedFileName: _selectedFileName,
+                    onSelectFile: _pickFile,
+                    onClearFile: _clearFile,
                   ),
-                  if (_selectedMethod == 'POST') ...[
-                    const SizedBox(height: 16),
-                    ApiFileSelector(
-                      selectedFile: _selectedFile,
-                      selectedFileName: _selectedFileName,
-                      onSelectFile: _pickFile,
-                      onClearFile: _clearFile,
+                  const SizedBox(height: 16),
+                  // Test API Button - only enabled when PDF is selected
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: (state.isLoading || _selectedFile == null)
+                          ? null
+                          : _handleTestApi,
+                      icon: state.isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.send),
+                      label: Text(
+                        state.isLoading ? 'Processing...' : 'Test API (POST)',
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: Colors.grey.shade300,
+                        disabledForegroundColor: Colors.grey.shade600,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
                     ),
-                  ],
+                  ),
                 ],
               ),
             ),
@@ -179,8 +158,8 @@ class _ApiTestScreenState extends ConsumerState<ApiTestScreen> {
               requestInfo: state.requestInfo,
               responseInfo: state.responseInfo,
             ),
-            // Parse Invoice Button
-            if (state.responseInfo.isNotEmpty)
+            // Parse Invoice Button - Only show when API response is successful
+            if (state.isSuccess)
               Padding(
                 padding: const EdgeInsets.only(top: 16),
                 child: ElevatedButton.icon(
