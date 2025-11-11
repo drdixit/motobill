@@ -36,10 +36,18 @@ class InvoiceParserService {
 
       final data = jsonDecode(cleanJson);
 
-      // Extract invoice details
-      final documents = data['analyzeResult']?['documents'];
+      // Extract invoice details - handle both response formats
+      // Format 1: { "analyzeResult": { "documents": [...] } }
+      // Format 2: { "documents": [...] } (direct)
+      var documents = data['analyzeResult']?['documents'];
+
+      // If not found in analyzeResult, check root level
+      if (documents == null) {
+        documents = data['documents'];
+      }
+
       if (documents == null || documents.isEmpty) {
-        print('ERROR: No documents found in analyzeResult');
+        print('ERROR: No documents found in response');
         print('Available keys in data: ${data.keys.toList()}');
         if (data['analyzeResult'] != null) {
           print(
@@ -99,9 +107,15 @@ class InvoiceParserService {
 
       // Extract line items
       final items = <ParsedInvoiceItem>[];
-      final itemsList =
+
+      // Handle both response formats:
+      // Format 1: valueArray with valueObject
+      // Format 2: valueList with valueDictionary
+      var itemsList =
           fields['Items']?['valueArray'] ??
           fields['items']?['valueArray'] ??
+          fields['Items']?['valueList'] ??
+          fields['items']?['valueList'] ??
           [];
 
       if (itemsList.isEmpty) {
@@ -111,7 +125,8 @@ class InvoiceParserService {
       }
 
       for (var item in itemsList) {
-        final itemFields = item['valueObject'];
+        // Try both valueObject and valueDictionary
+        final itemFields = item['valueObject'] ?? item['valueDictionary'];
         if (itemFields == null) continue;
 
         // Log fields in first item for debugging
