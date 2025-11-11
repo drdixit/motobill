@@ -79,7 +79,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         children: [
           // Header with Search
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             color: Colors.white,
             child: Row(
               children: [
@@ -88,10 +88,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     controller: _searchController,
                     decoration: InputDecoration(
                       hintText: 'Search by bill number or customer...',
-                      prefixIcon: const Icon(Icons.search),
+                      prefixIcon: const Icon(Icons.search, size: 20),
                       suffixIcon: _searchQuery.isNotEmpty
                           ? IconButton(
-                              icon: const Icon(Icons.clear),
+                              icon: const Icon(Icons.clear, size: 20),
                               onPressed: () {
                                 _searchController.clear();
                                 setState(() {
@@ -101,12 +101,13 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                             )
                           : null,
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(6),
                       ),
                       contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
+                        horizontal: 12,
+                        vertical: 10,
                       ),
+                      isDense: true,
                     ),
                     onChanged: (value) {
                       setState(() {
@@ -115,19 +116,23 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     },
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 // Bulk PDF Print Button
                 IconButton(
-                  icon: const Icon(Icons.print),
+                  icon: const Icon(Icons.print, size: 20),
                   onPressed: () => _showBulkPrintDialog(billsAsync.value ?? []),
                   tooltip: 'Print All Bills (PDF)',
                   color: Colors.blue,
+                  padding: const EdgeInsets.all(8),
+                  constraints: const BoxConstraints(),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 IconButton(
-                  icon: const Icon(Icons.refresh),
+                  icon: const Icon(Icons.refresh, size: 20),
                   onPressed: () => ref.invalidate(billsListProvider),
                   tooltip: 'Refresh',
+                  padding: const EdgeInsets.all(8),
+                  constraints: const BoxConstraints(),
                 ),
               ],
             ),
@@ -192,9 +197,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 }
 
                 return ListView.separated(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(12),
                   itemCount: filteredBills.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     final bill = filteredBills[index];
                     return _buildBillCard(context, bill);
@@ -257,7 +262,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     }
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
@@ -275,161 +280,108 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           // Refresh bills list when returning from bill details
           ref.invalidate(billsListProvider);
         },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            // First line: Bill number with status badge
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    billNumber,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: statusColor.withOpacity(0.3),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(statusIcon, size: 14, color: statusColor),
-                      const SizedBox(width: 4),
-                      Text(
-                        statusLabel,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: statusColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            // Bill Number
+            Text(
+              billNumber,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
             ),
-            const SizedBox(height: 8),
-            // Customer name and date
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    customerName,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textSecondary,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+            const SizedBox(width: 8),
+            // Status Badge (compact)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: statusColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: statusColor.withOpacity(0.3),
+                  width: 1,
                 ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: Text(
-                    '${createdAt.day.toString().padLeft(2, '0')}/${createdAt.month.toString().padLeft(2, '0')}/${createdAt.year}',
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(statusIcon, size: 13, color: statusColor),
+                  const SizedBox(width: 3),
+                  Text(
+                    statusLabel,
                     style: TextStyle(
-                      color: AppColors.textSecondary,
                       fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: statusColor,
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-            const SizedBox(height: 8),
-            const Divider(height: 1),
-            const SizedBox(height: 8),
-            // Payment info
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Total Amount',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    Text(
-                      '₹${totalAmount.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
-                if (paymentStatus != 'unpaid')
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Paid',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      Text(
-                        '₹${paidAmount.toStringAsFixed(2)}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.green,
-                        ),
-                      ),
-                    ],
-                  ),
-                if (paymentStatus == 'partial' && remainingAmount > 0.01)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        'Remaining',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      Text(
-                        '₹${remainingAmount.toStringAsFixed(2)}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.orange,
-                        ),
-                      ),
-                    ],
-                  ),
-              ],
+            const SizedBox(width: 12),
+            // Customer Name
+            Expanded(
+              child: Text(
+                customerName,
+                style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-            // Show pending refunds chip if any
+            const SizedBox(width: 12),
+            // Total
+            Text(
+              'Total: ',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            Text(
+              '₹${totalAmount.toStringAsFixed(2)}',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            // Paid (if any)
+            if (paymentStatus != 'unpaid') ...[
+              const SizedBox(width: 12),
+              Text(
+                'Paid: ',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+              Text(
+                '₹${paidAmount.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.green,
+                ),
+              ),
+            ],
+            // Due (if partial)
+            if (paymentStatus == 'partial' && remainingAmount > 0.01) ...[
+              const SizedBox(width: 12),
+              Text(
+                'Due: ',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+              Text(
+                '₹${remainingAmount.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.orange,
+                ),
+              ),
+            ],
+            // Pending Refund (inline chip if exists)
             if (pendingRefunds > 0.01) ...[
-              const SizedBox(height: 8),
+              const SizedBox(width: 12),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(3),
                   border: Border.all(color: Colors.blue.shade200),
                 ),
                 child: Row(
@@ -437,14 +389,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   children: [
                     Icon(
                       Icons.info_outline,
-                      size: 14,
+                      size: 12,
                       color: Colors.blue.shade700,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 3),
                     Text(
-                      'Pending Refund: ₹${pendingRefunds.toStringAsFixed(2)}',
+                      'Refund: ₹${pendingRefunds.toStringAsFixed(2)}',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
                         color: Colors.blue.shade700,
                         fontWeight: FontWeight.w500,
                       ),
@@ -453,143 +405,90 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 ),
               ),
             ],
-            // Action buttons row
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                // Print Button (always visible)
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _showPrintDialog(context, billNumber),
-                    icon: const Icon(Icons.print, size: 18),
-                    label: const Text('Print', style: TextStyle(fontSize: 14)),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.blue,
-                      side: const BorderSide(color: Colors.blue),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                    ),
-                  ),
+            // Fully Returned (inline chip if exists)
+            if (isFullyReturned &&
+                paymentStatus != 'paid' &&
+                billRemaining > 0.01) ...[
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(3),
+                  border: Border.all(color: Colors.grey.shade300),
                 ),
-                // Add Payment button - only show if:
-                // 1. Not fully paid
-                // 2. Effective remaining > 0
-                // 3. NO pending refunds (customer should settle refund first)
-                if (paymentStatus != 'paid' &&
-                    remainingAmount > 0.01 &&
-                    pendingRefunds <= 0.01) ...[
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 2,
-                    child: ElevatedButton.icon(
-                      onPressed: () async {
-                        await _showAddPaymentDialog(context, bill);
-                      },
-                      icon: const Icon(Icons.payment, size: 18),
-                      label: Text(
-                        paymentStatus == 'unpaid'
-                            ? 'Add Payment'
-                            : 'Add More Payment',
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6),
-                        ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.assignment_return,
+                      size: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                    const SizedBox(width: 3),
+                    Text(
+                      'Returned',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade700,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(width: 12),
+            // Date
+            Text(
+              '${createdAt.day.toString().padLeft(2, '0')}/${createdAt.month.toString().padLeft(2, '0')}/${createdAt.year}',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            ),
+            // Add Payment Button (compact, inline)
+            if (paymentStatus != 'paid' &&
+                remainingAmount > 0.01 &&
+                pendingRefunds <= 0.01) ...[
+              const SizedBox(width: 12),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  await _showAddPaymentDialog(context, bill);
+                },
+                icon: const Icon(Icons.payment, size: 16),
+                label: Text(
+                  paymentStatus == 'unpaid' ? 'Pay' : 'Pay More',
+                  style: const TextStyle(fontSize: 13),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
                   ),
-                ],
-                // Show message if there are pending refunds blocking payment
-                if (pendingRefunds > 0.01 &&
-                    paymentStatus != 'paid' &&
-                    billRemaining > 0.01) ...[
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 2,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 10,
-                        horizontal: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.orange.shade200),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.info_outline,
-                            size: 16,
-                            color: Colors.orange.shade700,
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              'Settle refund first',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.orange.shade700,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
                   ),
-                ],
-                // Show message if products are fully returned
-                if (isFullyReturned &&
-                    paymentStatus != 'paid' &&
-                    billRemaining > 0.01) ...[
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 2,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 10,
-                        horizontal: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.grey.shade300),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.assignment_return,
-                            size: 16,
-                            color: Colors.grey.shade600,
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              'Fully Returned',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade700,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ],
+                  fixedSize: const Size.fromHeight(28),
+                ),
+              ),
+            ],
+            const SizedBox(width: 8),
+            // Print Button (compact)
+            IconButton(
+              onPressed: () => _showPrintDialog(context, billNumber),
+              icon: const Icon(Icons.print, size: 20),
+              tooltip: 'Print',
+              color: Colors.blue,
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              style: IconButton.styleFrom(
+                side: const BorderSide(color: Colors.blue, width: 1),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
             ),
           ],
         ),
