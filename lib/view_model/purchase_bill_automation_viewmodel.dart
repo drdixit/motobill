@@ -539,7 +539,11 @@ class PurchaseBillAutomationViewModel
   }
 
   /// Create purchase bill from approved items
-  Future<void> createPurchaseBill() async {
+  Future<void> createPurchaseBill({
+    double paymentAmount = 0,
+    String paymentMethod = 'cash',
+    String? paymentNotes,
+  }) async {
     if (state.parsedInvoice == null) {
       state = state.copyWith(error: 'Missing invoice data');
       return;
@@ -763,6 +767,8 @@ class PurchaseBillAutomationViewModel
         subtotal: subtotal,
         taxAmount: taxAmount,
         totalAmount: totalAmount,
+        paidAmount: paymentAmount,
+        paymentStatus: _calculatePaymentStatus(paymentAmount, totalAmount),
         isTaxableBill: state.isBillTaxable,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
@@ -816,11 +822,21 @@ class PurchaseBillAutomationViewModel
       }
 
       // Create purchase with items (this is the heavy operation)
-      await _purchaseRepository.createAutomatedPurchase(
+      final purchaseId = await _purchaseRepository.createAutomatedPurchase(
         purchase,
         purchaseItems,
         taxableFlags,
       );
+
+      // Add payment if amount is provided
+      if (paymentAmount > 0) {
+        await _purchaseRepository.addPayment(
+          purchaseId: purchaseId,
+          amount: paymentAmount,
+          paymentMethod: paymentMethod,
+          notes: paymentNotes,
+        );
+      }
 
       state = state.copyWith(
         isCreating: false,
@@ -832,6 +848,12 @@ class PurchaseBillAutomationViewModel
         error: 'Error creating purchase bill: $e',
       );
     }
+  }
+
+  String _calculatePaymentStatus(double paidAmount, double totalAmount) {
+    if (paidAmount <= 0) return 'unpaid';
+    if (paidAmount >= totalAmount) return 'paid';
+    return 'partial';
   }
 
   /// Clear state

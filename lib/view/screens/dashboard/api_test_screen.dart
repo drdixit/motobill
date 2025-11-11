@@ -173,8 +173,8 @@ class _ApiTestScreenState extends ConsumerState<ApiTestScreen> {
               Padding(
                 padding: const EdgeInsets.only(top: 16),
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
+                  onPressed: () async {
+                    final result = await Navigator.push<bool>(
                       context,
                       MaterialPageRoute(
                         builder: (context) => PurchaseBillPreviewScreen(
@@ -183,6 +183,15 @@ class _ApiTestScreenState extends ConsumerState<ApiTestScreen> {
                         ),
                       ),
                     );
+
+                    // If purchase was created successfully, clear the API test screen
+                    if (result == true) {
+                      ref
+                          .read(apiTestViewModelProvider.notifier)
+                          .clearResponse();
+                      // Clear the selected file as well
+                      _clearFile();
+                    }
                   },
                   icon: const Icon(Icons.receipt_long),
                   label: const Text('Create Purchase Bill from Response'),

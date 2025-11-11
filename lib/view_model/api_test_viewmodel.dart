@@ -296,4 +296,8 @@ class ApiTestViewModel extends StateNotifier<ApiTestState> {
 
     return result;
   }
+
+  void clearResponse() {
+    state = ApiTestState();
+  }
 }

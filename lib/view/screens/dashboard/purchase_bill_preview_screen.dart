@@ -3,14 +3,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../view_model/purchase_bill_automation_viewmodel.dart';
 import '../../../model/apis/parsed_invoice.dart';
+import '../../widgets/payment_dialog.dart';
 
-class PurchaseBillPreviewScreen extends ConsumerWidget {
+class PurchaseBillPreviewScreen extends ConsumerStatefulWidget {
   final String jsonResponse;
 
   const PurchaseBillPreviewScreen({super.key, required this.jsonResponse});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PurchaseBillPreviewScreen> createState() =>
+      _PurchaseBillPreviewScreenState();
+}
+
+class _PurchaseBillPreviewScreenState
+    extends ConsumerState<PurchaseBillPreviewScreen> {
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(purchaseBillAutomationViewModelProvider);
 
     // Parse on first build
@@ -18,9 +26,29 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
       Future.microtask(() {
         ref
             .read(purchaseBillAutomationViewModelProvider.notifier)
-            .parseInvoiceResponse(jsonResponse);
+            .parseInvoiceResponse(widget.jsonResponse);
       });
     }
+
+    // Listen for success and navigate back
+    ref.listen<PurchaseBillAutomationState>(
+      purchaseBillAutomationViewModelProvider,
+      (previous, next) {
+        if (next.successMessage != null && next.successMessage!.isNotEmpty) {
+          // Show success message
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(next.successMessage!),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+
+          // Navigate back to API Test screen
+          Navigator.of(context).pop(true); // Return true to indicate success
+        }
+      },
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -215,7 +243,11 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
                         (state.isCreating ||
                             !invoice.items.any((item) => item.isApproved))
                         ? null
-                        : () => viewModel.createPurchaseBill(),
+                        : () => _handleCreatePurchaseBill(
+                            context,
+                            invoice,
+                            viewModel,
+                          ),
                     icon: state.isCreating
                         ? const SizedBox(
                             width: 18,
@@ -248,6 +280,31 @@ class PurchaseBillPreviewScreen extends ConsumerWidget {
             ),
           ),
       ],
+    );
+  }
+
+  Future<void> _handleCreatePurchaseBill(
+    BuildContext context,
+    ParsedInvoice invoice,
+    PurchaseBillAutomationViewModel viewModel,
+  ) async {
+    // Show payment dialog before creating purchase
+    final paymentResult = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => PaymentDialog(
+        totalAmount: invoice.totalAmount,
+        title: 'Purchase Payment',
+      ),
+    );
+
+    // If user cancelled payment dialog, return
+    if (paymentResult == null) return;
+
+    // Create purchase bill with payment info
+    viewModel.createPurchaseBill(
+      paymentAmount: paymentResult['amount'] as double,
+      paymentMethod: paymentResult['payment_method'] as String,
+      paymentNotes: paymentResult['notes'] as String?,
     );
   }
 
