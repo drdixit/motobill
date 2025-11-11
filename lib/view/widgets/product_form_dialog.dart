@@ -10,6 +10,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
 import '../../model/product.dart';
 import '../../view_model/product_viewmodel.dart';
+import '../../view_model/gst_rate_viewmodel.dart';
 
 class ProductFormDialog extends ConsumerStatefulWidget {
   final Product? product;
@@ -36,6 +37,11 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
   int? _selectedHsnCodeId;
   int? _selectedUqcId;
 
+  // GST rates for the selected HSN code
+  double _cgstRate = 0;
+  double _sgstRate = 0;
+  double _utgstRate = 0;
+
   final List<String> _imageFileNames = [];
   final List<String> _newImageFileNames = []; // Track newly uploaded images
   final List<ProductImage> _existingImages =
@@ -54,12 +60,9 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
     _descriptionController = TextEditingController(
       text: widget.product?.description ?? '',
     );
-    _costPriceController = TextEditingController(
-      text: widget.product?.costPrice.toString() ?? '',
-    );
-    _sellingPriceController = TextEditingController(
-      text: widget.product?.sellingPrice.toString() ?? '',
-    );
+    // Prices will be set after loading GST rates
+    _costPriceController = TextEditingController();
+    _sellingPriceController = TextEditingController();
     _mrpController = TextEditingController(
       text: widget.product?.mrp?.toString() ?? '',
     );
@@ -70,9 +73,48 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
     _selectedHsnCodeId = widget.product?.hsnCodeId;
     _selectedUqcId = widget.product?.uqcId;
 
+    // Load GST rates and set prices
+    if (_selectedHsnCodeId != null) {
+      _loadGstRates(_selectedHsnCodeId!);
+    }
+
     // Load existing images if editing
     if (widget.product != null && widget.product!.id != null) {
       _loadExistingImages();
+    }
+  }
+
+  Future<void> _loadGstRates(int hsnCodeId) async {
+    try {
+      final gstRate = await ref.read(gstRateByHsnProvider(hsnCodeId).future);
+
+      if (gstRate != null && mounted) {
+        setState(() {
+          _cgstRate = gstRate.cgst;
+          _sgstRate = gstRate.sgst;
+          _utgstRate = gstRate.utgst;
+
+          // Convert base prices to prices with tax for display
+          if (widget.product != null) {
+            final totalGstRate = _cgstRate + _sgstRate + _utgstRate;
+            final costPriceWithTax =
+                widget.product!.costPrice * (1 + totalGstRate / 100);
+            final sellingPriceWithTax =
+                widget.product!.sellingPrice * (1 + totalGstRate / 100);
+
+            _costPriceController.text = costPriceWithTax.toStringAsFixed(2);
+            _sellingPriceController.text = sellingPriceWithTax.toStringAsFixed(
+              2,
+            );
+          }
+        });
+      }
+    } catch (e) {
+      // If GST rates not found, just use base prices
+      if (widget.product != null && mounted) {
+        _costPriceController.text = widget.product!.costPrice.toString();
+        _sellingPriceController.text = widget.product!.sellingPrice.toString();
+      }
     }
   }
 
@@ -305,6 +347,19 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
     final mrpText = _mrpController.text.trim();
     final mrp = mrpText.isEmpty ? null : double.tryParse(mrpText);
 
+    // Parse prices with tax
+    final costPriceWithTax = double.parse(_costPriceController.text);
+    final sellingPriceWithTax = double.parse(_sellingPriceController.text);
+
+    // Convert to prices without tax (base prices) for database storage
+    final totalGstRate = _cgstRate + _sgstRate + _utgstRate;
+    final costPriceBase = totalGstRate > 0
+        ? costPriceWithTax / (1 + totalGstRate / 100)
+        : costPriceWithTax;
+    final sellingPriceBase = totalGstRate > 0
+        ? sellingPriceWithTax / (1 + totalGstRate / 100)
+        : sellingPriceWithTax;
+
     final product = Product(
       id: widget.product?.id,
       name: _nameController.text.trim(),
@@ -316,8 +371,8 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
           : _descriptionController.text.trim(),
       hsnCodeId: _selectedHsnCodeId!,
       uqcId: _selectedUqcId!,
-      costPrice: double.parse(_costPriceController.text),
-      sellingPrice: double.parse(_sellingPriceController.text),
+      costPrice: costPriceBase,
+      sellingPrice: sellingPriceBase,
       mrp: mrp,
       subCategoryId: _selectedSubCategoryId!,
       manufacturerId: _selectedManufacturerId!,
@@ -656,6 +711,10 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                                         setState(() {
                                           _selectedHsnCodeId = hsn.id;
                                         });
+                                        // Reload GST rates when HSN changes
+                                        if (hsn.id != null) {
+                                          _loadGstRates(hsn.id!);
+                                        }
                                       },
                                       optionsViewBuilder: (context, onSelected, options) {
                                         final optionsList = options.toList();
@@ -820,7 +879,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Text(
-                                  'Cost Price (Excluded tax) *',
+                                  'Cost Price (Included tax) *',
                                   style: TextStyle(fontSize: AppSizes.fontL),
                                 ),
                                 const SizedBox(height: AppSizes.paddingS),
@@ -864,7 +923,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Text(
-                                  'Selling Price (Excluded tax) *',
+                                  'Selling Price (Included tax) *',
                                   style: TextStyle(fontSize: AppSizes.fontL),
                                 ),
                                 const SizedBox(height: AppSizes.paddingS),

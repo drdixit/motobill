@@ -146,6 +146,23 @@ class _HsnCodeFormDialogState extends ConsumerState<HsnCodeFormDialog> {
         return;
       }
 
+      // Validate that CGST + SGST = IGST
+      final sumCgstSgst = cgst + sgst;
+      if ((sumCgstSgst - igst).abs() > 0.01) {
+        // Allow small floating point difference
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'CGST + SGST must equal IGST/UTGST. Currently: $cgst + $sgst = $sumCgstSgst, but IGST/UTGST = $igst',
+            ),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+        return;
+      }
+
       if (_effectiveFrom == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
