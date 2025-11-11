@@ -108,47 +108,62 @@ class _ApiTestScreenState extends ConsumerState<ApiTestScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  ApiUrlField(controller: _urlController),
-                  const SizedBox(height: 16),
-                  // Always show file selector for POST method
-                  ApiFileSelector(
-                    selectedFile: _selectedFile,
-                    selectedFileName: _selectedFileName,
-                    onSelectFile: _pickFile,
-                    onClearFile: _clearFile,
-                  ),
-                  const SizedBox(height: 16),
-                  // Test API Button - only enabled when PDF is selected
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: (state.isLoading || _selectedFile == null)
-                          ? null
-                          : _handleTestApi,
-                      icon: state.isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(Icons.send),
-                      label: Text(
-                        state.isLoading ? 'Processing...' : 'Test API (POST)',
+                  // API URL, File Selector, and Test Button on same line
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // API URL Field
+                      Expanded(
+                        flex: 3,
+                        child: ApiUrlField(controller: _urlController),
                       ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor: Colors.grey.shade300,
-                        disabledForegroundColor: Colors.grey.shade600,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                      const SizedBox(width: 12),
+                      // File Selector
+                      Expanded(
+                        flex: 2,
+                        child: ApiFileSelector(
+                          selectedFile: _selectedFile,
+                          selectedFileName: _selectedFileName,
+                          onSelectFile: _pickFile,
+                          onClearFile: _clearFile,
                         ),
                       ),
-                    ),
+                      const SizedBox(width: 12),
+                      // Test API Button
+                      SizedBox(
+                        width: 180,
+                        child: ElevatedButton.icon(
+                          onPressed: (state.isLoading || _selectedFile == null)
+                              ? null
+                              : _handleTestApi,
+                          icon: state.isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.send),
+                          label: Text(
+                            state.isLoading
+                                ? 'Processing...'
+                                : 'Test API (POST)',
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: Colors.grey.shade300,
+                            disabledForegroundColor: Colors.grey.shade600,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

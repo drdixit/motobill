@@ -27,20 +27,6 @@ class ApiFileSelector extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.attach_file, color: AppColors.primary, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                'Attach File (PDF)',
-                style: TextStyle(
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
           if (selectedFile != null) ...[
             Container(
               padding: const EdgeInsets.all(8),
