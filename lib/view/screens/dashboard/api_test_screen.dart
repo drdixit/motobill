@@ -99,60 +99,62 @@ class _ApiTestScreenState extends ConsumerState<ApiTestScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Test API Endpoint',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
                   // API URL on left, Buttons on right
                   Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       // API URL Field (Left)
-                      Expanded(child: ApiUrlField(controller: _urlController)),
+                      Expanded(
+                        child: SizedBox(
+                          height: 48,
+                          child: ApiUrlField(controller: _urlController),
+                        ),
+                      ),
                       const SizedBox(width: 12),
                       // Right side: File Selector and Test API buttons
                       // File Selector Button
-                      ApiFileSelector(
-                        selectedFile: _selectedFile,
-                        selectedFileName: _selectedFileName,
-                        onSelectFile: _pickFile,
-                        onClearFile: _clearFile,
+                      SizedBox(
+                        height: 48,
+                        child: ApiFileSelector(
+                          selectedFile: _selectedFile,
+                          selectedFileName: _selectedFileName,
+                          onSelectFile: _pickFile,
+                          onClearFile: _clearFile,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       // Test API Button
-                      ElevatedButton.icon(
-                        onPressed: (state.isLoading || _selectedFile == null)
-                            ? null
-                            : _handleTestApi,
-                        icon: state.isLoading
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Icon(Icons.send),
-                        label: Text(
-                          state.isLoading ? 'Processing...' : 'Test API (POST)',
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          disabledBackgroundColor: Colors.grey.shade300,
-                          disabledForegroundColor: Colors.grey.shade600,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 16,
+                      SizedBox(
+                        height: 48,
+                        child: ElevatedButton.icon(
+                          onPressed: (state.isLoading || _selectedFile == null)
+                              ? null
+                              : _handleTestApi,
+                          icon: state.isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.send, size: 20),
+                          label: Text(
+                            state.isLoading
+                                ? 'Processing...'
+                                : 'Test API (POST)',
                           ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: Colors.grey.shade300,
+                            disabledForegroundColor: Colors.grey.shade600,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            minimumSize: const Size(0, 48),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
                         ),
                       ),

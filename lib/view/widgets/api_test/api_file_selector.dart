@@ -21,10 +21,10 @@ class ApiFileSelector extends StatelessWidget {
     if (selectedFile != null) {
       return Container(
         width: 250,
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color: AppColors.primary.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
           children: [
@@ -33,6 +33,7 @@ class ApiFileSelector extends StatelessWidget {
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
@@ -40,35 +41,43 @@ class ApiFileSelector extends StatelessWidget {
                     style: TextStyle(
                       fontWeight: FontWeight.w500,
                       color: AppColors.textPrimary,
+                      fontSize: 13,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
                     '${(selectedFile!.lengthSync() / 1024).toStringAsFixed(2)} KB',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                   ),
                 ],
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.close, size: 20),
+              icon: const Icon(Icons.close, size: 18),
               onPressed: onClearFile,
               color: Colors.red,
               padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             ),
           ],
         ),
       );
     } else {
-      return ElevatedButton.icon(
-        onPressed: onSelectFile,
-        icon: const Icon(Icons.upload_file),
-        label: const Text('Select PDF File'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      return SizedBox(
+        width: 250,
+        child: ElevatedButton.icon(
+          onPressed: onSelectFile,
+          icon: const Icon(Icons.upload_file, size: 20),
+          label: const Text('Select PDF File'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            minimumSize: const Size(0, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
         ),
       );
     }
