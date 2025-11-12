@@ -30,6 +30,8 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
   late TextEditingController _costPriceController;
   late TextEditingController _sellingPriceController;
   late TextEditingController _mrpController;
+  late TextEditingController _minController;
+  late TextEditingController _maxController;
   late bool _isEnabled;
   late bool _negativeAllow;
   int? _selectedSubCategoryId;
@@ -65,6 +67,12 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
     _sellingPriceController = TextEditingController();
     _mrpController = TextEditingController(
       text: widget.product?.mrp?.toString() ?? '',
+    );
+    _minController = TextEditingController(
+      text: widget.product?.min.toString() ?? '0',
+    );
+    _maxController = TextEditingController(
+      text: widget.product?.max.toString() ?? '0',
     );
     _isEnabled = widget.product?.isEnabled ?? true;
     _negativeAllow = widget.product?.negativeAllow ?? false;
@@ -149,6 +157,8 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
     _costPriceController.dispose();
     _sellingPriceController.dispose();
     _mrpController.dispose();
+    _minController.dispose();
+    _maxController.dispose();
     super.dispose();
   }
 
@@ -347,6 +357,12 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
     final mrpText = _mrpController.text.trim();
     final mrp = mrpText.isEmpty ? null : double.tryParse(mrpText);
 
+    // Parse min and max values
+    final minText = _minController.text.trim();
+    final min = minText.isEmpty ? 0 : int.tryParse(minText) ?? 0;
+    final maxText = _maxController.text.trim();
+    final max = maxText.isEmpty ? 0 : int.tryParse(maxText) ?? 0;
+
     // Parse prices with tax
     final costPriceWithTax = double.parse(_costPriceController.text);
     final sellingPriceWithTax = double.parse(_sellingPriceController.text);
@@ -379,6 +395,8 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
       isTaxable: true,
       negativeAllow: _negativeAllow,
       isEnabled: _isEnabled,
+      min: min,
+      max: max,
     );
 
     // For new products, pass all images. For edits, pass only new images
@@ -997,6 +1015,86 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                           }
                           return null;
                         },
+                      ),
+                      const SizedBox(height: AppSizes.paddingM),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Min',
+                                  style: TextStyle(fontSize: AppSizes.fontL),
+                                ),
+                                const SizedBox(height: AppSizes.paddingS),
+                                TextFormField(
+                                  controller: _minController,
+                                  decoration: InputDecoration(
+                                    hintText: '0',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(
+                                        AppSizes.radiusS,
+                                      ),
+                                    ),
+                                  ),
+                                  keyboardType: TextInputType.number,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly,
+                                  ],
+                                  validator: (value) {
+                                    if (value != null &&
+                                        value.trim().isNotEmpty) {
+                                      final minValue = int.tryParse(value);
+                                      if (minValue == null || minValue < 0) {
+                                        return 'Invalid Min';
+                                      }
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: AppSizes.paddingM),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Max',
+                                  style: TextStyle(fontSize: AppSizes.fontL),
+                                ),
+                                const SizedBox(height: AppSizes.paddingS),
+                                TextFormField(
+                                  controller: _maxController,
+                                  decoration: InputDecoration(
+                                    hintText: '0',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(
+                                        AppSizes.radiusS,
+                                      ),
+                                    ),
+                                  ),
+                                  keyboardType: TextInputType.number,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly,
+                                  ],
+                                  validator: (value) {
+                                    if (value != null &&
+                                        value.trim().isNotEmpty) {
+                                      final maxValue = int.tryParse(value);
+                                      if (maxValue == null || maxValue < 0) {
+                                        return 'Invalid Max';
+                                      }
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: AppSizes.paddingM),
                       Row(
