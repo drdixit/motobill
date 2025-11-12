@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/constants/app_colors.dart';
 import '../../../core/providers/database_provider.dart';
+import '../../../repository/debit_note_repository.dart';
 
 // Provider for debit note details
 final debitNoteDetailsProvider = FutureProvider.family<Map<String, dynamic>?, int>((
@@ -8,6 +10,7 @@ final debitNoteDetailsProvider = FutureProvider.family<Map<String, dynamic>?, in
   debitNoteId,
 ) async {
   final db = await ref.watch(databaseProvider);
+  final repository = DebitNoteRepository(db);
 
   // Fetch debit note with vendor and purchase details
   final debitNoteResult = await db.rawQuery(
@@ -38,6 +41,9 @@ final debitNoteDetailsProvider = FutureProvider.family<Map<String, dynamic>?, in
     ''',
     [debitNoteId],
   );
+
+  // Fetch debit note refunds
+  final refunds = await repository.getDebitNoteRefunds(debitNoteId);
 
   // Separate taxable and non-taxable items
   final taxableItems = items.where((item) {
@@ -133,9 +139,13 @@ final debitNoteDetailsProvider = FutureProvider.family<Map<String, dynamic>?, in
       'subtotal': subtotal,
       'tax_amount': taxAmount,
       'total': total,
+      'max_refundable_amount': debitNote['max_refundable_amount'],
+      'refunded_amount': debitNote['refunded_amount'],
+      'refund_status': debitNote['refund_status'],
     },
     'taxableItems': transformedTaxableItems,
     'nonTaxableItems': transformedNonTaxableItems,
+    'refunds': refunds,
   };
 });
 
@@ -163,6 +173,7 @@ class DebitNoteDetailsScreen extends ConsumerWidget {
               data['taxableItems'] as List<Map<String, dynamic>>;
           final nonTaxableItems =
               data['nonTaxableItems'] as List<Map<String, dynamic>>;
+          final refunds = data['refunds'] as List<Map<String, dynamic>>;
 
           return Container(
             color: Colors.white,
@@ -171,13 +182,19 @@ class DebitNoteDetailsScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Vendor Details and Debit Note Information side by side
+                  // Vendor Details and Refund Status side by side
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(child: _buildVendorDetails(debitNote)),
                       const SizedBox(width: 48),
-                      Expanded(child: _buildDebitNoteInfo(debitNote)),
+                      Expanded(
+                        child: _buildRefundStatusSection(
+                          debitNote,
+                          refunds,
+                          ref,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 32),
@@ -272,6 +289,151 @@ class DebitNoteDetailsScreen extends ConsumerWidget {
         _buildDetailRow('Debit Note Date', debitNoteDate),
         if (reason != null && reason.isNotEmpty)
           _buildDetailRow('Reason', reason),
+      ],
+    );
+  }
+
+  Widget _buildRefundStatusSection(
+    Map<String, dynamic> debitNote,
+    List<dynamic> refunds,
+    WidgetRef ref,
+  ) {
+    final debitNoteNumber = debitNote['debit_note_number'] as String? ?? 'N/A';
+    final debitNoteDate = debitNote['debit_note_date'] as String? ?? 'N/A';
+    final purchaseNumber = debitNote['purchase_number'] as String?;
+    final reason = debitNote['reason'] as String?;
+    final maxRefundable =
+        (debitNote['max_refundable_amount'] as num?)?.toDouble() ?? 0.0;
+    final refundedAmount =
+        (debitNote['refunded_amount'] as num?)?.toDouble() ?? 0.0;
+    final refundStatus = debitNote['refund_status'] as String? ?? 'pending';
+    final remainingAmount = maxRefundable - refundedAmount;
+
+    // Determine status color, label, and icon
+    Color statusColor;
+    String statusLabel;
+    IconData statusIcon;
+
+    if (refundStatus == 'refunded') {
+      statusColor = Colors.green;
+      statusLabel = 'Fully Refunded';
+      statusIcon = Icons.check_circle;
+    } else if (refundStatus == 'partial') {
+      statusColor = Colors.orange;
+      statusLabel = 'Partially Refunded';
+      statusIcon = Icons.access_time;
+    } else if (refundStatus == 'adjusted') {
+      statusColor = Colors.blue;
+      statusLabel = 'Adjusted';
+      statusIcon = Icons.balance;
+    } else {
+      statusColor = Colors.red;
+      statusLabel = 'Pending';
+      statusIcon = Icons.pending;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'DEBIT NOTE INFORMATION',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        _buildDetailRow('Debit Note Number', 'DN$debitNoteNumber'),
+        if (purchaseNumber != null && purchaseNumber.isNotEmpty)
+          _buildDetailRow('Purchase Number', purchaseNumber),
+        _buildDetailRow('Debit Note Date', debitNoteDate),
+        if (reason != null && reason.isNotEmpty)
+          _buildDetailRow('Reason', reason),
+        const SizedBox(height: 12),
+        const Text(
+          'REFUND STATUS',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: statusColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: statusColor.withOpacity(0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(statusIcon, color: statusColor, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    statusLabel,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: statusColor,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _buildRefundRow('Max Refundable', maxRefundable, Colors.black87),
+              if (refundedAmount > 0) ...[
+                const SizedBox(height: 4),
+                _buildRefundRow(
+                  'Refunded Amount',
+                  refundedAmount,
+                  Colors.green,
+                ),
+              ],
+              if (remainingAmount > 0.01) ...[
+                const SizedBox(height: 4),
+                _buildRefundRow('Remaining', remainingAmount, Colors.orange),
+              ],
+              if (refunds.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    showDialog(
+                      context: ref.context,
+                      builder: (context) => _RefundHistoryDialog(
+                        refunds: refunds.cast<Map<String, dynamic>>(),
+                        maxRefundable: maxRefundable,
+                        refundedAmount: refundedAmount,
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.receipt_long),
+                  label: Text('View ${refunds.length} Refund(s)'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: statusColor,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRefundRow(String label, double amount, Color color) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 14, color: color.withOpacity(0.8)),
+        ),
+        Text(
+          '₹${amount.toStringAsFixed(2)}',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
       ],
     );
   }
@@ -503,6 +665,309 @@ class DebitNoteDetailsScreen extends ConsumerWidget {
             style: TextStyle(
               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
               fontSize: isBold ? 16 : 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RefundHistoryDialog extends StatelessWidget {
+  final List<Map<String, dynamic>> refunds;
+  final double maxRefundable;
+  final double refundedAmount;
+
+  const _RefundHistoryDialog({
+    required this.refunds,
+    required this.maxRefundable,
+    required this.refundedAmount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final remainingAmount = maxRefundable - refundedAmount;
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Container(
+        width: 500,
+        constraints: const BoxConstraints(maxHeight: 600),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.1),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(12),
+                  topRight: Radius.circular(12),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.history, color: AppColors.primary, size: 24),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Refund History',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          '${refunds.length} refund(s)',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+
+            // Refund Summary
+            Container(
+              margin: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.backgroundSecondary,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Column(
+                children: [
+                  _buildSummaryRow(
+                    'Max Refundable',
+                    '₹${maxRefundable.toStringAsFixed(2)}',
+                    AppColors.textPrimary,
+                  ),
+                  const Divider(height: 16),
+                  _buildSummaryRow(
+                    'Total Refunded',
+                    '₹${refundedAmount.toStringAsFixed(2)}',
+                    Colors.green,
+                  ),
+                  const Divider(height: 16),
+                  _buildSummaryRow(
+                    'Remaining',
+                    '₹${remainingAmount.toStringAsFixed(2)}',
+                    remainingAmount > 0 ? Colors.orange : Colors.green,
+                    bold: true,
+                  ),
+                ],
+              ),
+            ),
+
+            // Refunds List
+            Expanded(
+              child: refunds.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.account_balance_wallet_outlined,
+                            size: 64,
+                            color: AppColors.textTertiary,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No refunds yet',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: refunds.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final refund = refunds[index];
+                        return _buildRefundItem(refund);
+                      },
+                    ),
+            ),
+
+            // Footer
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.backgroundSecondary,
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(12),
+                  bottomRight: Radius.circular(12),
+                ),
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text(
+                    'Close',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryRow(
+    String label,
+    String amount,
+    Color color, {
+    bool bold = false,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        Text(
+          amount,
+          style: TextStyle(
+            fontSize: bold ? 16 : 14,
+            fontWeight: bold ? FontWeight.bold : FontWeight.w600,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRefundItem(Map<String, dynamic> refund) {
+    final amount = (refund['amount'] as num).toDouble();
+    final refundMethod = refund['refund_method'] as String;
+    final refundDate = DateTime.parse(refund['refund_date'] as String);
+    final notes = refund['notes'] as String?;
+
+    // Refund method icon and label
+    IconData methodIcon;
+    String methodLabel;
+
+    switch (refundMethod) {
+      case 'cash':
+        methodIcon = Icons.money;
+        methodLabel = 'Cash';
+        break;
+      case 'upi':
+        methodIcon = Icons.qr_code;
+        methodLabel = 'UPI';
+        break;
+      case 'card':
+        methodIcon = Icons.credit_card;
+        methodLabel = 'Card';
+        break;
+      case 'bank_transfer':
+        methodIcon = Icons.account_balance;
+        methodLabel = 'Bank Transfer';
+        break;
+      case 'cheque':
+        methodIcon = Icons.receipt_long;
+        methodLabel = 'Cheque';
+        break;
+      default:
+        methodIcon = Icons.currency_rupee;
+        methodLabel = 'Other';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Refund icon
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(methodIcon, color: Colors.green, size: 20),
+          ),
+          const SizedBox(width: 12),
+
+          // Refund details
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      methodLabel,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      '₹${amount.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${refundDate.day.toString().padLeft(2, '0')}/${refundDate.month.toString().padLeft(2, '0')}/${refundDate.year} at ${refundDate.hour.toString().padLeft(2, '0')}:${refundDate.minute.toString().padLeft(2, '0')}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                if (notes != null && notes.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    notes,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textTertiary,
+                      fontStyle: FontStyle.italic,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
             ),
           ),
         ],
