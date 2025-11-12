@@ -424,8 +424,9 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
   }
 
   Widget _buildImageThumbnail(WidgetRef ref, Product product) {
-    // Use keepAlive provider to prevent rebuilding during fast scrolling
-    final primaryImageAsync = ref.watch(productImagesProvider(product.id!));
+    // Get image map from state - NO ASYNC QUERIES!
+    final productState = ref.watch(productViewModelProvider);
+    final primaryImage = productState.productImages[product.id];
 
     return Container(
       width: 80,
@@ -437,49 +438,30 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppSizes.radiusS),
-        child: primaryImageAsync.when(
-          data: (images) {
-            final primaryImage = images
-                .where((img) => img.isPrimary)
-                .firstOrNull;
-            if (primaryImage == null) {
-              return _buildPlaceholder('No\nImage', Icons.image_not_supported);
-            }
-            final imagePath =
-                'C:\\motobill\\database\\images\\${primaryImage.imagePath}';
-            return Image.file(
-              File(imagePath),
-              fit: BoxFit.cover,
-              // Optimize image decoding for fast scrolling
-              cacheWidth: 160,
-              cacheHeight: 160,
-              // Use FilterQuality.low for faster rendering during scrolling
-              filterQuality: FilterQuality.low,
-              // Prevent unnecessary rebuilds
-              gaplessPlayback: true,
-              errorBuilder: (context, error, stackTrace) {
-                return _buildPlaceholder('Broken\nLink', Icons.broken_image);
-              },
-            );
-          },
-          loading: () => Center(
-            child: SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+        child: primaryImage == null
+            ? _buildPlaceholder('No\nImage', Icons.image_not_supported)
+            : Image.file(
+                File(
+                  'C:\\motobill\\database\\images\\${primaryImage.imagePath}',
+                ),
+                fit: BoxFit.cover,
+                // Optimize image decoding for fast scrolling
+                cacheWidth: 160,
+                cacheHeight: 160,
+                // Use FilterQuality.low for faster rendering during scrolling
+                filterQuality: FilterQuality.low,
+                // Prevent unnecessary rebuilds
+                gaplessPlayback: true,
+                errorBuilder: (context, error, stackTrace) {
+                  return _buildPlaceholder('Broken\nLink', Icons.broken_image);
+                },
               ),
-            ),
-          ),
-          error: (error, stack) =>
-              _buildPlaceholder('Error', Icons.error_outline),
-        ),
       ),
     );
   }
 
   Widget _buildPlaceholder(String text, IconData icon) {
+    // Use const where possible for better performance
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -487,7 +469,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
         const SizedBox(height: 2),
         Text(
           text,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: AppSizes.fontXS,
             color: AppColors.textSecondary,
             fontFamily: 'Roboto',

@@ -221,6 +221,25 @@ class ProductRepository {
     }
   }
 
+  // Get ALL product images in one query for performance
+  Future<Map<int, ProductImage>> getAllPrimaryProductImages() async {
+    try {
+      final result = await _db.rawQuery('''
+        SELECT * FROM product_images
+        WHERE is_primary = 1 AND is_deleted = 0
+      ''');
+
+      final Map<int, ProductImage> imageMap = {};
+      for (final json in result) {
+        final image = ProductImage.fromJson(json);
+        imageMap[image.productId] = image;
+      }
+      return imageMap;
+    } catch (e) {
+      throw Exception('Failed to get all primary product images: $e');
+    }
+  }
+
   Future<ProductImage?> getPrimaryImage(int productId) async {
     try {
       final result = await _db.rawQuery(

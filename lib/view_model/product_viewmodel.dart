@@ -11,18 +11,26 @@ import 'pos_viewmodel.dart';
 // Product State
 class ProductState {
   final List<Product> products;
+  final Map<int, ProductImage> productImages;
   final bool isLoading;
   final String? error;
 
-  ProductState({this.products = const [], this.isLoading = false, this.error});
+  ProductState({
+    this.products = const [],
+    this.productImages = const {},
+    this.isLoading = false,
+    this.error,
+  });
 
   ProductState copyWith({
     List<Product>? products,
+    Map<int, ProductImage>? productImages,
     bool? isLoading,
     String? error,
   }) {
     return ProductState(
       products: products ?? this.products,
+      productImages: productImages ?? this.productImages,
       isLoading: isLoading ?? this.isLoading,
       error: error,
     );
@@ -50,9 +58,14 @@ class ProductViewModel extends StateNotifier<ProductState> {
     if (_repository == null) return;
     state = state.copyWith(isLoading: true, error: null);
     try {
-      // Load ALL products at once for instant search/edit
+      // Load ALL products and images at once for instant access
       final products = await _repository.getAllProducts();
-      state = state.copyWith(products: products, isLoading: false);
+      final images = await _repository.getAllPrimaryProductImages();
+      state = state.copyWith(
+        products: products,
+        productImages: images,
+        isLoading: false,
+      );
     } catch (e) {
       state = state.copyWith(error: e.toString(), isLoading: false);
     }
@@ -62,6 +75,7 @@ class ProductViewModel extends StateNotifier<ProductState> {
     if (_repository == null) throw Exception('Repository not initialized');
     try {
       final id = await _repository.insertProduct(product);
+      // Reload products and images
       await loadProducts();
       _ref?.invalidate(posViewModelProvider);
       return id;
