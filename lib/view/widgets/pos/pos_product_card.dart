@@ -100,7 +100,7 @@ class PosProductCard extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(
                     color: product.negativeAllow
@@ -182,9 +182,7 @@ class PosProductCard extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color:
-                        product.getStockLevelColor() ??
-                        Colors.white.withOpacity(0.9),
+                    color: product.getStockLevelColor() ?? Colors.white,
                     shape: BoxShape.circle,
                     border: Border.all(
                       color: AppColors.primary.withOpacity(0.3),
