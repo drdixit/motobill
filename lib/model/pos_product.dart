@@ -127,12 +127,12 @@ class PosProduct {
 
     // Check min condition (if min is set)
     if (min > 0 && stock < min) {
-      return Colors.red.withOpacity(0.4); // Darker red tint for low stock
+      return Colors.red.shade100; // Solid light red for low stock
     }
 
     // Check max condition (if max is set)
     if (max > 0 && stock > max) {
-      return Colors.blue.withOpacity(0.4); // Darker blue tint for overstock
+      return Colors.blue.shade100; // Solid light blue for overstock
     }
 
     // Stock is within acceptable range or no limits set
