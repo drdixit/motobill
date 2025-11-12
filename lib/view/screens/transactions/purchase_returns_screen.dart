@@ -78,7 +78,7 @@ class _PurchaseReturnsScreenState extends ConsumerState<PurchaseReturnsScreen> {
         children: [
           // Header with Search
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             color: Colors.white,
             child: Row(
               children: [
@@ -87,25 +87,28 @@ class _PurchaseReturnsScreenState extends ConsumerState<PurchaseReturnsScreen> {
                     controller: _searchController,
                     decoration: InputDecoration(
                       hintText: 'Search by debit note number or vendor...',
-                      prefixIcon: const Icon(Icons.search),
+                      prefixIcon: const Icon(Icons.search, size: 20),
                       suffixIcon: _searchQuery.isNotEmpty
                           ? IconButton(
-                              icon: const Icon(Icons.clear),
+                              icon: const Icon(Icons.clear, size: 20),
                               onPressed: () {
                                 _searchController.clear();
                                 setState(() {
                                   _searchQuery = '';
                                 });
                               },
+                              padding: const EdgeInsets.all(8),
+                              constraints: const BoxConstraints(),
                             )
                           : null,
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(6),
                       ),
                       contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
+                        horizontal: 12,
+                        vertical: 10,
                       ),
+                      isDense: true,
                     ),
                     onChanged: (value) {
                       setState(() {
@@ -116,9 +119,11 @@ class _PurchaseReturnsScreenState extends ConsumerState<PurchaseReturnsScreen> {
                 ),
                 const SizedBox(width: 8),
                 IconButton(
-                  icon: const Icon(Icons.refresh),
+                  icon: const Icon(Icons.refresh, size: 20),
                   onPressed: () => ref.invalidate(debitNotesListProvider),
                   tooltip: 'Refresh',
+                  padding: const EdgeInsets.all(8),
+                  constraints: const BoxConstraints(),
                 ),
               ],
             ),
@@ -183,9 +188,9 @@ class _PurchaseReturnsScreenState extends ConsumerState<PurchaseReturnsScreen> {
                 }
 
                 return ListView.separated(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(12),
                   itemCount: filteredDebitNotes.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     final debitNote = filteredDebitNotes[index];
                     return _buildDebitNoteCard(context, debitNote);
@@ -230,15 +235,15 @@ class _PurchaseReturnsScreenState extends ConsumerState<PurchaseReturnsScreen> {
     } else if (refundStatus == 'adjusted') {
       statusColor = Colors.blue;
       statusLabel = 'Adjusted';
-      statusIcon = Icons.check_circle;
+      statusIcon = Icons.balance;
     } else {
       statusColor = Colors.red;
       statusLabel = 'Pending';
-      statusIcon = Icons.cancel;
+      statusIcon = Icons.pending;
     }
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
@@ -257,202 +262,253 @@ class _PurchaseReturnsScreenState extends ConsumerState<PurchaseReturnsScreen> {
           // Refresh debit notes list when returning from details
           ref.invalidate(debitNotesListProvider);
         },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            // First line: Debit Note number with status badge
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    'DN$debitNoteNumber',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+            // Debit Note Number - Fixed width
+            SizedBox(
+              width: 120,
+              child: Text(
+                'DN$debitNoteNumber',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
                 ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: statusColor.withOpacity(0.3),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(statusIcon, size: 14, color: statusColor),
-                      const SizedBox(width: 4),
-                      Text(
-                        statusLabel,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: statusColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-            const SizedBox(height: 8),
-            // Vendor name and date
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    vendorName,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textSecondary,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+            const SizedBox(width: 8),
+            // Status Badge - Fixed width
+            SizedBox(
+              width: 90,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: statusColor.withOpacity(0.3),
+                    width: 1,
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: Text(
-                    '${createdAt.day.toString().padLeft(2, '0')}/${createdAt.month.toString().padLeft(2, '0')}/${createdAt.year}',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            const Divider(height: 1),
-            const SizedBox(height: 8),
-            // Refund info
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
+                    Icon(statusIcon, size: 13, color: statusColor),
+                    const SizedBox(width: 3),
                     Text(
-                      'Total Amount',
+                      statusLabel,
                       style: TextStyle(
                         fontSize: 12,
-                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                        color: statusColor,
                       ),
                     ),
-                    Text(
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Vendor Name - Flexible
+            Expanded(
+              flex: 2,
+              child: Text(
+                vendorName,
+                style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Total Amount - Fixed width
+            SizedBox(
+              width: 130,
+              child: Row(
+                children: [
+                  Text(
+                    'Total: ',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
                       '₹${totalAmount.toStringAsFixed(2)}',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Max Refundable',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    Text(
-                      '₹${maxRefundableAmount.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.blue,
-                      ),
-                    ),
-                  ],
-                ),
-                if (refundStatus != 'pending')
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Refunded',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      Text(
-                        '₹${refundedAmount.toStringAsFixed(2)}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.green,
-                        ),
-                      ),
-                    ],
                   ),
-                if (refundStatus == 'partial' && remainingAmount > 0.01)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        'Remaining',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      Text(
-                        '₹${remainingAmount.toStringAsFixed(2)}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.orange,
-                        ),
-                      ),
-                    ],
-                  ),
-              ],
+                ],
+              ),
             ),
-            // Add Refund button - only show if not fully refunded and not adjusted
-            if (refundStatus != 'refunded' &&
-                refundStatus != 'adjusted' &&
-                remainingAmount > 0.01) ...[
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () async {
-                    await _showAddRefundDialog(context, debitNote);
-                  },
-                  icon: const Icon(Icons.currency_rupee, size: 18),
-                  label: Text(
-                    refundStatus == 'pending'
-                        ? 'Add Refund'
-                        : 'Add More Refund',
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
+            const SizedBox(width: 8),
+            // Max Refundable - Fixed width (always reserve space)
+            SizedBox(
+              width: 160,
+              child: refundStatus != 'adjusted'
+                  ? Row(
+                      children: [
+                        Text(
+                          'Refundable: ',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            '₹${maxRefundableAmount.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.blue,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    )
+                  : Text(
+                      'Adjusted',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.blue,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
+            ),
+            const SizedBox(width: 8),
+            // Refunded - Fixed width (always reserve space)
+            SizedBox(
+              width: 150,
+              child: refundStatus != 'pending' && refundedAmount > 0.01
+                  ? Row(
+                      children: [
+                        Text(
+                          'Refunded: ',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            '₹${refundedAmount.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.green,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    )
+                  : const SizedBox.shrink(),
+            ),
+            const SizedBox(width: 8),
+            // Remaining - Fixed width (always reserve space)
+            SizedBox(
+              width: 160,
+              child: (refundStatus == 'partial' && remainingAmount > 0.01)
+                  ? Row(
+                      children: [
+                        Text(
+                          'Remaining: ',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            '₹${remainingAmount.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.orange,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    )
+                  : const SizedBox.shrink(),
+            ),
+            const SizedBox(width: 8),
+            // Date - Fixed width
+            SizedBox(
+              width: 90,
+              child: Text(
+                '${createdAt.day.toString().padLeft(2, '0')}/${createdAt.month.toString().padLeft(2, '0')}/${createdAt.year}',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Add Refund Button - Fixed width (always reserve space)
+            SizedBox(
+              width: 120,
+              child:
+                  (refundStatus != 'refunded' &&
+                      refundStatus != 'adjusted' &&
+                      remainingAmount > 0.01)
+                  ? ElevatedButton.icon(
+                      onPressed: () async {
+                        await _showAddRefundDialog(context, debitNote);
+                      },
+                      icon: const Icon(Icons.currency_rupee, size: 16),
+                      label: const Text(
+                        'Refund',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        fixedSize: const Size.fromHeight(28),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+            const SizedBox(width: 8),
+            // View Details Button
+            IconButton(
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        debit_note_details.DebitNoteDetailsScreen(
+                          debitNoteId: debitNote['id'] as int,
+                        ),
                   ),
+                );
+                ref.invalidate(debitNotesListProvider);
+              },
+              icon: const Icon(Icons.visibility, size: 20),
+              tooltip: 'View Details',
+              color: Colors.blue,
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              style: IconButton.styleFrom(
+                side: const BorderSide(color: Colors.blue, width: 1),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
                 ),
               ),
-            ],
+            ),
           ],
         ),
       ),
