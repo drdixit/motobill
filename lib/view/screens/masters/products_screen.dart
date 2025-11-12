@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
@@ -278,25 +277,24 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                         ),
                       ),
                       Expanded(
-                        child: ListView.builder(
-                          padding: const EdgeInsets.all(AppSizes.paddingL),
+                        child: ListView.separated(
+                          padding: const EdgeInsets.all(12),
                           itemCount: filteredProducts.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 8),
                           // Aggressive performance optimizations for fast scrolling
                           addAutomaticKeepAlives: false,
                           addRepaintBoundaries: true,
                           addSemanticIndexes: false,
                           // Increase cache for smoother fast scrolling - aggressive caching
-                          cacheExtent: 5000,
-                          // Fixed height improves scrolling performance drastically
-                          itemExtent: 112,
+                          cacheExtent: 2000,
                           // Better scroll physics for fast scrolling
-                          physics: const ClampingScrollPhysics(),
+                          physics: const BouncingScrollPhysics(),
                           itemBuilder: (context, index) {
                             final product = filteredProducts[index];
-                            return Padding(
-                              padding: const EdgeInsets.only(
-                                bottom: AppSizes.paddingM,
-                              ),
+                            // Wrap in RepaintBoundary for performance
+                            return RepaintBoundary(
+                              key: ValueKey(product.id),
                               child: _buildProductCard(context, ref, product),
                             );
                           },
@@ -315,168 +313,215 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     WidgetRef ref,
     Product product,
   ) {
-    // Wrap in RepaintBoundary to isolate repaints
-    return RepaintBoundary(
-      child: Material(
+    // Status colors
+    final statusColor = product.isEnabled ? Colors.green : Colors.grey;
+    final statusLabel = product.isEnabled ? 'Active' : 'Disabled';
+    final statusIcon = product.isEnabled ? Icons.check_circle : Icons.cancel;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(AppSizes.radiusM),
-        child: Container(
-          padding: const EdgeInsets.all(AppSizes.paddingM),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppSizes.radiusM),
-            border: Border.all(color: AppColors.divider),
-          ),
-          child: Row(
-            children: [
-              // Image thumbnail
-              RepaintBoundary(child: _buildImageThumbnail(ref, product)),
-              const SizedBox(width: AppSizes.paddingM),
-              // Product info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: InkWell(
+        onTap: () => _showProductDialog(context, ref, product),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Product Name & Part Number - Increased width
+            SizedBox(
+              width: 350,
+              child: Text(
+                product.partNumber != null
+                    ? '${product.name} (${product.partNumber})'
+                    : product.name,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                  fontFamily: 'Roboto',
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Status Badge - Fixed width
+            SizedBox(
+              width: 85,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: statusColor.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    Icon(statusIcon, size: 13, color: statusColor),
+                    const SizedBox(width: 3),
                     Text(
-                      product.partNumber != null
-                          ? '${product.name} (${product.partNumber})'
-                          : product.name,
-                      style: const TextStyle(
-                        fontSize: AppSizes.fontL,
+                      statusLabel,
+                      style: TextStyle(
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                        fontFamily: 'Roboto',
+                        color: statusColor,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: AppSizes.paddingXS),
-                    Row(
-                      children: [
-                        Text(
-                          'Cost: ₹${product.costPrice.toStringAsFixed(2)}',
-                          style: const TextStyle(
-                            fontSize: AppSizes.fontM,
-                            color: AppColors.textSecondary,
-                            fontFamily: 'Roboto',
-                          ),
-                        ),
-                        const SizedBox(width: AppSizes.paddingM),
-                        Text(
-                          'Selling: ₹${product.sellingPrice.toStringAsFixed(2)}',
-                          style: const TextStyle(
-                            fontSize: AppSizes.fontM,
-                            color: AppColors.textSecondary,
-                            fontFamily: 'Roboto',
-                          ),
-                        ),
-                        if (product.mrp != null) ...[
-                          const SizedBox(width: AppSizes.paddingM),
-                          Text(
-                            'MRP: ₹${product.mrp!.toStringAsFixed(2)}',
-                            style: const TextStyle(
-                              fontSize: AppSizes.fontM,
-                              color: AppColors.textSecondary,
-                              fontFamily: 'Roboto',
-                            ),
-                          ),
-                        ],
-                      ],
                     ),
                   ],
                 ),
               ),
-              // Action buttons
-              Row(
-                mainAxisSize: MainAxisSize.min,
+            ),
+            const SizedBox(width: 12),
+            // Cost Price - Fixed width with color
+            SizedBox(
+              width: 120,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.edit, size: 20),
-                    color: AppColors.primary,
-                    onPressed: () => _showProductDialog(context, ref, product),
-                    tooltip: 'Edit',
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      product.isEnabled ? Icons.toggle_on : Icons.toggle_off,
-                      size: 36,
+                  const Text(
+                    'Cost: ',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
                     ),
-                    color: product.isEnabled
-                        ? AppColors.success
-                        : AppColors.textSecondary,
-                    onPressed: () => _toggleProduct(ref, product),
-                    tooltip: product.isEnabled ? 'Disable' : 'Enable',
                   ),
-                  // Delete button - Hidden
-                  // IconButton(
-                  //   icon: const Icon(Icons.delete, size: 20),
-                  //   color: AppColors.error,
-                  //   onPressed: () => _deleteProduct(context, ref, product),
-                  //   tooltip: 'Delete',
-                  // ),
+                  Expanded(
+                    child: Text(
+                      '₹${product.costPrice.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.orange,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildImageThumbnail(WidgetRef ref, Product product) {
-    // Get image map from state - NO ASYNC QUERIES!
-    final productState = ref.watch(productViewModelProvider);
-    final primaryImage = productState.productImages[product.id];
-
-    return Container(
-      width: 80,
-      height: 80,
-      decoration: BoxDecoration(
-        color: AppColors.backgroundSecondary,
-        borderRadius: BorderRadius.circular(AppSizes.radiusS),
-        border: Border.all(color: AppColors.divider),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppSizes.radiusS),
-        child: primaryImage == null
-            ? _buildPlaceholder('No\nImage', Icons.image_not_supported)
-            : Image.file(
-                File(
-                  'C:\\motobill\\database\\images\\${primaryImage.imagePath}',
-                ),
-                fit: BoxFit.cover,
-                // Optimize image decoding for fast scrolling
-                cacheWidth: 160,
-                cacheHeight: 160,
-                // Use FilterQuality.low for faster rendering during scrolling
-                filterQuality: FilterQuality.low,
-                // Prevent unnecessary rebuilds
-                gaplessPlayback: true,
-                errorBuilder: (context, error, stackTrace) {
-                  return _buildPlaceholder('Broken\nLink', Icons.broken_image);
-                },
+            ),
+            const SizedBox(width: 12),
+            // Selling Price - Fixed width with green color
+            SizedBox(
+              width: 120,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const Text(
+                    'Selling: ',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      '₹${product.sellingPrice.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.green,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
-      ),
-    );
-  }
-
-  Widget _buildPlaceholder(String text, IconData icon) {
-    // Use const where possible for better performance
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(icon, size: 24, color: AppColors.textSecondary),
-        const SizedBox(height: 2),
-        Text(
-          text,
-          style: const TextStyle(
-            fontSize: AppSizes.fontXS,
-            color: AppColors.textSecondary,
-            fontFamily: 'Roboto',
-          ),
-          textAlign: TextAlign.center,
+            ),
+            const SizedBox(width: 12),
+            // MRP - Fixed width with blue color (if present)
+            if (product.mrp != null) ...[
+              SizedBox(
+                width: 110,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'MRP: ',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        '₹${product.mrp!.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.blue,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+            ],
+            // Description - Reduced flexible space (if present)
+            if (product.description != null && product.description!.isNotEmpty)
+              Flexible(
+                child: Container(
+                  alignment: Alignment.centerLeft,
+                  constraints: const BoxConstraints(maxWidth: 150),
+                  child: Text(
+                    product.description!,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            if (product.description == null || product.description!.isEmpty)
+              const Spacer(),
+            const SizedBox(width: 12),
+            // Action buttons
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.edit, size: 18),
+                  color: AppColors.primary,
+                  onPressed: () => _showProductDialog(context, ref, product),
+                  tooltip: 'Edit',
+                  padding: const EdgeInsets.all(8),
+                  constraints: const BoxConstraints(
+                    minWidth: 36,
+                    minHeight: 36,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: Icon(
+                    product.isEnabled ? Icons.toggle_on : Icons.toggle_off,
+                    size: 32,
+                  ),
+                  color: product.isEnabled
+                      ? AppColors.success
+                      : AppColors.textSecondary,
+                  onPressed: () => _toggleProduct(ref, product),
+                  tooltip: product.isEnabled ? 'Disable' : 'Enable',
+                  padding: const EdgeInsets.all(8),
+                  constraints: const BoxConstraints(
+                    minWidth: 36,
+                    minHeight: 36,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
