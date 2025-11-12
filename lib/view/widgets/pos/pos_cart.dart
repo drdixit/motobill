@@ -403,6 +403,17 @@ class PosCart extends ConsumerWidget {
                     itemBuilder: (context, index) {
                       final item = state.cartItems[index];
                       final lastPrice = state.lastCustomPrices[item.productId];
+
+                      // Debug: Log last price lookup
+                      if (index == 0) {
+                        print(
+                          'Cart: Total custom prices available: ${state.lastCustomPrices.length}',
+                        );
+                      }
+                      print(
+                        'Cart Item: productId=${item.productId}, lastPrice=${lastPrice?.toStringAsFixed(2) ?? "null"}',
+                      );
+
                       return _buildCartItem(
                         context,
                         item,

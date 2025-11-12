@@ -190,14 +190,82 @@ class PosRepository {
     }
   }
 
+  /// Get last custom prices for ALL products a customer has purchased
+  /// Returns a map of productId -> lastCustomPrice (per unit with tax)
+  /// This method is more efficient as it doesn't require passing all product IDs
+  Future<Map<int, double>> getLastCustomPricesForCustomer(
+    int customerId,
+  ) async {
+    try {
+      print('getLastCustomPricesForCustomer: customerId=$customerId');
+
+      final result = await _db.rawQuery(
+        '''
+        SELECT
+          bi.product_id,
+          bi.total_amount,
+          bi.quantity,
+          b.created_at
+        FROM bill_items bi
+        INNER JOIN bills b ON bi.bill_id = b.id
+        WHERE b.customer_id = ?
+          AND b.is_deleted = 0
+          AND bi.is_deleted = 0
+        ORDER BY b.created_at DESC
+      ''',
+        [customerId],
+      );
+
+      print(
+        'getLastCustomPricesForCustomer: Found ${result.length} bill items',
+      );
+
+      final Map<int, double> prices = {};
+      final Set<int> processedProducts = {};
+
+      for (final row in result) {
+        final productId = row['product_id'] as int;
+
+        // Only take the first (most recent) price for each product
+        if (!processedProducts.contains(productId)) {
+          final totalAmount = row['total_amount'] as double;
+          final quantity = row['quantity'] as int;
+
+          if (quantity > 0) {
+            final pricePerUnit = totalAmount / quantity;
+            prices[productId] = pricePerUnit;
+          }
+
+          processedProducts.add(productId);
+        }
+      }
+
+      print(
+        'getLastCustomPricesForCustomer: Returning ${prices.length} prices',
+      );
+      return prices;
+    } catch (e) {
+      throw Exception('Failed to get last custom prices: $e');
+    }
+  }
+
   /// Get last custom prices for multiple products sold to a customer
   /// Returns a map of productId -> lastCustomPrice (per unit with tax)
+  /// Note: Use getLastCustomPricesForCustomer() instead for better performance
+  @Deprecated('Use getLastCustomPricesForCustomer() for better performance')
   Future<Map<int, double>> getLastCustomPrices(
     int customerId,
     List<int> productIds,
   ) async {
     try {
-      if (productIds.isEmpty) return {};
+      if (productIds.isEmpty) {
+        print('getLastCustomPrices: No product IDs provided');
+        return {};
+      }
+
+      print(
+        'getLastCustomPrices: customerId=$customerId, products=${productIds.length}',
+      );
 
       final placeholders = List.filled(productIds.length, '?').join(',');
 
@@ -219,6 +287,8 @@ class PosRepository {
         [customerId, ...productIds],
       );
 
+      print('getLastCustomPrices: Found ${result.length} bill items');
+
       final Map<int, double> prices = {};
       final Set<int> processedProducts = {};
 
@@ -231,13 +301,16 @@ class PosRepository {
           final quantity = row['quantity'] as int;
 
           if (quantity > 0) {
-            prices[productId] = totalAmount / quantity;
+            final pricePerUnit = totalAmount / quantity;
+            prices[productId] = pricePerUnit;
+            print('  Product $productId: ₹${pricePerUnit.toStringAsFixed(2)}');
           }
 
           processedProducts.add(productId);
         }
       }
 
+      print('getLastCustomPrices: Returning ${prices.length} prices');
       return prices;
     } catch (e) {
       throw Exception('Failed to get last custom prices: $e');

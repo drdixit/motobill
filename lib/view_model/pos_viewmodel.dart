@@ -207,6 +207,14 @@ class PosViewModel extends StateNotifier<PosState> {
         companyGstNumber: companyGst,
         isLoading: false,
       );
+
+      // Load custom prices if customer is already selected
+      if (state.selectedCustomer != null) {
+        print(
+          'loadInitialData: Customer already selected, loading custom prices',
+        );
+        selectCustomer(state.selectedCustomer);
+      }
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
@@ -556,18 +564,40 @@ class PosViewModel extends StateNotifier<PosState> {
     print('Company GST: ${state.companyGstNumber}');
 
     // Load last custom prices for this customer
+    // Only query for products that the customer has purchased before
+    // Use a simpler query without product ID filter to get all their purchases
     Map<int, double> customPrices = {};
     if (customer != null && customer.id != null && _repository != null) {
       try {
-        final productIds = state.allProducts.map((p) => p.id).toList();
-        customPrices = await _repository.getLastCustomPrices(
-          customer.id!,
-          productIds,
+        print(
+          'DEBUG: Loading all custom prices for customer ${customer.id}...',
         );
-        print('Loaded ${customPrices.length} custom prices for customer');
+
+        // Get ALL products this customer has bought (without filtering)
+        // This is more efficient than passing 42k product IDs
+        customPrices = await _repository.getLastCustomPricesForCustomer(
+          customer.id!,
+        );
+
+        print(
+          'Loaded ${customPrices.length} custom prices for customer ${customer.name}',
+        );
+
+        // Debug: Show product 22782 specifically
+        if (customPrices.containsKey(22782)) {
+          print(
+            '✓ Product 22782 (JZ511220) last price: ₹${customPrices[22782]!.toStringAsFixed(2)}',
+          );
+        } else {
+          print('✗ Product 22782 (JZ511220) not found in custom prices');
+        }
       } catch (e) {
         print('Failed to load custom prices: $e');
       }
+    } else {
+      print(
+        'DEBUG selectCustomer: Skipping price load - customer=${customer?.id}, repo=${_repository != null}',
+      );
     }
 
     // Recalculate all cart items with new GST logic when customer changes
@@ -591,13 +621,20 @@ class PosViewModel extends StateNotifier<PosState> {
         cartItems: updatedCart,
         lastCustomPrices: customPrices,
       );
+      print(
+        'DEBUG: State updated WITH cart items. lastCustomPrices in state: ${state.lastCustomPrices.length}',
+      );
     } else {
       state = state.copyWith(
         selectedCustomer: customer,
         clearCustomer: customer == null,
         lastCustomPrices: customPrices,
       );
+      print(
+        'DEBUG: State updated WITHOUT cart items. lastCustomPrices in state: ${state.lastCustomPrices.length}',
+      );
     }
+    print('=== SELECT CUSTOMER COMPLETED ===\n');
   }
 
   Future<void> refreshCustomersAndSelect(int customerId) async {
@@ -854,8 +891,13 @@ class PosViewModel extends StateNotifier<PosState> {
         );
       }
 
-      // Clear cart and refresh products after successful bill creation
-      state = state.copyWith(cartItems: [], isLoading: false);
+      // Clear cart, customer, and custom prices after successful bill creation
+      state = state.copyWith(
+        cartItems: [],
+        isLoading: false,
+        clearCustomer: true,
+        lastCustomPrices: {},
+      );
 
       // Reload products to reflect updated stock levels
       await loadInitialData();
