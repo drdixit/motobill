@@ -1049,6 +1049,20 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                                       if (minValue == null || minValue < 0) {
                                         return 'Invalid Min';
                                       }
+
+                                      // Check if both min and max are set and not zero
+                                      final maxText = _maxController.text
+                                          .trim();
+                                      if (maxText.isNotEmpty) {
+                                        final maxValue = int.tryParse(maxText);
+                                        if (maxValue != null &&
+                                            maxValue > 0 &&
+                                            minValue > 0) {
+                                          if (minValue >= maxValue) {
+                                            return 'Min must be less than Max';
+                                          }
+                                        }
+                                      }
                                     }
                                     return null;
                                   },
@@ -1086,6 +1100,20 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                                       final maxValue = int.tryParse(value);
                                       if (maxValue == null || maxValue < 0) {
                                         return 'Invalid Max';
+                                      }
+
+                                      // Check if both min and max are set and not zero
+                                      final minText = _minController.text
+                                          .trim();
+                                      if (minText.isNotEmpty) {
+                                        final minValue = int.tryParse(minText);
+                                        if (minValue != null &&
+                                            minValue > 0 &&
+                                            maxValue > 0) {
+                                          if (maxValue <= minValue) {
+                                            return 'Max must be greater than Min';
+                                          }
+                                        }
                                       }
                                     }
                                     return null;

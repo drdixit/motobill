@@ -45,8 +45,8 @@ class ProductRepository {
         INSERT INTO products (
           name, part_number, description, hsn_code_id, uqc_id,
           cost_price, selling_price, mrp, sub_category_id, manufacturer_id,
-          is_taxable, negative_allow, is_enabled, is_deleted, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, 0, datetime('now'), datetime('now'))
+          is_taxable, negative_allow, is_enabled, min, max, is_deleted, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 0, datetime('now'), datetime('now'))
       ''',
         [
           product.name,
@@ -61,6 +61,8 @@ class ProductRepository {
           product.manufacturerId,
           product.negativeAllow ? 1 : 0,
           product.isEnabled ? 1 : 0,
+          product.min,
+          product.max,
         ],
       );
       return id;
@@ -86,7 +88,7 @@ class ProductRepository {
         UPDATE products SET
           name = ?, part_number = ?, description = ?, hsn_code_id = ?, uqc_id = ?,
           cost_price = ?, selling_price = ?, mrp = ?, sub_category_id = ?, manufacturer_id = ?,
-          is_taxable = 1, negative_allow = ?, is_enabled = ?, updated_at = datetime('now')
+          is_taxable = 1, negative_allow = ?, is_enabled = ?, min = ?, max = ?, updated_at = datetime('now')
         WHERE id = ?
       ''',
         [
@@ -102,6 +104,8 @@ class ProductRepository {
           product.manufacturerId,
           product.negativeAllow ? 1 : 0,
           product.isEnabled ? 1 : 0,
+          product.min,
+          product.max,
           product.id,
         ],
       );

@@ -27,6 +27,8 @@ class PosRepository {
           p.mrp,
           p.is_taxable,
           p.negative_allow,
+          p.min,
+          p.max,
           p.hsn_code_id,
           p.uqc_id,
           p.sub_category_id,

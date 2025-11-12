@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 class PosProduct {
   final int id;
   final String name;
@@ -25,6 +27,8 @@ class PosProduct {
   final int taxableStock;
   final int nonTaxableStock;
   final bool negativeAllow;
+  final int min;
+  final int max;
 
   PosProduct({
     required this.id,
@@ -53,6 +57,8 @@ class PosProduct {
     required this.taxableStock,
     required this.nonTaxableStock,
     required this.negativeAllow,
+    required this.min,
+    required this.max,
   });
 
   factory PosProduct.fromJson(Map<String, dynamic> json) {
@@ -91,6 +97,8 @@ class PosProduct {
       taxableStock: (json['taxable_stock'] as num?)?.toInt() ?? 0,
       nonTaxableStock: (json['non_taxable_stock'] as num?)?.toInt() ?? 0,
       negativeAllow: (json['negative_allow'] as int?) == 1,
+      min: (json['min'] as int?) ?? 0,
+      max: (json['max'] as int?) ?? 0,
     );
   }
 
@@ -105,5 +113,29 @@ class PosProduct {
       // Non-taxable bill: can use both taxable and non-taxable stock
       return taxableStock + nonTaxableStock;
     }
+  }
+
+  /// Get background color tint based on stock level vs min/max
+  /// Returns null for normal background (no tint)
+  /// Returns red tint if stock is below min
+  /// Returns blue tint if stock is above max
+  Color? getStockLevelColor() {
+    // If both min and max are 0, no checking needed
+    if (min == 0 && max == 0) {
+      return null;
+    }
+
+    // Check min condition (if min is set)
+    if (min > 0 && stock < min) {
+      return Colors.red.withOpacity(0.08); // Slight red tint
+    }
+
+    // Check max condition (if max is set)
+    if (max > 0 && stock > max) {
+      return Colors.blue.withOpacity(0.08); // Slight blue tint
+    }
+
+    // Stock is within acceptable range or no limits set
+    return null;
   }
 }
