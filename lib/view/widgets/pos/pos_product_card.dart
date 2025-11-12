@@ -20,12 +20,9 @@ class PosProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Get background color based on stock level vs min/max
-    final backgroundColor = product.getStockLevelColor() ?? AppColors.surface;
-
     return Card(
       elevation: 1,
-      color: backgroundColor,
+      color: AppColors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppSizes.radiusM),
         side: BorderSide(color: AppColors.border, width: 0.5),
@@ -103,7 +100,9 @@ class PosProductCard extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.9),
+                  color:
+                      product.getStockLevelColor() ??
+                      Colors.white.withOpacity(0.9),
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(
                     color: product.negativeAllow
