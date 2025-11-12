@@ -109,6 +109,7 @@ final purchaseHasReturnableStockProvider = FutureProvider.family<bool, int>((
         .toInt();
   }
 
+  // Both auto-purchases and regular purchases require stock to be available
   // Get available stock
   final availableStock = await debitNoteRepo.getAvailableStockForPurchase(
     purchaseId,
@@ -1806,6 +1807,7 @@ class _CreateDebitNoteScreenState extends ConsumerState<CreateDebitNoteScreen> {
                                           _returnQuantities[id] ?? 0;
 
                                       // Maximum returnable is minimum of remaining and available stock
+                                      // This applies to both auto-purchases and regular purchases
                                       final maxReturnable =
                                           remaining < availableStock
                                           ? remaining
@@ -2091,6 +2093,7 @@ class _CreateDebitNoteScreenState extends ConsumerState<CreateDebitNoteScreen> {
       ref.invalidate(purchaseItemsProvider(widget.purchaseId));
       ref.invalidate(returnedQuantitiesForPurchaseProvider(widget.purchaseId));
       ref.invalidate(availableStockForPurchaseProvider(widget.purchaseId));
+      ref.invalidate(purchaseHasReturnableStockProvider(widget.purchaseId));
       ref.invalidate(debitNotesForPurchaseProvider(widget.purchaseId));
 
       ScaffoldMessenger.of(

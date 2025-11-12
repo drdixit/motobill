@@ -2428,6 +2428,8 @@ class _CreateCreditNoteScreenState
       // Refresh available stock for all purchases that might be affected
       // This ensures debit note screens show correct available stock after credit note
       ref.invalidate(availableStockForPurchaseProvider);
+      // Refresh returnable stock check so Create Debit Note button appears/disappears correctly
+      ref.invalidate(purchaseHasReturnableStockProvider);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Credit Note $newId created')));
