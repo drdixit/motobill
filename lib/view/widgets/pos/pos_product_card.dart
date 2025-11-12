@@ -100,9 +100,7 @@ class PosProductCard extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                 decoration: BoxDecoration(
-                  color:
-                      product.getStockLevelColor() ??
-                      Colors.white.withOpacity(0.9),
+                  color: Colors.white.withOpacity(0.9),
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(
                     color: product.negativeAllow
@@ -184,7 +182,9 @@ class PosProductCard extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.9),
+                    color:
+                        product.getStockLevelColor() ??
+                        Colors.white.withOpacity(0.9),
                     shape: BoxShape.circle,
                     border: Border.all(
                       color: AppColors.primary.withOpacity(0.3),
@@ -444,6 +444,8 @@ class PosProductCard extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSizes.paddingS),
                 _buildStockRow(),
+                if (product.min > 0 || product.max > 0)
+                  _buildInfoRow('Min / Max', '${product.min} / ${product.max}'),
                 if (product.negativeAllow)
                   _buildInfoRow(
                     'Negative Allowed',
