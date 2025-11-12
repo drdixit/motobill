@@ -19,6 +19,74 @@ class ProductRepository {
     }
   }
 
+  // Get products with pagination for better performance
+  Future<List<Product>> getProductsPaginated({
+    required int limit,
+    required int offset,
+    String? searchQuery,
+  }) async {
+    try {
+      String query = '''
+        SELECT * FROM products
+        WHERE is_deleted = 0
+      ''';
+
+      final params = <dynamic>[];
+
+      if (searchQuery != null && searchQuery.isNotEmpty) {
+        query += '''
+          AND (
+            LOWER(name) LIKE LOWER(?) OR
+            LOWER(part_number) LIKE LOWER(?) OR
+            LOWER(description) LIKE LOWER(?)
+          )
+        ''';
+        final searchPattern = '%$searchQuery%';
+        params.addAll([searchPattern, searchPattern, searchPattern]);
+      }
+
+      query += '''
+        ORDER BY name
+        LIMIT ? OFFSET ?
+      ''';
+      params.addAll([limit, offset]);
+
+      final result = await _db.rawQuery(query, params);
+      return result.map((json) => Product.fromJson(json)).toList();
+    } catch (e) {
+      throw Exception('Failed to get paginated products: $e');
+    }
+  }
+
+  // Get total count of products (for pagination)
+  Future<int> getProductsCount({String? searchQuery}) async {
+    try {
+      String query = '''
+        SELECT COUNT(*) as count FROM products
+        WHERE is_deleted = 0
+      ''';
+
+      final params = <dynamic>[];
+
+      if (searchQuery != null && searchQuery.isNotEmpty) {
+        query += '''
+          AND (
+            LOWER(name) LIKE LOWER(?) OR
+            LOWER(part_number) LIKE LOWER(?) OR
+            LOWER(description) LIKE LOWER(?)
+          )
+        ''';
+        final searchPattern = '%$searchQuery%';
+        params.addAll([searchPattern, searchPattern, searchPattern]);
+      }
+
+      final result = await _db.rawQuery(query, params);
+      return result.first['count'] as int;
+    } catch (e) {
+      throw Exception('Failed to get products count: $e');
+    }
+  }
+
   Future<Product?> getProductById(int id) async {
     try {
       final result = await _db.rawQuery(

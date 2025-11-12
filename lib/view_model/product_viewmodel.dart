@@ -50,6 +50,7 @@ class ProductViewModel extends StateNotifier<ProductState> {
     if (_repository == null) return;
     state = state.copyWith(isLoading: true, error: null);
     try {
+      // Load ALL products at once for instant search/edit
       final products = await _repository.getAllProducts();
       state = state.copyWith(products: products, isLoading: false);
     } catch (e) {
@@ -202,14 +203,14 @@ final uqcsListProvider = FutureProvider<List<Uqc>>((ref) async {
   return await repository.getAllUqcs();
 });
 
-// Product Images Provider
-final productImagesProvider = FutureProvider.family<List<ProductImage>, int>((
-  ref,
-  productId,
-) async {
-  final repository = await ref.watch(productRepositoryProvider.future);
-  return await repository.getProductImages(productId);
-});
+// Product Images Provider with aggressive caching
+final productImagesProvider = FutureProvider.family
+    .autoDispose<List<ProductImage>, int>((ref, productId) async {
+      // Keep the provider alive to prevent disposal during fast scrolling
+      ref.keepAlive();
+      final repository = await ref.watch(productRepositoryProvider.future);
+      return await repository.getProductImages(productId);
+    });
 
 // Product Provider
 final productViewModelProvider =
