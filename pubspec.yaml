@@ -47,6 +47,8 @@ dependencies:
   http: ^1.2.2
   xxh3: ^1.0.1
   crypto: ^3.0.3
+  archive: ^3.6.1
+  intl: ^0.19.0
 
 dev_dependencies:
   flutter_test:
