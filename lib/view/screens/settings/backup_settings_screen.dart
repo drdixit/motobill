@@ -36,184 +36,247 @@ class BackupSettingsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: AppSizes.paddingXL),
 
-            // Backup Location Section
-            Container(
-              padding: const EdgeInsets.all(AppSizes.paddingL),
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(AppSizes.radiusM),
-                border: Border.all(color: AppColors.divider),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.folder_outlined,
-                        size: 24,
-                        color: AppColors.primary,
-                      ),
-                      const SizedBox(width: AppSizes.paddingS),
-                      Text(
-                        'Backup Location',
-                        style: TextStyle(
-                          fontSize: AppSizes.fontL,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                          fontFamily: 'Roboto',
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSizes.paddingM),
-                  Container(
-                    padding: const EdgeInsets.all(AppSizes.paddingM),
+            // Two sections side by side
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Backup Location Section (Left)
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(AppSizes.paddingL),
                     decoration: BoxDecoration(
-                      color: AppColors.backgroundSecondary,
-                      borderRadius: BorderRadius.circular(AppSizes.radiusS),
+                      color: AppColors.white,
+                      borderRadius: BorderRadius.circular(AppSizes.radiusM),
                       border: Border.all(color: AppColors.divider),
                     ),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
-                          Icons.location_on_outlined,
-                          size: 20,
-                          color: AppColors.textSecondary,
-                        ),
-                        const SizedBox(width: AppSizes.paddingS),
-                        Expanded(
-                          child: Text(
-                            backupState.backupLocation ??
-                                'No backup location set',
-                            style: TextStyle(
-                              fontSize: AppSizes.fontM,
-                              color:
-                                  backupState.backupLocation != null &&
-                                      backupState.backupLocation !=
-                                          'No backup location set'
-                                  ? AppColors.textPrimary
-                                  : AppColors.textSecondary,
-                              fontFamily: 'Roboto',
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.folder_outlined,
+                              size: 24,
+                              color: AppColors.primary,
                             ),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 2,
+                            const SizedBox(width: AppSizes.paddingS),
+                            Text(
+                              'Backup Location',
+                              style: TextStyle(
+                                fontSize: AppSizes.fontL,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                                fontFamily: 'Roboto',
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSizes.paddingM),
+                        Container(
+                          padding: const EdgeInsets.all(AppSizes.paddingM),
+                          decoration: BoxDecoration(
+                            color: AppColors.backgroundSecondary,
+                            borderRadius: BorderRadius.circular(
+                              AppSizes.radiusS,
+                            ),
+                            border: Border.all(color: AppColors.divider),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.location_on_outlined,
+                                size: 20,
+                                color: AppColors.textSecondary,
+                              ),
+                              const SizedBox(width: AppSizes.paddingS),
+                              Expanded(
+                                child: Text(
+                                  backupState.backupLocation ??
+                                      'No backup location set',
+                                  style: TextStyle(
+                                    fontSize: AppSizes.fontM,
+                                    color:
+                                        backupState.backupLocation != null &&
+                                            backupState.backupLocation !=
+                                                'No backup location set'
+                                        ? AppColors.textPrimary
+                                        : AppColors.textSecondary,
+                                    fontFamily: 'Roboto',
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: AppSizes.paddingM),
+                        ElevatedButton.icon(
+                          onPressed: backupState.isLoading
+                              ? null
+                              : () {
+                                  ref
+                                      .read(backupViewModelProvider.notifier)
+                                      .selectBackupFolder();
+                                },
+                          icon: const Icon(Icons.folder_open, size: 20),
+                          label: const Text('Select Backup Folder'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: AppColors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSizes.paddingL,
+                              vertical: AppSizes.paddingM,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppSizes.radiusS,
+                              ),
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: AppSizes.paddingM),
-                  ElevatedButton.icon(
-                    onPressed: backupState.isLoading
-                        ? null
-                        : () {
-                            ref
-                                .read(backupViewModelProvider.notifier)
-                                .selectBackupFolder();
-                          },
-                    icon: const Icon(Icons.folder_open, size: 20),
-                    label: const Text('Select Backup Folder'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: AppColors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSizes.paddingL,
-                        vertical: AppSizes.paddingM,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppSizes.radiusS),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: AppSizes.paddingXL),
+                ),
+                const SizedBox(width: AppSizes.paddingL),
 
-            // Create Backup Section
-            Container(
-              padding: const EdgeInsets.all(AppSizes.paddingL),
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(AppSizes.radiusM),
-                border: Border.all(color: AppColors.divider),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.save_outlined,
-                        size: 24,
-                        color: AppColors.success,
-                      ),
-                      const SizedBox(width: AppSizes.paddingS),
-                      Text(
-                        'Create Backup',
-                        style: TextStyle(
-                          fontSize: AppSizes.fontL,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                          fontFamily: 'Roboto',
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSizes.paddingM),
-                  Text(
-                    'Creates a compressed backup of your database folder including all data and images.',
-                    style: TextStyle(
-                      fontSize: AppSizes.fontM,
-                      color: AppColors.textSecondary,
-                      fontFamily: 'Roboto',
+                // Create Backup Section (Right)
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(AppSizes.paddingL),
+                    decoration: BoxDecoration(
+                      color: AppColors.white,
+                      borderRadius: BorderRadius.circular(AppSizes.radiusM),
+                      border: Border.all(color: AppColors.divider),
                     ),
-                  ),
-                  const SizedBox(height: AppSizes.paddingL),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: backupState.isLoading
-                          ? null
-                          : () {
-                              ref
-                                  .read(backupViewModelProvider.notifier)
-                                  .createBackup();
-                            },
-                      icon: backupState.isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.save_outlined,
+                              size: 24,
+                              color: AppColors.success,
+                            ),
+                            const SizedBox(width: AppSizes.paddingS),
+                            Text(
+                              'Create Backup',
+                              style: TextStyle(
+                                fontSize: AppSizes.fontL,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                                fontFamily: 'Roboto',
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSizes.paddingM),
+                        Text(
+                          'Creates a compressed backup of your database folder including all data and images.',
+                          style: TextStyle(
+                            fontSize: AppSizes.fontM,
+                            color: AppColors.textSecondary,
+                            fontFamily: 'Roboto',
+                          ),
+                        ),
+                        const SizedBox(height: AppSizes.paddingL),
+
+                        // Progress bar when loading
+                        if (backupState.isLoading) ...[
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Creating backup...',
+                                    style: TextStyle(
+                                      fontSize: AppSizes.fontS,
+                                      color: AppColors.textSecondary,
+                                      fontFamily: 'Roboto',
+                                    ),
+                                  ),
+                                  Text(
+                                    '${(backupState.progress * 100).toInt()}%',
+                                    style: TextStyle(
+                                      fontSize: AppSizes.fontS,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.success,
+                                      fontFamily: 'Roboto',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: AppSizes.paddingS),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: LinearProgressIndicator(
+                                  value: backupState.progress,
+                                  backgroundColor: AppColors.divider
+                                      .withOpacity(0.3),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    AppColors.success,
+                                  ),
+                                  minHeight: 8,
                                 ),
                               ),
-                            )
-                          : const Icon(Icons.backup, size: 20),
-                      label: Text(
-                        backupState.isLoading
-                            ? 'Creating Backup...'
-                            : 'Create Backup Now',
-                        style: const TextStyle(fontSize: AppSizes.fontL),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.success,
-                        foregroundColor: AppColors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSizes.paddingXL,
-                          vertical: AppSizes.paddingL,
+                              const SizedBox(height: AppSizes.paddingL),
+                            ],
+                          ),
+                        ],
+
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: backupState.isLoading
+                                ? null
+                                : () {
+                                    ref
+                                        .read(backupViewModelProvider.notifier)
+                                        .createBackup();
+                                  },
+                            icon: backupState.isLoading
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white,
+                                      ),
+                                    ),
+                                  )
+                                : const Icon(Icons.backup, size: 20),
+                            label: Text(
+                              backupState.isLoading
+                                  ? 'Creating Backup...'
+                                  : 'Create Backup Now',
+                              style: const TextStyle(fontSize: AppSizes.fontL),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.success,
+                              foregroundColor: AppColors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSizes.paddingXL,
+                                vertical: AppSizes.paddingL,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppSizes.radiusS,
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppSizes.radiusS),
-                        ),
-                      ),
+                      ],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
 
             // Error Message
@@ -299,59 +362,6 @@ class BackupSettingsScreen extends ConsumerWidget {
                 ),
               ),
             ],
-
-            const SizedBox(height: AppSizes.paddingXL),
-
-            // Info Section
-            Container(
-              padding: const EdgeInsets.all(AppSizes.paddingL),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(AppSizes.radiusM),
-                border: Border.all(
-                  color: AppColors.primary.withOpacity(0.2),
-                  width: 1,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.info_outline,
-                        color: AppColors.primary,
-                        size: 20,
-                      ),
-                      const SizedBox(width: AppSizes.paddingS),
-                      Text(
-                        'Backup Information',
-                        style: TextStyle(
-                          fontSize: AppSizes.fontM,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primary,
-                          fontFamily: 'Roboto',
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSizes.paddingM),
-                  Text(
-                    '• Backup file format: HH_MM_SS__DD_MM_YYYY.zip\n'
-                    '• Includes: Database, images, and all related files\n'
-                    '• Location: C:/motobill/database\n'
-                    '• Backup files are compressed to save space\n'
-                    '• Keep backups in a safe, external location',
-                    style: TextStyle(
-                      fontSize: AppSizes.fontS,
-                      color: AppColors.textSecondary,
-                      height: 1.6,
-                      fontFamily: 'Roboto',
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),

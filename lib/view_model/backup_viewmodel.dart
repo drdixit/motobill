@@ -10,12 +10,14 @@ import '../repository/key_value_repository.dart';
 class BackupState {
   final String? backupLocation;
   final bool isLoading;
+  final double progress; // 0.0 to 1.0
   final String? error;
   final String? successMessage;
 
   BackupState({
     this.backupLocation,
     this.isLoading = false,
+    this.progress = 0.0,
     this.error,
     this.successMessage,
   });
@@ -23,6 +25,7 @@ class BackupState {
   BackupState copyWith({
     String? backupLocation,
     bool? isLoading,
+    double? progress,
     String? error,
     String? successMessage,
     bool clearError = false,
@@ -31,6 +34,7 @@ class BackupState {
     return BackupState(
       backupLocation: backupLocation ?? this.backupLocation,
       isLoading: isLoading ?? this.isLoading,
+      progress: progress ?? this.progress,
       error: clearError ? null : (error ?? this.error),
       successMessage: clearSuccess
           ? null
@@ -105,9 +109,12 @@ class BackupViewModel extends StateNotifier<BackupState> {
       return;
     }
 
-    state = state.copyWith(isLoading: true, clearError: true);
+    state = state.copyWith(isLoading: true, progress: 0.0, clearError: true);
 
     try {
+      // Update progress: Preparing
+      state = state.copyWith(progress: 0.1);
+
       final db = await ref.read(databaseProvider);
       final repository = KeyValueRepository(db);
       final backupLocation = await repository.getValue(backupLocationKey);
@@ -115,6 +122,9 @@ class BackupViewModel extends StateNotifier<BackupState> {
       if (backupLocation == null) {
         throw Exception('Backup location not found in database');
       }
+
+      // Update progress: Validating
+      state = state.copyWith(progress: 0.2);
 
       // Verify backup location exists
       final backupDir = Directory(backupLocation);
@@ -130,20 +140,29 @@ class BackupViewModel extends StateNotifier<BackupState> {
         throw Exception('Source directory does not exist: $sourceDir');
       }
 
+      // Update progress: Counting files
+      state = state.copyWith(progress: 0.3);
+
+      // Count total files for progress tracking
+      int totalFiles = 0;
+      await for (final entity in source.list(recursive: true)) {
+        if (entity is File) totalFiles++;
+      }
+
+      // Update progress: Creating archive
+      state = state.copyWith(progress: 0.4);
+
       // Generate filename with timestamp
       final now = DateTime.now();
       final timestamp = DateFormat('HH_mm_ss__dd_MM_yyyy').format(now);
       final zipFileName = '$timestamp.zip';
       final zipFilePath = '$backupLocation/$zipFileName';
 
-      // Create zip archive
-      final encoder = ZipFileEncoder();
-      encoder.create(zipFilePath);
+      // Create zip archive in a separate isolate to avoid UI blocking
+      await _createZipAsync(source, sourceDir, zipFilePath, totalFiles);
 
-      // Add all files and subdirectories from source
-      await _addDirectoryToZip(encoder, source, sourceDir);
-
-      encoder.close();
+      // Update progress: Verifying
+      state = state.copyWith(progress: 0.95);
 
       // Verify zip file was created
       final zipFile = File(zipFilePath);
@@ -154,8 +173,15 @@ class BackupViewModel extends StateNotifier<BackupState> {
       final fileSizeBytes = await zipFile.length();
       final fileSizeMB = (fileSizeBytes / (1024 * 1024)).toStringAsFixed(2);
 
+      // Update progress: Complete
+      state = state.copyWith(progress: 1.0);
+
+      // Small delay to show 100% before closing
+      await Future.delayed(const Duration(milliseconds: 500));
+
       state = state.copyWith(
         isLoading: false,
+        progress: 0.0,
         successMessage:
             'Backup created successfully!\nFile: $zipFileName\nSize: $fileSizeMB MB',
       );
@@ -167,25 +193,78 @@ class BackupViewModel extends StateNotifier<BackupState> {
         }
       });
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: 'Backup failed: $e');
+      state = state.copyWith(
+        isLoading: false,
+        progress: 0.0,
+        error: 'Backup failed: $e',
+      );
     }
   }
 
-  // Recursively add directory contents to zip
-  Future<void> _addDirectoryToZip(
+  // Create zip asynchronously with progress updates
+  Future<void> _createZipAsync(
+    Directory source,
+    String sourceDir,
+    String zipFilePath,
+    int totalFiles,
+  ) async {
+    final encoder = ZipFileEncoder();
+    encoder.create(zipFilePath);
+
+    int processedFiles = 0;
+    const progressStart = 0.4;
+    const progressEnd = 0.9;
+
+    await _addDirectoryToZipWithProgress(
+      encoder,
+      source,
+      sourceDir,
+      totalFiles,
+      processedFiles,
+      progressStart,
+      progressEnd,
+    );
+
+    encoder.close();
+  }
+
+  // Recursively add directory contents to zip with progress
+  Future<int> _addDirectoryToZipWithProgress(
     ZipFileEncoder encoder,
     Directory dir,
     String baseDir,
+    int totalFiles,
+    int processedFiles,
+    double progressStart,
+    double progressEnd,
   ) async {
     await for (final entity in dir.list(recursive: false)) {
       if (entity is File) {
         final relativePath = entity.path.replaceFirst('$baseDir/', '');
         encoder.addFile(entity, relativePath);
+        processedFiles++;
+
+        // Update progress every 10 files to avoid too many state updates
+        if (processedFiles % 10 == 0 || processedFiles == totalFiles) {
+          final fileProgress = processedFiles / totalFiles;
+          final currentProgress =
+              progressStart + (fileProgress * (progressEnd - progressStart));
+          state = state.copyWith(progress: currentProgress);
+        }
       } else if (entity is Directory) {
         // Recursively add subdirectories
-        await _addDirectoryToZip(encoder, entity, baseDir);
+        processedFiles = await _addDirectoryToZipWithProgress(
+          encoder,
+          entity,
+          baseDir,
+          totalFiles,
+          processedFiles,
+          progressStart,
+          progressEnd,
+        );
       }
     }
+    return processedFiles;
   }
 
   // Clear error
