@@ -465,24 +465,23 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
               ),
               const SizedBox(width: 12),
             ],
-            // Description - Reduced flexible space (if present)
+            // Description - Fixed space (if present)
             if (product.description != null && product.description!.isNotEmpty)
-              Flexible(
-                child: Container(
-                  alignment: Alignment.centerLeft,
-                  constraints: const BoxConstraints(maxWidth: 150),
-                  child: Text(
-                    product.description!,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+              SizedBox(
+                width: 150,
+                child: Text(
+                  product.description!,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-            if (product.description == null || product.description!.isEmpty)
-              const Spacer(),
+            if (product.description != null && product.description!.isNotEmpty)
+              const SizedBox(width: 12),
+            // Spacer to push buttons to the right consistently
+            const Spacer(),
             const SizedBox(width: 12),
             // Action buttons
             Row(

@@ -4,6 +4,7 @@ import '../../core/constants/app_sizes.dart';
 import 'settings/company_settings_screen.dart';
 import 'settings/whatsapp_settings_screen.dart';
 import 'settings/printer_settings_screen.dart';
+import 'settings/backup_settings_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -11,7 +12,7 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         backgroundColor: AppColors.background,
         body: Column(
@@ -42,6 +43,7 @@ class SettingsScreen extends StatelessWidget {
                   Tab(text: 'Company'),
                   Tab(text: 'WhatsApp'),
                   Tab(text: 'Printer'),
+                  Tab(text: 'Backup'),
                 ],
               ),
             ),
@@ -52,6 +54,7 @@ class SettingsScreen extends StatelessWidget {
                   CompanySettingsScreen(),
                   WhatsappSettingsScreen(),
                   PrinterSettingsScreen(),
+                  BackupSettingsScreen(),
                 ],
               ),
             ),
